@@ -42,9 +42,6 @@ function ClientProfile() {
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(true);
   const [phoneCode, setPhoneCode] = useState("+20");
 
-  const [skills, setSkills] = useState(["ui/ux", "React", "Python", "AI"]);
-  const [newSkill, setNewSkill] = useState("");
-
   const [paymentMethods, setPaymentMethods] = useState([
     "Bank Account",
     "PayPal",
@@ -153,27 +150,8 @@ function ClientProfile() {
       setSavedProfile(null);
       setIsEditing(true);
       setPhoneCode("+20");
-      setSkills([]);
       setPaymentMethods([]);
-      setNewSkill("");
     }
-  };
-
-  const handleAddSkill = () => {
-    const trimmedSkill = newSkill.trim();
-
-    if (!trimmedSkill) return;
-    if (skills.includes(trimmedSkill)) {
-      setNewSkill("");
-      return;
-    }
-
-    setSkills((prev) => [...prev, trimmedSkill]);
-    setNewSkill("");
-  };
-
-  const handleRemoveSkill = (skillToRemove) => {
-    setSkills((prev) => prev.filter((skill) => skill !== skillToRemove));
   };
 
   const handleAddPaymentMethod = () => {
@@ -503,49 +481,6 @@ function ClientProfile() {
               </div>
               <p className="mt-1 text-[15px] text-[#667085]">Client Ranking</p>
             </div>
-          </div>
-        </div>
-
-        <div className="mt-8 border-t border-[#E5E7EB]" />
-
-        <div className="pt-8">
-          <h2 className="text-[18px] font-semibold text-[#111827]">Skills</h2>
-
-          <div className="mt-6 flex flex-wrap gap-4">
-            {skills.map((skill, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 bg-[#D9EFEF] text-[#667085] px-6 h-[36px] rounded-full text-[14px]"
-              >
-                <span>{skill}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveSkill(skill)}
-                  className="text-[#6B7280] hover:text-black"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 flex flex-col md:flex-row gap-4">
-            <input
-              type="text"
-              value={newSkill}
-              onChange={(e) => setNewSkill(e.target.value)}
-              placeholder="Add a skill..."
-              className="flex-1 h-[48px] rounded-[10px] border border-[#D1D5DB] px-4 text-[14px] outline-none focus:border-[#0B6B63] placeholder:text-[#A3A3A3]"
-            />
-
-            <button
-              type="button"
-              onClick={handleAddSkill}
-              className="min-w-[136px] h-[48px] rounded-[10px] bg-[#0B6B63] text-white text-[16px] font-medium flex items-center justify-center gap-2 hover:opacity-90 transition"
-            >
-              <Plus size={18} />
-              Add Skill
-            </button>
           </div>
         </div>
 

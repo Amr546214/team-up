@@ -16,7 +16,6 @@ import {
   XMarkIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
-import { getInitialJobs } from "../../../services/fakeApi";
 
 const emptyForm = {
   title: "",
@@ -71,19 +70,25 @@ export default function App() {
     } catch {
       saved = [];
     }
-    return [...saved, ...getInitialJobs()];
+    return saved;
   });
   const [detailsJob, setDetailsJob] = useState(null);
   const [editJob, setEditJob] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
 
+  // Helper to save jobs to both state and localStorage
+  function saveJobs(nextJobs) {
+    setJobs(nextJobs);
+    window.localStorage.setItem("client_jobs", JSON.stringify(nextJobs));
+  }
+
   const stats = useMemo(
     () => [
-      { id: 1, number: 3, label: "Total Posts", type: "posts" },
-      { id: 2, number: 12, label: "Applied Project", type: "applied" },
-      { id: 3, number: 156, label: "Total Application", type: "applications" },
+      { id: 1, number: jobs.length, label: "Total Posts", type: "posts" },
+      { id: 2, number: 0, label: "Applied Project", type: "applied" },
+      { id: 3, number: jobs.reduce((sum, job) => sum + (job.applications || 0), 0), label: "Total Application", type: "applications" },
     ],
-    []
+    [jobs]
   );
 
   const openEditModal = (job) => {
@@ -105,7 +110,8 @@ export default function App() {
   };
 
   const handleDelete = (id) => {
-    setJobs((prev) => prev.filter((job) => job.id !== id));
+    const nextJobs = jobs.filter((job) => job.id !== id);
+    saveJobs(nextJobs);
 
     if (detailsJob?.id === id) setDetailsJob(null);
     if (editJob?.id === id) closeEditModal();
@@ -138,7 +144,7 @@ export default function App() {
         : job
     );
 
-    setJobs(updatedJobs);
+    saveJobs(updatedJobs);
 
     const updatedSelected = updatedJobs.find((job) => job.id === editJob.id);
     if (detailsJob?.id === editJob.id) {
@@ -156,8 +162,9 @@ export default function App() {
             <div className="flex items-center gap-[10px]">
               <button
                 type="button"
-                aria-label="Go back"
-                className="grid h-[24px] w-[24px] place-items-center bg-transparent p-0"
+                aria-label="Go back to profile"
+                onClick={() => navigate("/client/profile")}
+                className="grid h-[24px] w-[24px] place-items-center bg-transparent p-0 cursor-pointer"
               >
                 <ArrowLeftIcon className="h-[21px] w-[21px] stroke-[2] text-[#1b1c1e]" />
               </button>
@@ -205,119 +212,131 @@ export default function App() {
         </section>
 
         <section className="flex flex-col gap-[12px]">
-          {jobs.map((job) => {
-            const isClosed = job.status === "Closed";
+          {jobs.length === 0 ? (
+            <div className="rounded-[8px] bg-white px-[18px] py-[40px] text-center">
+              <BriefcaseIcon className="mx-auto h-[48px] w-[48px] text-[#a0a8b6] stroke-[1.5] mb-4" />
+              <h3 className="text-[16px] font-semibold text-[#374151] mb-2">
+                No job posts yet
+              </h3>
+              <p className="text-[14px] text-[#6b7280]">
+                Create your first job post to start finding the perfect team.
+              </p>
+            </div>
+          ) : (
+            jobs.map((job) => {
+              const isClosed = job.status === "Closed";
 
-            return (
-              <article
-                key={job.id}
-                className={`rounded-[8px] px-[18px] py-[14px] ${
-                  job.isNew
-                    ? "border border-[#0e6b67] bg-[#ECFDFC]"
-                    : isClosed
-                      ? "bg-[#f9f9fa]"
-                      : "bg-white"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-[22px] max-[900px]:flex-col max-[900px]:items-start">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-[16px] flex items-center gap-[24px]">
-                      <h2
-                        className={`m-0 text-[15.5px] font-bold leading-[1.2] ${
-                          isClosed ? "text-[#707887]" : "text-[#0e6b67]"
-                        }`}
-                      >
-                        {job.title}
-                      </h2>
+              return (
+                <article
+                  key={job.id}
+                  className={`rounded-[8px] px-[18px] py-[14px] ${
+                    job.isNew
+                      ? "border border-[#0e6b67] bg-[#ECFDFC]"
+                      : isClosed
+                        ? "bg-[#f9f9fa]"
+                        : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-[22px] max-[900px]:flex-col max-[900px]:items-start">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-[16px] flex items-center gap-[24px]">
+                        <h2
+                          className={`m-0 text-[15.5px] font-bold leading-[1.2] ${
+                            isClosed ? "text-[#707887]" : "text-[#0e6b67]"
+                          }`}
+                        >
+                          {job.title}
+                        </h2>
 
-                      <StatusBadge status={job.status} />
-                    </div>
-
-                    <div className="mb-[17px] flex flex-wrap items-center gap-[22px]">
-                      <div className="inline-flex items-center gap-[7px] text-[13px] font-normal text-[#a0a8b6]">
-                        <MapPinIcon className="h-[15px] w-[15px] stroke-[1.9] text-[#a0a8b6]" />
-                        <span>{job.location}</span>
+                        <StatusBadge status={job.status} />
                       </div>
 
-                      <div className="inline-flex items-center gap-[7px] text-[13px] font-normal text-[#a0a8b6]">
-                        <ClockIcon className="h-[15px] w-[15px] stroke-[1.9] text-[#a0a8b6]" />
-                        <span>{job.jobType}</span>
-                      </div>
-
-                      {!isClosed && job.salary && (
+                      <div className="mb-[17px] flex flex-wrap items-center gap-[22px]">
                         <div className="inline-flex items-center gap-[7px] text-[13px] font-normal text-[#a0a8b6]">
-                          <CurrencyDollarIcon className="h-[15px] w-[15px] stroke-[1.9] text-[#a0a8b6]" />
-                          <span>{job.salary}</span>
+                          <MapPinIcon className="h-[15px] w-[15px] stroke-[1.9] text-[#a0a8b6]" />
+                          <span>{job.location}</span>
                         </div>
-                      )}
-                    </div>
 
-                    <div className="flex items-center gap-[9px]">
-                      <div className="relative h-[22px] w-[31px] shrink-0">
-                        <span className="absolute left-0 top-0 h-[22px] w-[22px] rounded-full border border-[#b6bcc6] bg-[#d9d9db]" />
-                        <span className="absolute left-[10px] top-0 h-[22px] w-[22px] rounded-full border border-[#b6bcc6] bg-[#d9d9db]" />
+                        <div className="inline-flex items-center gap-[7px] text-[13px] font-normal text-[#a0a8b6]">
+                          <ClockIcon className="h-[15px] w-[15px] stroke-[1.9] text-[#a0a8b6]" />
+                          <span>{job.jobType}</span>
+                        </div>
+
+                        {!isClosed && job.salary && (
+                          <div className="inline-flex items-center gap-[7px] text-[13px] font-normal text-[#a0a8b6]">
+                            <CurrencyDollarIcon className="h-[15px] w-[15px] stroke-[1.9] text-[#a0a8b6]" />
+                            <span>{job.salary}</span>
+                          </div>
+                        )}
                       </div>
 
-                      <span
-                        className={`text-[13px] ${
+                      <div className="flex items-center gap-[9px]">
+                        <div className="relative h-[22px] w-[31px] shrink-0">
+                          <span className="absolute left-0 top-0 h-[22px] w-[22px] rounded-full border border-[#b6bcc6] bg-[#d9d9db]" />
+                          <span className="absolute left-[10px] top-0 h-[22px] w-[22px] rounded-full border border-[#b6bcc6] bg-[#d9d9db]" />
+                        </div>
+
+                        <span
+                          className={`text-[13px] ${
+                            isClosed
+                              ? "font-normal text-[#b1b7c2]"
+                              : "font-medium text-[#2a313c]"
+                          }`}
+                        >
+                          {job.applicationsLabel}
+                        </span>
+
+                        <span className="text-[13px] font-normal text-[#9ca5b3]">
+                          •
+                        </span>
+
+                        <span
+                          className={`text-[13px] font-normal ${
+                            isClosed ? "text-[#b1b7c2]" : "text-[#9ca5b3]"
+                          }`}
+                        >
+                          {job.posted}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-[12px] max-[900px]:w-full max-[900px]:flex-wrap">
+                      <button
+                        onClick={() => setDetailsJob(job)}
+                        type="button"
+                        className={`h-[33px] min-w-[95px] rounded-[6px] px-[14px] text-[13px] font-medium ${
                           isClosed
-                            ? "font-normal text-[#b1b7c2]"
-                            : "font-medium text-[#2a313c]"
+                            ? "border border-transparent bg-[#f9f9fa] text-[#8f97a4]"
+                            : "border border-[#e7efef] bg-white text-[#0e6b67]"
                         }`}
                       >
-                        {job.applicationsLabel}
-                      </span>
+                        View Details
+                      </button>
 
-                      <span className="text-[13px] font-normal text-[#9ca5b3]">
-                        •
-                      </span>
+                      {!isClosed && (
+                        <button
+                          onClick={() => openEditModal(job)}
+                          type="button"
+                          className="h-[33px] min-w-[82px] rounded-[6px] bg-[#0e6b67] px-[16px] text-[13px] font-medium text-white"
+                        >
+                          Edit
+                        </button>
+                      )}
 
-                      <span
-                        className={`text-[13px] font-normal ${
-                          isClosed ? "text-[#b1b7c2]" : "text-[#9ca5b3]"
-                        }`}
+                      <button
+                        onClick={() => handleDelete(job.id)}
+                        type="button"
+                        aria-label="Delete job"
+                        className="grid h-[22px] w-[22px] place-items-center bg-transparent p-0"
                       >
-                        {job.posted}
-                      </span>
+                        <TrashIcon className="h-[18px] w-[18px] stroke-[1.8] text-[#b4bcc8]" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex shrink-0 items-center gap-[12px] max-[900px]:w-full max-[900px]:flex-wrap">
-                    <button
-                      onClick={() => setDetailsJob(job)}
-                      type="button"
-                      className={`h-[33px] min-w-[95px] rounded-[6px] px-[14px] text-[13px] font-medium ${
-                        isClosed
-                          ? "border border-transparent bg-[#f9f9fa] text-[#8f97a4]"
-                          : "border border-[#e7efef] bg-white text-[#0e6b67]"
-                      }`}
-                    >
-                      View Details
-                    </button>
-
-                    {!isClosed && (
-                      <button
-                        onClick={() => openEditModal(job)}
-                        type="button"
-                        className="h-[33px] min-w-[82px] rounded-[6px] bg-[#0e6b67] px-[16px] text-[13px] font-medium text-white"
-                      >
-                        Edit
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => handleDelete(job.id)}
-                      type="button"
-                      aria-label="Delete job"
-                      className="grid h-[22px] w-[22px] place-items-center bg-transparent p-0"
-                    >
-                      <TrashIcon className="h-[18px] w-[18px] stroke-[1.8] text-[#b4bcc8]" />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+                </article>
+              );
+            })
+          )}
         </section>
 
         <section className="mt-[14px] flex items-center justify-center gap-[10px]">

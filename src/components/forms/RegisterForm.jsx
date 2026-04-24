@@ -2,10 +2,9 @@ import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { User, Code2, Building2, Shield, Eye, EyeOff } from "lucide-react";
 import {
-  findDemoAccountByEmailAndRole,
-  saveDemoAccount,
-  setPendingSkillQuizEmail,
-} from "../../services/demoAuthService";
+  registerUser,
+  findUserByEmail,
+} from "../../services/fakeApi";
 
 // -------------- CONSTANTS -------------- //
 const roles = [
@@ -189,25 +188,35 @@ const RegisterForm = () => {
       }
     }
 
-    const existing = findDemoAccountByEmailAndRole(email, activeRole);
+    const existing = findUserByEmail(email);
     if (existing) {
-      window.alert("An account with this email already exists for this role.");
+      window.alert("Email already exists");
       return;
     }
 
-    saveDemoAccount({
+    const name = profile.fullName || profile.companyName || "";
+    const result = registerUser({
+      name,
       email,
       password,
       role: activeRole,
-      skillQuizCompleted: activeRole === "developer" ? false : true,
       profile,
     });
 
-    if (activeRole === "developer") {
-      setPendingSkillQuizEmail(email);
+    if (!result.success) {
+      window.alert(result.message || "Registration failed.");
+      return;
     }
 
-    const targetRoute = activeRole === "developer" ? "/skill-quiz" : "/login";
+    // Registration successful - user is already logged in (auto-login)
+    // Navigate to appropriate page based on role
+    const roleRedirects = {
+      client: "/client/profile",
+      developer: "/skill-quiz", // Developers need to complete quiz first
+      company: "/company/profile",
+      admin: "/",
+    };
+    const targetRoute = roleRedirects[activeRole] || "/";
 
     setFormData(initialFormData);
     setSelectedSkills([]);

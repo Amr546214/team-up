@@ -1,662 +1,550 @@
-import React, { useRef, useState } from "react";
-import { Code2, Star, Hourglass } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Camera, Plus, X, Save, Loader2 } from "lucide-react";
 import Header from "../../../components/common/Header";
 
+const TRACK_OPTIONS = [
+  "Frontend Developer",
+  "Backend Developer",
+  "Full Stack",
+  "UI/UX Designer",
+  "Mobile Developer",
+  "AI Engineer",
+  "Data Analyst",
+  "DevOps Engineer",
+];
+
+const SKILL_OPTIONS = [
+  "JavaScript",
+  "TypeScript",
+  "React",
+  "Next.js",
+  "Vue.js",
+  "Angular",
+  "Node.js",
+  "Express.js",
+  ".NET",
+  "C#",
+  "SQL",
+  "PostgreSQL",
+  "MongoDB",
+  "Python",
+  "Django",
+  "Java",
+  "PHP",
+  "Laravel",
+  "HTML",
+  "CSS",
+  "Tailwind CSS",
+  "UI/UX",
+  "Figma",
+  "React Native",
+  "Flutter",
+  "DevOps",
+  "Docker",
+  "AWS",
+  "Firebase",
+  "AI",
+  "Machine Learning",
+];
+
 const DevProfile = () => {
-  const [user, setUser] = useState({
-    name: "Hanan Muhammed",
-    rank: "Gold",
-    title: "Frontend Developer",
-    status: "Online",
-    level: "Senior Level",
-    experience: "4+ Years experience",
-    avatar: "",
-  });
-
-  const [skills, setSkills] = useState(["ui/ux", "React", "Python", "AI"]);
-
-  const [portfolio, setPortfolio] = useState([
-    {
-      id: 1,
-      projectName: "E- commerce Dashboard",
-      description:
-        "Modern admin dashboard for e-commerce platform with real-time analytics and inventory management.",
-      skills: ["React", "JavaScript", "Tailwind css"],
-    },
-    {
-      id: 2,
-      projectName: "Task Management App",
-      description:
-        "Collaborative project management tool with drag-and-drop functionality and team collaboration features.",
-      skills: ["Vue.js", "Node.js", "MongoDB"],
-    },
-  ]);
-
-  const [rankProgress] = useState({
-    currentRank: "Gold",
-    nextRank: "Platinum",
-    currentPoints: 850,
-    targetPoints: 1000,
-    completedProjects: 12,
-    performanceScore: 4.8,
-  });
-
-  const [workHistory] = useState([
-    {
-      id: 1,
-      title: "E-commerce Platform",
-      client: "TechCorp",
-      role: "Frontend Developer",
-      duration: "3 months",
-      status: "Completed",
-      rating: 5.0,
-    },
-    {
-      id: 2,
-      title: "Task Manager App",
-      client: "StartupXYZ",
-      role: "Full Stack",
-      duration: "2 months",
-      status: "Ongoing",
-      rating: null,
-    },
-  ]);
-
-  const [availability, setAvailability] = useState({
-    workingHours: "",
-    preferredJobTypes: ["Freelance", "Part-time"],
-    salaryExpectations: "",
-    acceptingNewProjects: true,
-  });
-
+  const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const [skillInput, setSkillInput] = useState("");
 
-  const emptyPortfolioForm = {
-    projectName: "",
-    description: "",
-    skillInput: "",
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errors, setErrors] = useState({});
+
+  const [formData, setFormData] = useState({
+    image: "",
+    name: "",
+    track: "",
+    experience: "",
     skills: [],
-  };
+    portfolio: "",
+    hourlyRate: "",
+    hoursPerWeek: "",
+    availability: "Yes",
+  });
 
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState(emptyPortfolioForm);
+  const [newSkill, setNewSkill] = useState("");
+  const [showSkillDropdown, setShowSkillDropdown] = useState(false);
 
-  const handleImageChange = (file) => {
-    const imageUrl = URL.createObjectURL(file);
-    setUser((prev) => ({
-      ...prev,
-      avatar: imageUrl,
-    }));
-  };
+  useEffect(() => {
+    const rawUser = window.localStorage.getItem("teamup_current_user");
+    if (!rawUser) {
+      navigate("/login");
+      return;
+    }
 
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
+    try {
+      const user = JSON.parse(rawUser);
+      if (user.role !== "developer") {
+        navigate("/");
+        return;
+      }
 
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
+      setCurrentUser(user);
+      const devProfile = user.developerProfile || {};
+
+      setFormData({
+        image: devProfile.image || "",
+        name: user.name || "",
+        track: devProfile.track || "",
+        experience: devProfile.experience || "",
+        skills: devProfile.skills || [],
+        portfolio: devProfile.portfolio || "",
+        hourlyRate: devProfile.hour_rate_usd?.toString() || "",
+        hoursPerWeek: devProfile.hours_per_week?.toString() || "",
+        availability: devProfile.available === false ? "No" : "Yes",
+      });
+    } catch {
+      navigate("/login");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    handleImageChange(file);
-  };
 
-  const handleAddSkill = () => {
-    const trimmedSkill = skillInput.trim();
-    if (!trimmedSkill) return;
-
-    const alreadyExists = skills.some(
-      (skill) => skill.toLowerCase() === trimmedSkill.toLowerCase()
-    );
-
-    if (alreadyExists) {
-      setSkillInput("");
+    if (!file.type.startsWith("image/")) {
+      setErrors((prev) => ({ ...prev, image: "Please select an image file" }));
       return;
     }
 
-    setSkills([...skills, trimmedSkill]);
-    setSkillInput("");
-  };
-
-  const handleRemoveSkill = (skillToRemove) => {
-    setSkills(skills.filter((skill) => skill !== skillToRemove));
-  };
-
-  const handlePortfolioAddSkill = () => {
-    const trimmedSkill = formData.skillInput.trim();
-    if (!trimmedSkill) return;
-
-    const alreadyExists = formData.skills.some(
-      (skill) => skill.toLowerCase() === trimmedSkill.toLowerCase()
-    );
-
-    if (alreadyExists) {
-      setFormData((prev) => ({ ...prev, skillInput: "" }));
-      return;
-    }
-
-    setFormData((prev) => ({
-      ...prev,
-      skills: [...prev.skills, trimmedSkill],
-      skillInput: "",
-    }));
-  };
-
-  const handlePortfolioRemoveSkill = (skillToRemove) => {
-    setFormData((prev) => ({
-      ...prev,
-      skills: prev.skills.filter((skill) => skill !== skillToRemove),
-    }));
-  };
-
-  const handleSavePortfolio = () => {
-    if (!formData.projectName.trim() || !formData.description.trim()) return;
-
-    const newItem = {
-      id: Date.now(),
-      projectName: formData.projectName,
-      description: formData.description,
-      skills: formData.skills,
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({ ...prev, image: reader.result }));
+      setErrors((prev) => ({ ...prev, image: "" }));
     };
-
-    setPortfolio([newItem, ...portfolio]);
-    setFormData(emptyPortfolioForm);
-    setShowForm(false);
+    reader.readAsDataURL(file);
   };
 
-  const progressPercentage = Math.min(
-    (rankProgress.currentPoints / rankProgress.targetPoints) * 100,
-    100
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const addSkill = (skill) => {
+    const trimmed = skill.trim();
+    if (!trimmed) return;
+
+    if (formData.skills.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      skills: [...prev.skills, trimmed],
+    }));
+    setNewSkill("");
+    setShowSkillDropdown(false);
+    setErrors((prev) => ({ ...prev, skills: "" }));
+  };
+
+  const removeSkill = (skillToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      skills: prev.skills.filter((s) => s !== skillToRemove),
+    }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Full name is required";
+    }
+
+    if (!formData.track) {
+      newErrors.track = "Track is required";
+    }
+
+    if (formData.skills.length === 0) {
+      newErrors.skills = "At least one skill is required";
+    }
+
+    const hourlyRate = Number(formData.hourlyRate);
+    if (!formData.hourlyRate || hourlyRate <= 0) {
+      newErrors.hourlyRate = "Hourly rate must be greater than 0";
+    }
+
+    const hoursPerWeek = Number(formData.hoursPerWeek);
+    if (!formData.hoursPerWeek || hoursPerWeek <= 0) {
+      newErrors.hoursPerWeek = "Hours per week must be greater than 0";
+    }
+
+    if (formData.portfolio && !/^https?:\/\/.+/.test(formData.portfolio)) {
+      newErrors.portfolio = "Please enter a valid URL";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setIsSaving(true);
+    setSuccessMessage("");
+
+    try {
+      const usersRaw = window.localStorage.getItem("teamup_users");
+      const users = usersRaw ? JSON.parse(usersRaw) : [];
+
+      const userIndex = users.findIndex((u) => u.id === currentUser.id);
+      if (userIndex === -1) {
+        setErrors({ submit: "User not found" });
+        return;
+      }
+
+      const updatedUser = {
+        ...users[userIndex],
+        name: formData.name.trim(),
+        track: formData.track,
+        skills: formData.skills,
+        hour_rate_usd: Number(formData.hourlyRate),
+        hours_per_week: Number(formData.hoursPerWeek),
+        available: formData.availability === "Yes",
+        developerProfile: {
+          ...users[userIndex].developerProfile,
+          image: formData.image,
+          name: formData.name.trim(),
+          track: formData.track,
+          experience: formData.experience,
+          skills: formData.skills,
+          portfolio: formData.portfolio,
+          hour_rate_usd: Number(formData.hourlyRate),
+          hours_per_week: Number(formData.hoursPerWeek),
+          available: formData.availability === "Yes",
+          completedAt: new Date().toISOString(),
+        },
+      };
+
+      users[userIndex] = updatedUser;
+      window.localStorage.setItem("teamup_users", JSON.stringify(users));
+
+      const { password, ...safeUser } = updatedUser;
+      window.localStorage.setItem("teamup_current_user", JSON.stringify(safeUser));
+
+      setSuccessMessage("Profile saved successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      setErrors({ submit: "Failed to save profile. Please try again." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const filteredSkills = SKILL_OPTIONS.filter(
+    (skill) =>
+      skill.toLowerCase().includes(newSkill.toLowerCase()) &&
+      !formData.skills.some((s) => s.toLowerCase() === skill.toLowerCase())
   );
 
-  const jobTypes = ["Freelance", "Full-time", "Part-time"];
-
-  const handleJobTypeChange = (jobType) => {
-    const exists = availability.preferredJobTypes.includes(jobType);
-
-    if (exists) {
-      setAvailability({
-        ...availability,
-        preferredJobTypes: availability.preferredJobTypes.filter(
-          (item) => item !== jobType
-        ),
-      });
-    } else {
-      setAvailability({
-        ...availability,
-        preferredJobTypes: [...availability.preferredJobTypes, jobType],
-      });
-    }
-  };
-
-  const toggleAcceptingProjects = () => {
-    setAvailability({
-      ...availability,
-      acceptingNewProjects: !availability.acceptingNewProjects,
-    });
-  };
+  if (isLoading) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-[#f3f6f5] flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#0f766e]" />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
-      <Header profileImage={user.avatar} showProfileMenu={true} />
+      <Header profileImage={formData.image} />
 
       <div className="min-h-screen bg-[#f3f6f5] px-4 py-6 md:px-6">
-        <div className="mx-auto mt-20 max-w-7xl">
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <div className="flex flex-col gap-6">
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                  <div>
-                    <button
-                      type="button"
-                      onClick={handleAvatarClick}
-                      className="h-20 w-20 overflow-hidden rounded-full bg-gray-200"
-                    >
-                      {user.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : null}
-                    </button>
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={handleFileChange}
-                    />
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="mb-4 flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-semibold text-[#1f2937]">
-                        {user.name}
-                      </h2>
-                      <span className="rounded-full bg-[#fef3c7] px-3 py-1 text-xs font-medium text-[#b45309]">
-                        {user.rank}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-y-3 text-sm text-gray-600 sm:grid-cols-2">
-                      <div className="flex items-center gap-2">
-                        <Code2 size={16} className="text-[#0f766e]" />
-                        <span>{user.title}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-green-500"></span>
-                        <span>{user.status}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Star
-                          size={16}
-                          fill="currentColor"
-                          className="text-[#0f766e]"
-                        />
-                        <span>{user.level}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Hourglass size={16} className="text-[#0f766e]" />
-                        <span>{user.experience}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <h3 className="mb-4 text-xl font-semibold text-[#1f2937]">
-                  Skills
-                </h3>
-
-                <div className="mb-4 flex flex-wrap gap-3">
-                  {skills.map((skill) => (
-                    <div
-                      key={skill}
-                      className="flex items-center gap-2 rounded-full bg-[#d7ece8] px-4 py-2 text-sm text-[#4b5563]"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkill(skill)}
-                        aria-label={`Remove ${skill}`}
-                        className="text-[#4b5563]"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <input
-                    type="text"
-                    placeholder="Add a skill..."
-                    value={skillInput}
-                    onChange={(e) => setSkillInput(e.target.value)}
-                    className="h-12 flex-1 rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleAddSkill}
-                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-white"
-                  >
-                    <span>+</span>
-                    <span>Add Skill</span>
-                  </button>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="text-xl font-semibold text-[#1f2937]">
-                    Portfolio
-                  </h3>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowForm((prev) => !prev)}
-                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-white"
-                  >
-                    <span>+</span>
-                    <span>Add Portfolio Item</span>
-                  </button>
-                </div>
-
-                {showForm && (
-                  <div className="mb-5 rounded-2xl border border-gray-200 bg-[#f9fbfb] p-4">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="mb-2 text-sm text-gray-600">
-                          Project Name
-                        </p>
-                        <input
-                          type="text"
-                          placeholder="Project Name"
-                          value={formData.projectName}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              projectName: e.target.value,
-                            }))
-                          }
-                          className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
-                        />
-                      </div>
-
-                      <div>
-                        <p className="mb-2 text-sm text-gray-600">Description</p>
-                        <textarea
-                          placeholder="Description"
-                          value={formData.description}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              description: e.target.value,
-                            }))
-                          }
-                          className="min-h-[120px] w-full rounded-xl border border-gray-200 p-4 outline-none focus:border-[#0f766e]"
-                        />
-                      </div>
-
-                      <div>
-                        <p className="mb-2 text-sm text-gray-600">
-                          What skills are used in the project?
-                        </p>
-
-                        <div className="mb-3 flex flex-wrap gap-3">
-                          {formData.skills.map((skill) => (
-                            <div
-                              key={skill}
-                              className="flex items-center gap-2 rounded-full bg-[#d7ece8] px-4 py-2 text-sm text-[#4b5563]"
-                            >
-                              <span>{skill}</span>
-                              <button
-                                type="button"
-                                onClick={() => handlePortfolioRemoveSkill(skill)}
-                                aria-label={`Remove ${skill}`}
-                                className="text-[#4b5563]"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                          <input
-                            type="text"
-                            placeholder="Add a skill..."
-                            value={formData.skillInput}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                skillInput: e.target.value,
-                              }))
-                            }
-                            className="h-12 flex-1 rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={handlePortfolioAddSkill}
-                            className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0f766e] px-5 text-white"
-                          >
-                            <span>+</span>
-                            <span>Add Skill</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={handleSavePortfolio}
-                        className="rounded-xl bg-[#0f766e] px-5 py-3 text-white"
-                      >
-                        Save Item
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  {portfolio.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-gray-100 p-4"
-                    >
-                      <h4 className="mb-3 text-2xl font-semibold text-[#1f2937]">
-                        {item.projectName}
-                      </h4>
-                      <p className="mb-4 text-sm leading-6 text-gray-500">
-                        {item.description}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2">
-                        {item.skills.map((skill) => (
-                          <span
-                            key={skill}
-                            className="rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-600"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="mb-2 text-xl font-semibold text-[#1f2937]">
-                      Security Settings
-                    </h3>
-                    <p className="text-sm text-[#1f2937]">Change Password</p>
-                  </div>
-
-                  <a href="#change-password" className="text-sm text-[#0f766e]">
-                    Change
-                  </a>
-                </div>
-              </section>
+        <div className="mx-auto mt-20 max-w-3xl">
+          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="mb-6">
+              <h1 className="text-2xl font-semibold text-[#1f2937]">
+                Developer Profile
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Complete your profile to get matched with projects
+              </p>
             </div>
 
-            <div className="flex flex-col gap-6">
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <h3 className="mb-4 text-xl font-semibold text-[#1f2937]">
-                  Work History
-                </h3>
+            {successMessage && (
+              <div className="mb-6 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-600">
+                {successMessage}
+              </div>
+            )}
 
-                <div className="space-y-4">
-                  {workHistory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-2xl border border-gray-100 p-4"
+            {errors.submit && (
+              <div className="mb-6 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
+                {errors.submit}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Profile Image */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Profile Image
+                </label>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="relative h-24 w-24 overflow-hidden rounded-full bg-gray-100 hover:bg-gray-200 transition"
+                  >
+                    {formData.image ? (
+                      <img
+                        src={formData.image}
+                        alt="Profile"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Camera className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-gray-400" />
+                    )}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={handleImageChange}
+                  />
+                  <div className="text-sm text-gray-500">
+                    <p>Click to upload a profile picture</p>
+                    {errors.image && (
+                      <p className="text-red-500">{errors.image}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Enter your full name"
+                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
+                />
+                {errors.name && (
+                  <p className="mt-1 text-sm text-red-500">{errors.name}</p>
+                )}
+              </div>
+
+              {/* Track */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Track <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="track"
+                  value={formData.track}
+                  onChange={handleChange}
+                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e] bg-white"
+                >
+                  <option value="">Select your track</option>
+                  {TRACK_OPTIONS.map((track) => (
+                    <option key={track} value={track}>
+                      {track}
+                    </option>
+                  ))}
+                </select>
+                {errors.track && (
+                  <p className="mt-1 text-sm text-red-500">{errors.track}</p>
+                )}
+              </div>
+
+              {/* Experience */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Experience
+                </label>
+                <input
+                  type="text"
+                  name="experience"
+                  value={formData.experience}
+                  onChange={handleChange}
+                  placeholder="e.g. 2 years"
+                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
+                />
+              </div>
+
+              {/* Skills */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Skills <span className="text-red-500">*</span>
+                </label>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {formData.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="flex items-center gap-1 rounded-full bg-[#d7ece8] px-3 py-1 text-sm text-[#4b5563]"
                     >
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <h4 className="text-lg font-medium text-[#1f2937]">
-                          {item.title}
-                        </h4>
-
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs ${
-                            item.status === "Completed"
-                              ? "bg-[#dcfce7] text-[#16a34a]"
-                              : "bg-[#dbeafe] text-[#2563eb]"
-                          }`}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-
-                      <div className="mb-4 flex flex-col gap-2 text-sm text-gray-500">
-                        <span>Client: {item.client}</span>
-                        <span>Role: {item.role}</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>{item.duration}</span>
-
-                        {item.status === "Completed" ? (
-                          <span className="flex items-center gap-1 text-[#f59e0b]">
-                            <Star size={16} fill="currentColor" />
-                            <span>{item.rating}</span>
-                          </span>
-                        ) : (
-                          <span>Ongoing</span>
-                        )}
-                      </div>
-                    </div>
+                      {skill}
+                      <button
+                        type="button"
+                        onClick={() => removeSkill(skill)}
+                        className="text-[#4b5563] hover:text-red-500"
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
                   ))}
                 </div>
-              </section>
-
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <h3 className="mb-5 text-xl font-semibold text-[#1f2937]">
-                  Rank Progress
-                </h3>
-
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Current Rank</span>
-                  <span className="rounded-full bg-[#fef3c7] px-3 py-1 text-xs font-medium text-[#b45309]">
-                    {rankProgress.currentRank}
-                  </span>
-                </div>
-
-                <div className="mb-3 flex items-center justify-between text-sm text-gray-500">
-                  <span>Progress to {rankProgress.nextRank}</span>
-                  <span>
-                    {rankProgress.currentPoints}/{rankProgress.targetPoints} pts
-                  </span>
-                </div>
-
-                <div className="mb-6 h-2 w-full rounded-full bg-gray-200">
-                  <div
-                    className="h-2 rounded-full bg-[#0f766e]"
-                    style={{ width: `${progressPercentage}%` }}
-                  ></div>
-                </div>
-
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-3xl font-semibold text-[#0f766e]">
-                      {rankProgress.completedProjects}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      Completed Projects
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-3xl font-semibold text-[#0f766e]">
-                      {rankProgress.performanceScore}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      Performance Score
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <h3 className="mb-5 text-xl font-semibold text-[#1f2937]">
-                  Availability Settings
-                </h3>
-
-                <div className="space-y-5">
-                  <div>
-                    <p className="mb-2 text-sm text-gray-600">Working Hours</p>
+                <div className="relative">
+                  <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="9 AM - 5 PM EST"
-                      value={availability.workingHours}
-                      onChange={(e) =>
-                        setAvailability({
-                          ...availability,
-                          workingHours: e.target.value,
-                        })
-                      }
-                      className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
+                      value={newSkill}
+                      onChange={(e) => {
+                        setNewSkill(e.target.value);
+                        setShowSkillDropdown(true);
+                      }}
+                      onFocus={() => setShowSkillDropdown(true)}
+                      placeholder="Search and add skills..."
+                      className="h-12 flex-1 rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
                     />
+                    <button
+                      type="button"
+                      onClick={() => addSkill(newSkill)}
+                      className="flex h-12 items-center gap-2 rounded-xl bg-[#0f766e] px-4 text-white hover:bg-[#0e6d65] transition"
+                    >
+                      <Plus size={18} />
+                      Add
+                    </button>
                   </div>
-
-                  <div>
-                    <p className="mb-3 text-sm text-gray-600">
-                      Preferred Job Types
-                    </p>
-
-                    <div className="space-y-3">
-                      {jobTypes.map((jobType) => (
-                        <label
-                          key={jobType}
-                          className="flex items-center gap-3 text-sm text-gray-600"
+                  {showSkillDropdown && newSkill && filteredSkills.length > 0 && (
+                    <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                      {filteredSkills.slice(0, 6).map((skill) => (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => addSkill(skill)}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50"
                         >
-                          <input
-                            type="checkbox"
-                            checked={availability.preferredJobTypes.includes(
-                              jobType
-                            )}
-                            onChange={() => handleJobTypeChange(jobType)}
-                            className="h-4 w-4 accent-[#2563eb]"
-                          />
-                          <span>{jobType}</span>
-                        </label>
+                          {skill}
+                        </button>
                       ))}
                     </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-sm text-gray-600">
-                      Salary Expectations
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="$80-120/hour"
-                      value={availability.salaryExpectations}
-                      onChange={(e) =>
-                        setAvailability({
-                          ...availability,
-                          salaryExpectations: e.target.value,
-                        })
-                      }
-                      className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">
-                      Accepting New Projects
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={toggleAcceptingProjects}
-                      aria-label="Toggle accepting new projects"
-                      className={`relative h-7 w-12 rounded-full transition ${
-                        availability.acceptingNewProjects
-                          ? "bg-[#0f766e]"
-                          : "bg-gray-300"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${
-                          availability.acceptingNewProjects ? "right-1" : "left-1"
-                        }`}
-                      ></span>
-                    </button>
-                  </div>
+                  )}
                 </div>
-              </section>
-            </div>
+                {errors.skills && (
+                  <p className="mt-1 text-sm text-red-500">{errors.skills}</p>
+                )}
+              </div>
+
+              {/* Portfolio */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Portfolio URL
+                </label>
+                <input
+                  type="url"
+                  name="portfolio"
+                  value={formData.portfolio}
+                  onChange={handleChange}
+                  placeholder="https://yourportfolio.com"
+                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
+                />
+                {errors.portfolio && (
+                  <p className="mt-1 text-sm text-red-500">{errors.portfolio}</p>
+                )}
+              </div>
+
+              {/* Hourly Rate */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Hourly Rate (USD) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    name="hourlyRate"
+                    value={formData.hourlyRate}
+                    onChange={handleChange}
+                    placeholder="50"
+                    min="1"
+                    className="h-12 w-full rounded-xl border border-gray-200 pl-8 pr-4 outline-none focus:border-[#0f766e]"
+                  />
+                </div>
+                {errors.hourlyRate && (
+                  <p className="mt-1 text-sm text-red-500">{errors.hourlyRate}</p>
+                )}
+              </div>
+
+              {/* Hours Per Week */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Hours Per Week <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  name="hoursPerWeek"
+                  value={formData.hoursPerWeek}
+                  onChange={handleChange}
+                  placeholder="40"
+                  min="1"
+                  max="168"
+                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
+                />
+                {errors.hoursPerWeek && (
+                  <p className="mt-1 text-sm text-red-500">{errors.hoursPerWeek}</p>
+                )}
+              </div>
+
+              {/* Availability */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Available for Projects
+                </label>
+                <select
+                  name="availability"
+                  value={formData.availability}
+                  onChange={handleChange}
+                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e] bg-white"
+                >
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0f766e] text-white font-medium hover:bg-[#0e6d65] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-5 w-5" />
+                      Save Profile
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -664,4 +552,4 @@ const DevProfile = () => {
   );
 };
 
-export default DevProfile
+export default DevProfile;

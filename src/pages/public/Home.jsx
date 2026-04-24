@@ -2,6 +2,7 @@ import Header from "../../components/common/Header";
 import heroImage from "../../assets/images/image.png";
 import { Link, useNavigate } from "react-router-dom";
 import footerLogo from "../../assets/logo/teamup-logo.png";
+import { useAuth } from "../../context/AuthContext";
 
 import {
   UserPlus,
@@ -19,65 +20,99 @@ import {
 } 
 from "lucide-react";
 
+function getDashboardPathByRole(role) {
+  switch (role) {
+    case "client":
+      return "/client/profile";
+    case "developer":
+      return "/developer/dashboard";
+    case "company":
+      return "/company/profile";
+    case "admin":
+      return "/";
+    default:
+      return "/";
+  }
+}
+
 const Home = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, session } = useAuth();
+
+  const handleGetStarted = () => {
+    if (isAuthenticated && session?.role) {
+      navigate(getDashboardPathByRole(session.role));
+    } else {
+      navigate("/register");
+    }
+  };
+
+  const handleSignUp = (role) => {
+    if (isAuthenticated && session?.role) {
+      // Already logged in, go to dashboard
+      navigate(getDashboardPathByRole(session.role));
+    } else {
+      navigate(`/register?role=${role}`);
+    }
+  };
+
   return (
     <div className="bg-[#F5FAFA] min-h-screen">
       {/* Header */}
       <Header />
 
       {/* Hero Section */}
-      <section className="bg-[#F5FAFA] pt-31 pb-31 pl-6 md:pl-10 flex items-center gap-3">
+      <section className="bg-[#F5FAFA] min-h-[calc(100vh-4rem)] w-full flex items-center overflow-hidden">
+        <div className="w-full max-w-[1600px] mx-auto px-6 md:px-10 lg:px-16 py-12 lg:py-0">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
 
-        {/* Text Box */}
-        <div className="bg-white w-[800px] px-10 py-12">
-          
-          {/* Title */}
-          <h1 className="text-[40px] md:text-[56px] font-bold text-[#0F172A] leading-tight">
-            Build high-performance <br />
-            teams with smart <br />
-            matching .
-          </h1>
+            {/* Text Box */}
+            <div className="flex flex-col justify-center order-2 lg:order-1 text-center lg:text-left">
 
-          {/* Description */}
-          <p className="mt-6 text-[18px] text-[#64748B] max-w-2xl leading-relaxed">
-            TeamUp Connects Freelancers, developers, designers, and companies
-            through AI-powered team building. find the right people, manage
-            project and grow together.
-          </p>
+              {/* Title */}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#0F172A] leading-tight">
+                Build high-performance{" "}
+                <span className="text-[#0B6F6C]">teams</span> with smart
+                matching.
+              </h1>
 
-          {/* Buttons */}
-          <div className="mt-8 flex gap-4">
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate("/login");
-              }}
-              className="w-[190px] py-2 bg-[#0B6F6C] text-white rounded-md hover:bg-[#15807d] transition font-medium flex items-center justify-center"
-            >
-              Get Started
-            </a>
+              {/* Description */}
+              <p className="mt-6 text-lg text-[#64748B] max-w-xl leading-relaxed mx-auto lg:mx-0">
+                TeamUp Connects Freelancers, developers, designers, and companies
+                through AI-powered team building. Find the right people, manage
+                projects and grow together.
+              </p>
 
-            <a
-              href="#"
-              className="w-[190px] py-2 border border-[#0B6F6C] text-[#0B6F6C] rounded-md hover:bg-[#e6f3f2] transition font-medium flex items-center justify-center"
-            >
-              Learn More
-            </a>
+              {/* Buttons */}
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <button
+                  onClick={handleGetStarted}
+                  className="w-full sm:w-auto h-12 px-8 bg-[#0B6F6C] text-white rounded-md hover:bg-[#15807d] transition font-medium flex items-center justify-center"
+                >
+                  {isAuthenticated ? "Go to Dashboard" : "Get Started"}
+                </button>
+
+                <a
+                  href="#features"
+                  className="w-full sm:w-auto h-12 px-8 border border-[#0B6F6C] text-[#0B6F6C] rounded-md hover:bg-[#e6f3f2] transition font-medium flex items-center justify-center"
+                >
+                  Learn More
+                </a>
+              </div>
+
+            </div>
+
+            {/* Image */}
+            <div className="flex justify-center lg:justify-end order-1 lg:order-2">
+              <img
+                src={heroImage}
+                alt="team illustration"
+                className="w-full max-w-[320px] md:max-w-[480px] lg:max-w-[600px] object-contain rounded-[100px] lg:rounded-[150px]"
+              />
+            </div>
+
           </div>
-
         </div>
-
-        {/* Image */}
-        <div>
-          <img
-            src={heroImage}
-            alt="team illustration"
-            className="w-[630px] object-contain rounded-[150px]"
-          />
-        </div>
-
       </section>
 
 {/* section 2 how it work & choos your role */}
@@ -90,9 +125,9 @@ const Home = () => {
     </h2>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-      <Link
-        to="/register"
-        className="bg-white border border-[#D9E3E2] rounded-[8px] px-5 py-6 hover:shadow-md transition">
+      <button
+        onClick={() => handleSignUp("client")}
+        className="bg-white border border-[#D9E3E2] rounded-[8px] px-5 py-6 hover:shadow-md transition text-left">
             
         <div className="w-10 h-10 rounded-full bg-[#D8F0EC] flex items-center justify-center mx-auto mb-4 text-[#0B6F6C]">
           <UserPlus size={18} />
@@ -105,7 +140,7 @@ const Home = () => {
           <br />
           and complete your profile
         </p>
-      </Link>
+      </button>
 
       <Link
         to="/projects"
@@ -347,16 +382,12 @@ const Home = () => {
         </div>
       </div>
 
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("/register?role=client");
-        }}
+      <button
+        onClick={() => handleSignUp("client")}
         className="block w-full text-center border border-[#0B6F6C] text-[#0B6F6C] rounded-[8px] py-3 text-[15px] font-medium hover:bg-[#EAF6F5] transition"
       >
-        Sign up as client
-      </a>
+        {isAuthenticated ? "Go to Dashboard" : "Sign up as client"}
+      </button>
     </div>
 
     {/* Developer Card */}
@@ -395,16 +426,12 @@ const Home = () => {
         </div>
       </div>
 
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("/register?role=developer");
-        }}
+      <button
+        onClick={() => handleSignUp("developer")}
         className="block w-full text-center border border-[#0B6F6C] text-[#0B6F6C] rounded-[8px] py-3 text-[15px] font-medium hover:bg-[#EAF6F5] transition"
       >
-        Sign up as Developer
-      </a>
+        {isAuthenticated ? "Go to Dashboard" : "Sign up as Developer"}
+      </button>
     </div>
 
     {/* Company Card */}
@@ -443,16 +470,12 @@ const Home = () => {
         </div>
       </div>
 
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("/register?role=company");
-        }}
+      <button
+        onClick={() => handleSignUp("company")}
         className="block w-full text-center border border-[#0B6F6C] text-[#0B6F6C] rounded-[8px] py-3 text-[15px] font-medium hover:bg-[#EAF6F5] transition"
       >
-        Sign up as Company
-      </a>
+        {isAuthenticated ? "Go to Dashboard" : "Sign up as Company"}
+      </button>
     </div>
   </div>
 </section>

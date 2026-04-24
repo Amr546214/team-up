@@ -64,12 +64,8 @@ const LoginForm = () => {
 
     const authResult = login(email, password, userType, rememberMe);
     if (!authResult.ok) {
-      if (authResult.reason === "not_found") {
-        setErrors({ email: "", password: "Account not found. Please register first." });
-        return;
-      }
-      if (authResult.reason === "bad_password") {
-        setErrors({ email: "", password: "Incorrect password." });
+      if (authResult.reason === "invalid_credentials") {
+        setErrors({ email: "", password: "Invalid email or password" });
         return;
       }
       if (authResult.reason === "skill_quiz_required") {
@@ -79,7 +75,14 @@ const LoginForm = () => {
         });
         return;
       }
-      setErrors({ email: "", password: "Login failed." });
+      setErrors({ email: "", password: authResult.message || "Login failed." });
+      return;
+    }
+
+    // Developer needs to complete profile first
+    if (authResult.requiresProfile) {
+      resetForm();
+      navigate("/developer/complete-profile");
       return;
     }
 

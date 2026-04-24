@@ -1,33 +1,60 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import {
-  clearDemoSession,
-  getDemoSession,
-  setDemoSession,
-  verifyDemoLogin,
-} from "../services/demoAuthService";
+  loginUser,
+  logoutUser,
+  getCurrentUser,
+} from "../services/fakeApi";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(() => getDemoSession());
+  const [session, setSession] = useState(() => getCurrentUser());
 
   const login = useCallback((email, password, role, rememberMe) => {
-    const result = verifyDemoLogin(email, password, role);
-    if (!result.ok) return result;
-    setDemoSession({ email: result.account.email, role: result.account.role }, rememberMe);
-    setSession(getDemoSession());
-    return { ok: true, account: result.account };
+    const result = loginUser(email, password);
+    if (!result.success) {
+      if (result.requiresQuiz) {
+        return { ok: false, reason: "skill_quiz_required", userId: result.userId };
+      }
+      if (result.message === "Invalid email or password") {
+        return { ok: false, reason: "invalid_credentials" };
+      }
+      return { ok: false, reason: "unknown", message: result.message };
+    }
+    // Store in localStorage with rememberMe option
+    if (typeof window !== "undefined") {
+      const payload = JSON.stringify({ email: result.data.email, role: result.data.role });
+      window.sessionStorage.setItem("teamup_demo_session_v1", payload);
+      if (rememberMe) {
+        window.localStorage.setItem("teamup_demo_session_v1", payload);
+      } else {
+        window.localStorage.removeItem("teamup_demo_session_v1");
+      }
+    }
+    setSession(result.data);
+
+    // Developer logged in but hasn't completed profile yet
+    if (result.requiresProfile) {
+      return { ok: true, account: result.data, requiresProfile: true };
+    }
+
+    return { ok: true, account: result.data };
   }, []);
 
   const logout = useCallback(() => {
-    clearDemoSession();
+    logoutUser();
+    // Clear legacy session keys
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("teamup_demo_session_v1");
+      window.localStorage.removeItem("teamup_demo_session_v1");
+    }
     setSession(null);
   }, []);
 
   const value = useMemo(
     () => ({
       session,
-      isAuthenticated: Boolean(session?.email && session?.role),
+      isAuthenticated: Boolean(session?.id && session?.email && session?.role),
       login,
       logout,
     }),

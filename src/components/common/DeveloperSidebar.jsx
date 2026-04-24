@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -10,20 +10,21 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
+import { getCurrentUser } from "../../services/fakeApi";
 
 function DeveloperSidebar() {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   /* =========================
-     Fake API Data (Data only)
+     Current User from localStorage
   ========================== */
-  const userData = {
-    name: "Hanan Muhammed",
-    email: "hanan@example.com",
-    image: "",
-    role: "developer",
-  };
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    setCurrentUser(user);
+  }, []);
 
   const activeProjectData = {
     name: "TeamUp Platform",
@@ -90,10 +91,10 @@ function DeveloperSidebar() {
 
   return (
     <aside
-    className={`fixed top-0 left-0 h-screen bg-white border-r border-[#E5E7EB] flex flex-col justify-between transition-all duration-300 z-[60] ${
-      isCollapsed ? "w-[90px]" : "w-[230px]"
-    }`}
-  >
+      className={`fixed top-0 left-0 h-screen bg-white border-r border-[#E5E7EB] flex flex-col justify-between transition-all duration-300 z-[60] ${
+        isCollapsed ? "w-[90px]" : "w-[230px]"
+      }`}
+    >
       <div className="relative h-full flex flex-col">
         {/* Collapse Button */}
         <button
@@ -187,23 +188,26 @@ function DeveloperSidebar() {
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
-              {userData.image ? (
-                <img
-                  src={userData.image}
-                  alt={userData.name}
-                  className="w-[28px] h-[28px] rounded-full object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-[28px] h-[28px] rounded-full bg-[#D9D9D9] shrink-0"></div>
-              )}
+              {(() => {
+                const avatarImage = currentUser?.developerProfile?.image || currentUser?.profile?.image;
+                return avatarImage ? (
+                  <img
+                    src={avatarImage}
+                    alt={currentUser?.name || "Developer"}
+                    className="w-[28px] h-[28px] rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-[28px] h-[28px] rounded-full bg-[#D9D9D9] shrink-0"></div>
+                );
+              })()}
 
               {!isCollapsed && (
                 <div className="min-w-0">
                   <h4 className="text-[11px] font-semibold text-[#4B5563] leading-none truncate">
-                    {userData.name}
+                    {currentUser?.name || "Developer"}
                   </h4>
                   <p className="text-[10px] text-[#9CA3AF] mt-1 truncate">
-                    {userData.email}
+                    {currentUser?.email || ""}
                   </p>
                 </div>
               )}

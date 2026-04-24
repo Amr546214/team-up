@@ -8,7 +8,11 @@ import PageLoader from "../../../components/common/PageLoader";
 import useNotifications from "../../../hooks/useNotifications";
 import usePageRefresh from "../../../hooks/usePageRefresh";
 import { tracksData, quizData } from "../../../data/quizData";
-import { markDeveloperSkillQuizCompletedForPendingEmail } from "../../../services/demoAuthService";
+import {
+  markSkillQuizCompletedByEmail,
+  saveQuizResult,
+  getCurrentUser,
+} from "../../../services/fakeApi";
 
 /**
  * SkillQuiz page component.
@@ -79,8 +83,21 @@ const SkillQuiz = () => {
       });
 
       console.log("[SkillQuiz] Quiz completed, notification added:", result);
-      markDeveloperSkillQuizCompletedForPendingEmail();
-      navigate("/developer/profile");
+
+      // Save quiz result to fake API
+      const currentUser = getCurrentUser();
+      if (currentUser?.id) {
+        saveQuizResult(currentUser.id, result.score, result.rank);
+      }
+
+      // Mark quiz as completed for the pending email flow
+      const pendingEmail = sessionStorage.getItem("teamup_pending_skill_quiz_email");
+      if (pendingEmail) {
+        markSkillQuizCompletedByEmail(pendingEmail);
+        sessionStorage.removeItem("teamup_pending_skill_quiz_email");
+      }
+
+      navigate("/developer/complete-profile");
     },
     [addNotification, navigate, selectedTrack]
   );
