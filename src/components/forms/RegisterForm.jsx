@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { User, Code2, Building2, Shield, Eye, EyeOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   registerUser,
   findUserByEmail,
@@ -65,6 +66,7 @@ const initialShowPassword = {
 const RegisterForm = () => {
   const navigate = useNavigate();
   const { refreshSession } = useAuth();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const preselectedRole = searchParams.get("role");
   const [activeRole, setActiveRole] = useState("client");
@@ -270,7 +272,7 @@ const RegisterForm = () => {
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                <span className="capitalize">{role.label}</span>
+                <span className="capitalize">{t(`auth.${role.id}`)}</span>
               </button>
             );
           })}
@@ -293,7 +295,7 @@ const RegisterForm = () => {
                 : "bg-transparent text-gray-700"
             }`}
           >
-            Login
+            {t("auth.signIn")}
           </button>
           <button
             type="button"
@@ -308,7 +310,7 @@ const RegisterForm = () => {
                 : "bg-transparent text-gray-700"
             }`}
           >
-            Register
+            {t("common.register")}
           </button>
         </div>
       </div>
@@ -316,7 +318,7 @@ const RegisterForm = () => {
       {/* سطر ثابت فوق الفورم عشان المكان مايتغيّرش بين الأدوار */}
       <p className="text-xs sm:text-sm text-gray-600 mb-4 min-h-[18px]">
         {activeRole === "company"
-          ? "Create your account and start collaborating with top talent"
+          ? t("auth.registerSubtitle")
           : "\u00A0"}
       </p>
 
@@ -328,7 +330,7 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name
+                  {t("auth.fullName")}
                 </label>
                 <input
                   type="text"
@@ -342,7 +344,7 @@ const RegisterForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  {t("auth.email")}
                 </label>
                 <input
                   type="email"
@@ -360,7 +362,7 @@ const RegisterForm = () => {
               {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
+                  {t("auth.password")}
                 </label>
                 <div className="relative">
                   <input
@@ -389,7 +391,7 @@ const RegisterForm = () => {
               {/* Confirm Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password
+                  {t("auth.confirmPassword")}
                 </label>
                 <div className="relative">
                   <input
@@ -421,7 +423,7 @@ const RegisterForm = () => {
             {/* What services dropdown */}
             <div className="w-full sm:w-4/5 max-w-md">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                What services are you looking for?{" "}
+                {t("auth.whatServices")}{" "}
                 <span className="text-red-500">*</span>
               </label>
               <select
@@ -431,12 +433,12 @@ const RegisterForm = () => {
                 className="w-full h-12 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#0B6F6C] focus:ring-1 focus:ring-[#0B6F6C]"
                 required
               >
-                <option value="">Select service</option>
-                <option value="web-dev">Web Development</option>
-                <option value="mobile-dev">Mobile Development</option>
-                <option value="ui-ux">UI / UX Design</option>
-                <option value="ai-ml">AI / Machine Learning</option>
-                <option value="other">Other</option>
+                <option value="">{t("auth.selectService")}</option>
+                <option value="web-dev">{t("auth.webDev")}</option>
+                <option value="mobile-dev">{t("auth.mobileDev")}</option>
+                <option value="ui-ux">{t("auth.uiux")}</option>
+                <option value="ai-ml">{t("auth.aiMl")}</option>
+                <option value="other">{t("auth.other")}</option>
               </select>
             </div>
           </>
@@ -448,7 +450,7 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name
+                  {t("auth.fullName")}
                 </label>
                 <input
                   type="text"
@@ -462,7 +464,7 @@ const RegisterForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                  {t("auth.email")}
                 </label>
                 <input
                   type="email"
@@ -479,7 +481,7 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
+                  {t("auth.password")}
                 </label>
                 <div className="relative">
                   <input
@@ -506,7 +508,7 @@ const RegisterForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password
+                  {t("auth.confirmPassword")}
                 </label>
                 <div className="relative">
                   <input
@@ -536,7 +538,7 @@ const RegisterForm = () => {
             {/* Skills pills + input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Skills
+                {t("auth.skills")}
               </label>
               <div className="w-full min-h-[44px] rounded-lg border border-gray-200 px-3 py-2 text-sm flex flex-wrap gap-2 items-center">
                 {selectedSkills.map((skill) => (
@@ -560,14 +562,14 @@ const RegisterForm = () => {
                   value={formData.devSkillsInput}
                   onChange={handleChange}
                   onKeyDown={addCustomSkill}
-                  placeholder="Add Skills"
+                  placeholder={t("auth.addSkills")}
                   className="flex-1 min-w-[120px] bg-transparent outline-none text-sm placeholder:text-gray-400"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs font-medium text-gray-700">Skills</p>
+              <p className="text-xs font-medium text-gray-700">{t("auth.skills")}</p>
               <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-700">
                 {skillsOptions.map((skill) => (
                   <label
@@ -594,7 +596,7 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Name <span className="text-red-500">*</span>
+                  {t("auth.companyName")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -608,7 +610,7 @@ const RegisterForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Email <span className="text-red-500">*</span>
+                  {t("auth.companyEmail")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -625,7 +627,7 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password <span className="text-red-500">*</span>
+                  {t("auth.password")} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -652,7 +654,7 @@ const RegisterForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Confirm Password <span className="text-red-500">*</span>
+                  {t("auth.confirmPassword")} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -683,7 +685,7 @@ const RegisterForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Size <span className="text-red-500">*</span>
+                  {t("auth.companySize")} <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="companySize"
@@ -692,7 +694,7 @@ const RegisterForm = () => {
                   className="w-full h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#0B6F6C] focus:ring-1 focus:ring-[#0B6F6C]"
                   required
                 >
-                  <option value="">select company size</option>
+                  <option value="">{t("auth.selectCompanySize")}</option>
                   <option value="1-10">1-10</option>
                   <option value="11-50">11-50</option>
                   <option value="51-200">51-200</option>
@@ -704,7 +706,7 @@ const RegisterForm = () => {
             {/* Industry عرض أقل */}
             <div className="w-[220px]">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Industry <span className="text-red-500">*</span>
+                {t("auth.industry")} <span className="text-red-500">*</span>
               </label>
               <select
                 name="companyIndustry"
@@ -713,11 +715,11 @@ const RegisterForm = () => {
                 className="w-full h-11 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-[#0B6F6C] focus:ring-1 focus:ring-[#0B6F6C]"
                 required
               >
-                <option value="">select industry</option>
-                <option value="software">Software</option>
-                <option value="design">Design</option>
-                <option value="finance">Finance</option>
-                <option value="other">Other</option>
+                <option value="">{t("auth.selectIndustry")}</option>
+                <option value="software">{t("auth.software")}</option>
+                <option value="design">{t("auth.design")}</option>
+                <option value="finance">{t("auth.finance")}</option>
+                <option value="other">{t("auth.other")}</option>
               </select>
             </div>
           </>
@@ -730,7 +732,7 @@ const RegisterForm = () => {
               {/* Admin Code */}
               <div className="max-w-xs">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Admin Code (secret key) <span className="text-red-500">*</span>
+                  {t("auth.adminCode")} <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -758,7 +760,7 @@ const RegisterForm = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-red-500">*</span>
+                  {t("auth.email")} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -775,7 +777,7 @@ const RegisterForm = () => {
             {/* Password نفس عرض Admin Code */}
             <div className="w-[220px]">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password <span className="text-red-500">*</span>
+                {t("auth.password")} <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -809,7 +811,7 @@ const RegisterForm = () => {
             type="submit"
             className="w-full sm:w-3/4 max-w-sm h-11 rounded-lg text-sm sm:text-base font-semibold bg-[#0B6F6C] text-white hover:bg-[#0a5a59] transition"
           >
-            Create Account
+            {t("auth.createAccount")}
           </button>
 
           <button
@@ -817,74 +819,74 @@ const RegisterForm = () => {
             onClick={() => navigate("/login")}
             className="w-full sm:w-3/4 max-w-sm h-11 rounded-lg text-sm sm:text-base font-semibold border border-[#0B6F6C] text-[#0B6F6C] bg-white hover:bg-[#C7E8E5]/40 transition"
           >
-            Signup Later
+            {t("auth.signupLater")}
           </button>
         </div>
 
         {/* OR CONTINUE WITH بدون خطوط */}
         <div className="pt-2">
           <p className="text-xs sm:text-sm text-center text-gray-500 mb-5">
-            OR CONTINUE WITH
+            {t("auth.orContinueWith")}
           </p>
 
           <div className="mt-6 grid grid-cols-3 gap-7">
-                  <a
-                    href="https://accounts.google.com/"
-                    className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
-                    aria-label="Continue with Google"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-[20px] w-[20px]"
-                      aria-hidden="true"
-                    >
-                      <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.63Z" />
-                      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.87-3c-1.07.72-2.44 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.97H1.25v3.12A12 12 0 0 0 12 24Z" />
-                      <path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.88 12c0-.79.14-1.56.37-2.28V6.6H1.25A12 12 0 0 0 0 12c0 1.93.46 3.76 1.25 5.4l4-3.12Z" />
-                      <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.11 15.23 0 12 0A12 12 0 0 0 1.25 6.6l4 3.12c.95-2.85 3.61-4.97 6.75-4.97Z" />
-                    </svg>
-                  </a>
+            <a
+              href="https://accounts.google.com/"
+              className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
+              aria-label="Continue with Google"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-[20px] w-[20px]"
+                aria-hidden="true"
+              >
+                <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.63Z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.87-3c-1.07.72-2.44 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.97H1.25v3.12A12 12 0 0 0 12 24Z" />
+                <path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.88 12c0-.79.14-1.56.37-2.28V6.6H1.25A12 12 0 0 0 0 12c0 1.93.46 3.76 1.25 5.4l4-3.12Z" />
+                <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.11 15.23 0 12 0A12 12 0 0 0 1.25 6.6l4 3.12c.95-2.85 3.61-4.97 6.75-4.97Z" />
+              </svg>
+            </a>
 
-                  <a
-                    href="https://github.com/"
-                    className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
-                    aria-label="Continue with GitHub"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-[20px] w-[20px] fill-[#4B5563]"
-                      aria-hidden="true"
-                    >
-                      <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.74-1.33-1.74-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.23 1.84 1.23 1.08 1.83 2.83 1.3 3.52 1 .1-.77.42-1.3.76-1.6-2.67-.3-5.47-1.32-5.47-5.9 0-1.3.47-2.36 1.23-3.2-.12-.3-.53-1.5.12-3.13 0 0 1-.32 3.3 1.22A11.5 11.5 0 0 1 12 6.3c1.02 0 2.04.14 3 .4 2.29-1.54 3.29-1.22 3.29-1.22.65 1.63.24 2.83.12 3.13.77.84 1.23 1.9 1.23 3.2 0 4.6-2.8 5.6-5.48 5.9.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
-                    </svg>
-                  </a>
+            <a
+              href="https://github.com/"
+              className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
+              aria-label="Continue with GitHub"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-[20px] w-[20px] fill-[#4B5563]"
+                aria-hidden="true"
+              >
+                <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.74-1.33-1.74-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.23 1.84 1.23 1.08 1.83 2.83 1.3 3.52 1 .1-.77.42-1.3.76-1.6-2.67-.3-5.47-1.32-5.47-5.9 0-1.3.47-2.36 1.23-3.2-.12-.3-.53-1.5.12-3.13 0 0 1-.32 3.3 1.22A11.5 11.5 0 0 1 12 6.3c1.02 0 2.04.14 3 .4 2.29-1.54 3.29-1.22 3.29-1.22.65 1.63.24 2.83.12 3.13.77.84 1.23 1.9 1.23 3.2 0 4.6-2.8 5.6-5.48 5.9.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+              </svg>
+            </a>
 
-                  <a
-                    href="https://www.linkedin.com/"
-                    className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
-                    aria-label="Continue with LinkedIn"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-[20px] w-[20px]"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fill="#4B5563"
-                        d="M6.94 8.5A1.56 1.56 0 1 0 6.94 5.38 1.56 1.56 0 0 0 6.94 8.5ZM5.6 9.78h2.67V18H5.6V9.78Zm4.35 0h2.56v1.12h.04c.36-.68 1.23-1.4 2.53-1.4 2.7 0 3.2 1.73 3.2 3.98V18H15.6v-3.98c0-.95-.02-2.17-1.36-2.17-1.36 0-1.57 1.03-1.57 2.1V18H9.95V9.78Z"
-                      />
-                    </svg>
-                  </a>
-                </div>
-              </div>
+            <a
+              href="https://www.linkedin.com/"
+              className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
+              aria-label="Continue with LinkedIn"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className="h-[20px] w-[20px]"
+                aria-hidden="true"
+              >
+                <path
+                  fill="#4B5563"
+                  d="M6.94 8.5A1.56 1.56 0 1 0 6.94 5.38 1.56 1.56 0 0 0 6.94 8.5ZM5.6 9.78h2.67V18H5.6V9.78Zm4.35 0h2.56v1.12h.04c.36-.68 1.23-1.4 2.53-1.4 2.7 0 3.2 1.73 3.2 3.98V18H15.6v-3.98c0-.95-.02-2.17-1.36-2.17-1.36 0-1.57 1.03-1.57 2.1V18H9.95V9.78Z"
+                />
+              </svg>
+            </a>
+          </div>
+        </div>
         <p className="pt-4 text-xs sm:text-sm text-center text-gray-500">
-          Already have an account?{" "}
+          {t("auth.hasAccount")}{" "}
           <button
             type="button"
             onClick={() => navigate("/login")}
             className="text-[#0B6F6C] font-medium"
           >
-            Sign in
+            {t("auth.signIn")}
           </button>
         </p>
       </form>

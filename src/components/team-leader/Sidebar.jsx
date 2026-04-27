@@ -7,16 +7,19 @@ import {
   Bars3Icon,
   ChevronDoubleLeftIcon,
 } from "@heroicons/react/24/outline";
-
-const navItems = [
-  { key: "dashboard", label: "Dashboard", icon: Squares2X2Icon },
-  { key: "team", label: "Team", icon: UserGroupIcon },
-  { key: "tasks", label: "Tasks", icon: ClipboardDocumentListIcon },
-  { key: "progress", label: "Progress", icon: ChartBarIcon },
-  { key: "reports", label: "Reports", icon: DocumentTextIcon },
-];
+import { useTranslation } from "react-i18next";
 
 function Sidebar({ activeTab, onTabChange, user, isOpen, onToggle }) {
+  const { t } = useTranslation();
+
+  const navItems = [
+    { key: "dashboard", label: t("navigation.dashboard"), icon: Squares2X2Icon },
+    { key: "team", label: t("navigation.team"), icon: UserGroupIcon },
+    { key: "tasks", label: t("navigation.tasks"), icon: ClipboardDocumentListIcon },
+    { key: "progress", label: t("navigation.progress"), icon: ChartBarIcon },
+    { key: "reports", label: t("navigation.reports"), icon: DocumentTextIcon },
+  ];
+
   return (
     <aside className={`dashboard-sidebar ${isOpen ? "open" : "collapsed"}`}>
       <div className="sidebar-top">

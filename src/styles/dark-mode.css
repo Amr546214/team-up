@@ -1,0 +1,123 @@
+/* Dark Mode CSS Variables - TeamUp */
+/* This file provides CSS variables for consistent theming */
+
+:root {
+  /* Light Mode Colors */
+  --bg-primary: #F5FAFA;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-soft: #F9FBFB;
+  --bg-teal-soft: #D8F0EC;
+  
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --text-muted: #4B5563;
+  --text-light: #64748B;
+  
+  --border-primary: #D9E3E2;
+  --border-secondary: #E3ECEB;
+  --border-light: #E5EDED;
+  
+  --teal-primary: #0B6F6C;
+  --teal-hover: #0d9488;
+  --teal-soft: rgba(11, 111, 108, 0.12);
+  
+  --input-bg: #ffffff;
+  --input-border: #D1D5DB;
+  
+  --shadow-color: rgba(0, 0, 0, 0.08);
+}
+
+.dark {
+  /* Dark Mode Colors */
+  --bg-primary: #0F172A;
+  --bg-secondary: #111827;
+  --bg-card: #1F2937;
+  --bg-soft: #1F2937;
+  --bg-teal-soft: rgba(20, 184, 166, 0.14);
+  
+  --text-primary: #F9FAFB;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-light: #64748B;
+  
+  --border-primary: #374151;
+  --border-secondary: #374151;
+  --border-light: #374151;
+  
+  --teal-primary: #14B8A6;
+  --teal-hover: #0F766E;
+  --teal-soft: rgba(20, 184, 166, 0.14);
+  
+  --input-bg: #111827;
+  --input-border: #374151;
+  
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Utility classes using CSS variables */
+.bg-theme-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-theme-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-theme-card {
+  background-color: var(--bg-card);
+}
+
+.bg-theme-soft {
+  background-color: var(--bg-soft);
+}
+
+.bg-theme-teal-soft {
+  background-color: var(--bg-teal-soft);
+}
+
+.text-theme-primary {
+  color: var(--text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+
+.text-theme-muted {
+  color: var(--text-muted);
+}
+
+.text-theme-light {
+  color: var(--text-light);
+}
+
+.border-theme-primary {
+  border-color: var(--border-primary);
+}
+
+.border-theme-secondary {
+  border-color: var(--border-secondary);
+}
+
+.text-teal-theme {
+  color: var(--teal-primary);
+}
+
+.bg-teal-theme {
+  background-color: var(--teal-primary);
+}
+
+.hover\:bg-teal-soft:hover {
+  background-color: var(--teal-soft);
+}
+
+.input-theme {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--text-primary);
+}
+
+.shadow-theme {
+  box-shadow: 0 2px 8px var(--shadow-color);
+}

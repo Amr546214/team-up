@@ -2,6 +2,7 @@ import React from "react";
 import RegisterForm from "../../components/forms/RegisterForm";
 import { Bell, Moon, CircleUser, Check } from "lucide-react";
 import logo from "../../assets/logo/teamup-logo.png";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
@@ -22,6 +23,7 @@ function getDashboardPathByRole(role) {
 
 const Register = () => {
   const { isAuthenticated, session } = useAuth();
+  const { t } = useTranslation();
 
   // Redirect if already logged in
   if (isAuthenticated && session?.role) {
@@ -66,37 +68,29 @@ const Register = () => {
 
             <div className="space-y-6 max-w-xl">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold leading-tight text-gray-900">
-                Create Your{" "}
-                <span className="text-[#0E6B67]">Account</span>
+                {t("auth.registerPageTitle")}{" "}
                 <br />
-                Start{" "}
-                <span className="text-[#0E6B67]">Building</span>
+                {t("auth.startBuilding")}{" "}
                 <br />
-                <span className="text-[#0E6B67]">Smarter</span>.
+                <span className="text-[#0E6B67]">{t("auth.smarter")}</span>.
               </h1>
 
               <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                Join thousands of developers who are building the
-                <br />
-                future. Connect with top talent, work on exciting
-                <br />
-                projects, and grow your career with TeamUp&apos;s
-                <br />
-                innovative platform.
+                {t("auth.registerPageSubtitle")}
               </p>
 
               <div className="flex flex-wrap gap-4 text-xs sm:text-sm text-gray-700">
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-[#0B6F6C]" />
-                  <span>Premium Projects</span>
+                  <span>{t("auth.premiumProjects")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-[#0B6F6C]" />
-                  <span>Global Teams</span>
+                  <span>{t("auth.globalTeams")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-[#0B6F6C]" />
-                  <span>Fair Compensation</span>
+                  <span>{t("auth.fairCompensation")}</span>
                 </div>
               </div>
             </div>

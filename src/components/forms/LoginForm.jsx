@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 
 const LoginForm = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { t } = useTranslation();
   const [userType, setUserType] = useState("client");
   const [authMode, setAuthMode] = useState("login");
   const [email, setEmail] = useState("");
@@ -137,7 +139,7 @@ const LoginForm = () => {
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                   />
                 </svg>
-                <span>client</span>
+                <span>{t("auth.client")}</span>
               </button>
 
               {/* developer */}
@@ -166,7 +168,7 @@ const LoginForm = () => {
                     d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
                   />
                 </svg>
-                <span>Developer</span>
+                <span>{t("auth.developer")}</span>
               </button>
 
               {/* company */}
@@ -195,7 +197,7 @@ const LoginForm = () => {
                     d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
                   />
                 </svg>
-                <span>Company</span>
+                <span>{t("auth.company")}</span>
               </button>
 
               {/* admin */}
@@ -224,7 +226,7 @@ const LoginForm = () => {
                     d="M12 12a3 3 0 100-6 3 3 0 0 0 0 6zm0 2c-2.21 0-4 1.34-4 3v1h8v-1c0-1.66-1.79-3-4-3zM17 8l1-2 1 2 2 .5-1.5 1.5.3 2.1L18 13l-1.8 1.1.3-2.1L15 8.5 17 8z"
                   />
                 </svg>
-                <span>Admin</span>
+                <span>{t("auth.admin")}</span>
               </button>
             </div>
           </div>
@@ -235,32 +237,32 @@ const LoginForm = () => {
               className="flex items-center justify-between rounded-[10px] px-[10px] w-[420px] h-[50px]"
               style={{ backgroundColor: "#C7E8E5" }}
             >
-<button
-  onClick={() => setAuthMode("login")}
-  type="button"
-  className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center rounded-[10px] transition ${
-    authMode === "login"
-      ? "bg-white border border-[#0B6F6C] text-[#0B6F6C]"
-      : "bg-transparent text-[#0B6F6C]"
-  }`}
->
-  Login
-</button>
+              <button
+                onClick={() => setAuthMode("login")}
+                type="button"
+                className={`flex-1 py-2.5 text-sm font-medium flex items-center justify-center rounded-[10px] transition ${
+                  authMode === "login"
+                    ? "bg-white border border-[#0B6F6C] text-[#0B6F6C]"
+                    : "bg-transparent text-[#0B6F6C]"
+                }`}
+              >
+                {t("auth.signIn")}
+              </button>
 
-<button
-  onClick={() => {
-    setAuthMode("register");
-    navigate("/register");
-  }}
-  type="button"
-  className={`flex-1 py-2.5 text-sm font-medium rounded-[10px] transition ${
-    authMode === "register"
-      ? "bg-white border text-teal-600 shadow-sm"
-      : "text-teal-700"
-  }`}
->
-  Register
-</button>
+              <button
+                onClick={() => {
+                  setAuthMode("register");
+                  navigate("/register");
+                }}
+                type="button"
+                className={`flex-1 py-2.5 text-sm font-medium rounded-[10px] transition ${
+                  authMode === "register"
+                    ? "bg-white border text-teal-600 shadow-sm"
+                    : "text-teal-700"
+                }`}
+              >
+                {t("common.register")}
+              </button>
             </div>
           </div>
 
@@ -268,7 +270,7 @@ const LoginForm = () => {
           {isAdmin && authMode === "login" && (
             <div className="mb-5 flex items-center gap-2 text-[13px] text-[#8B95A7]">
               <ShieldCheck size={16} strokeWidth={1.8} />
-              <span>2FA required after login</span>
+              <span>{t("auth.twoFactorRequired")}</span>
             </div>
           )}
 
@@ -281,7 +283,7 @@ const LoginForm = () => {
             {/* EMAIL */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
+                {t("auth.email")}
               </label>
               <input
                 type="text"
@@ -314,7 +316,7 @@ const LoginForm = () => {
             {/* PASSWORD */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                {t("auth.password")}
               </label>
 
               <div className="relative">
@@ -364,11 +366,11 @@ const LoginForm = () => {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-600"
                 />
-                <span className="text-sm text-gray-700">Remember me</span>
+                <span className="text-sm text-gray-700">{t("auth.rememberMe")}</span>
               </label>
 
               <a href="#" className="text-sm text-teal-600 hover:text-teal-700">
-                Forgot your password?
+                {t("auth.forgotPassword")}
               </a>
             </div>
 
@@ -378,7 +380,7 @@ const LoginForm = () => {
               onClick={handleLoginClick}
               className="w-[340px] h-[40px] mx-auto bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer"
             >
-              Login
+              {t("auth.loginButton")}
             </a>
 
             {/* Admin secure message only */}
@@ -386,8 +388,7 @@ const LoginForm = () => {
               <div className="flex items-start gap-2 text-[12px] leading-5 text-[#8B95A7] px-1">
                 <Lock size={15} strokeWidth={1.8} className="mt-[2px] shrink-0" />
                 <p>
-                  Your information is secure we use industry-standard
-                  encryption
+                  {t("auth.secureMessage")}
                 </p>
               </div>
             )}
@@ -396,7 +397,7 @@ const LoginForm = () => {
             {!isAdmin && (
               <div className="mt-4">
                 <p className="text-center text-[12px] font-medium uppercase tracking-wide text-[#98A2B3]">
-                  OR CONTINUE WITH
+                  {t("auth.orContinueWith")}
                 </p>
 
                 <div className="mt-6 grid grid-cols-3 gap-7">
@@ -456,7 +457,7 @@ const LoginForm = () => {
                 isAdmin ? "mt-8" : "mt-6"
               }`}
             >
-              Don&apos;t have an account?{" "}
+              {t("auth.noAccount")}{" "}
               <a
                 href="#"
                 onClick={(e) => {
@@ -465,7 +466,7 @@ const LoginForm = () => {
                 }}
                 className="font-semibold text-[#0B6F6C] hover:underline cursor-pointer"
               >
-                Sign up
+                {t("auth.signUp")}
               </a>
             </p>
           </form>

@@ -26,7 +26,8 @@ function Notification() {
 
   // Initial load and event listener
   useEffect(() => {
-    loadNotifications();
+    // Defer to next tick to avoid ESLint warning about sync setState in effect
+    const timeoutId = setTimeout(loadNotifications, 0);
 
     // Listen for notification updates
     const handleNotificationUpdate = () => {
@@ -36,6 +37,7 @@ function Notification() {
     window.addEventListener("teamup_notifications_updated", handleNotificationUpdate);
 
     return () => {
+      clearTimeout(timeoutId);
       window.removeEventListener("teamup_notifications_updated", handleNotificationUpdate);
     };
   }, [loadNotifications]);

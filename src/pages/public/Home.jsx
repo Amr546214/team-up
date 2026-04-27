@@ -1,6 +1,7 @@
 import Header from "../../components/common/Header";
 import heroImage from "../../assets/images/image.png";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import footerLogo from "../../assets/logo/teamup-logo.png";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -38,6 +39,7 @@ function getDashboardPathByRole(role) {
 const Home = () => {
   const navigate = useNavigate();
   const { isAuthenticated, session } = useAuth();
+  const { t } = useTranslation();
 
   const handleGetStarted = () => {
     if (isAuthenticated && session?.role) {
@@ -71,16 +73,12 @@ const Home = () => {
 
               {/* Title */}
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#0F172A] leading-tight">
-                Build high-performance{" "}
-                <span className="text-[#0B6F6C]">teams</span> with smart
-                matching.
+                {t("home.heroTitle")}
               </h1>
 
               {/* Description */}
               <p className="mt-6 text-lg text-[#64748B] max-w-xl leading-relaxed mx-auto lg:mx-0">
-                TeamUp Connects Freelancers, developers, designers, and companies
-                through AI-powered team building. Find the right people, manage
-                projects and grow together.
+                {t("home.heroSubtitle")}
               </p>
 
               {/* Buttons */}
@@ -89,14 +87,14 @@ const Home = () => {
                   onClick={handleGetStarted}
                   className="w-full sm:w-auto h-12 px-8 bg-[#0B6F6C] text-white rounded-md hover:bg-[#15807d] transition font-medium flex items-center justify-center"
                 >
-                  {isAuthenticated ? "Go to Dashboard" : "Get Started"}
+                  {isAuthenticated ? t("home.goToDashboard") : t("home.getStarted")}
                 </button>
 
                 <a
                   href="#features"
                   className="w-full sm:w-auto h-12 px-8 border border-[#0B6F6C] text-[#0B6F6C] rounded-md hover:bg-[#e6f3f2] transition font-medium flex items-center justify-center"
                 >
-                  Learn More
+                  {t("home.learnMore")}
                 </a>
               </div>
 
@@ -121,7 +119,7 @@ const Home = () => {
   {/* How It Work */}
   <div className="bg-white px-6 md:px-10 py-10">
     <h2 className="text-center text-[24px] md:text-[32px] font-bold text-[#111827] mb-12">
-      How It Work
+      {t("home.howItWorksTitle")}
     </h2>
 
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -133,12 +131,10 @@ const Home = () => {
           <UserPlus size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-2">
-          Create your account
+          {t("home.createAccount")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Choose your role
-          <br />
-          and complete your profile
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.createAccountDesc")}
         </p>
       </button>
 
@@ -150,12 +146,10 @@ const Home = () => {
           <FileText size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-2">
-          Post or apply
+          {t("home.postOrApply")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Clients post projects.
-          <br />
-          Developers apply or get invited
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.postOrApplyDesc")}
         </p>
       </Link>
 
@@ -167,12 +161,10 @@ const Home = () => {
           <Users size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-2">
-          Build teams
+          {t("home.buildTeams")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Manually, with AI help,
-          <br />
-          or auto-suggested teams.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.buildTeamsDesc")}
         </p>
       </Link>
 
@@ -184,12 +176,10 @@ const Home = () => {
           <ClipboardList size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-2">
-          Work & track
+          {t("home.workAndTrack")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Manage tasks, chat,
-          <br />
-          and monitor progress.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.workAndTrackDesc")}
         </p>
       </Link>
 
@@ -201,12 +191,10 @@ const Home = () => {
           <Star size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-2">
-          Rate & grow
+          {t("home.rateAndGrow")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Feedback improves
-          <br />
-          ranking and future matching.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.rateAndGrowDesc")}
         </p>
       </Link>
     </div>
@@ -215,7 +203,7 @@ const Home = () => {
   {/* Choose your role */}
   <div className="bg-[#F5FAFA] px-6 md:px-10 py-12">
     <h2 className="text-center text-[24px] md:text-[32px] font-bold text-[#111827] mb-12">
-    Choose your role
+    {t("home.chooseYourRole")}
     </h2>
 
     <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -227,12 +215,10 @@ const Home = () => {
           <Sparkles size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-3">
-          AI Team Builder
+          {t("home.aiTeamBuilder")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Suggests the best team based on skills,
-          <br />
-          experience, and availability.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.aiTeamBuilderDesc")}
         </p>
       </Link>
 
@@ -244,12 +230,10 @@ const Home = () => {
           <TrendingUp size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-3">
-          Performance Tracking
+          {t("home.performanceTracking")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Track tasks, deadlines, and team progress
-          <br />
-          in real-time.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.performanceTrackingDesc")}
         </p>
       </Link>
 
@@ -261,12 +245,10 @@ const Home = () => {
           <MessageSquare size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-3">
-          Smart Chatbot
+          {t("home.smartChatbot")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Ask about projects, tasks, deadlines, or
-          <br />
-          hiring instantly.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.smartChatbotDesc")}
         </p>
       </Link>
 
@@ -278,24 +260,21 @@ const Home = () => {
           <Trophy size={18} />
         </div>
         <h3 className="text-[16px] font-semibold text-[#111827] mb-3">
-          Ranking System
+          {t("home.rankingSystem")}
         </h3>
-        <p className="text-[14px] leading-7 text-[#6B7280]">
-          Developers grow their rank based on
-          <br />
-          performance and reviews.
+        <p className="text-[14px] leading-7 text-[#6B7280] whitespace-pre-line">
+          {t("home.rankingSystemDesc")}
         </p>
        </Link>
      </div>
    </div>
  </section>
 
- {/* Section 3 - Stats */}
 <section className="bg-[#ffffff] py-16 px-6 md:px-10">
 
 {/* Title */}
 <h2 className="text-center text-[26px] md:text-[32px] font-semibold text-[#111827] mb-12">
-  Trusted by teams and professionals
+  {t("home.trustedByTitle")}
 </h2>
 
 {/* Cards */}
@@ -307,7 +286,7 @@ const Home = () => {
       <Users size={18} />
     </div>
     <h3 className="text-[20px] font-semibold text-[#111827]">50,000+</h3>
-    <p className="text-[14px] text-[#6B7280] mt-1">Total Users</p>
+    <p className="text-[14px] text-[#6B7280] mt-1">{t("home.totalUsers")}</p>
   </div>
 
   {/* Card 2 */}
@@ -316,7 +295,7 @@ const Home = () => {
       <CheckCircle size={18} />
     </div>
     <h3 className="text-[20px] font-semibold text-[#111827]">12,500+</h3>
-    <p className="text-[14px] text-[#6B7280] mt-1">Projects Completed</p>
+    <p className="text-[14px] text-[#6B7280] mt-1">{t("home.projectsCompleted")}</p>
   </div>
 
   {/* Card 3 */}
@@ -325,7 +304,7 @@ const Home = () => {
       <User2 size={18} />
     </div>
     <h3 className="text-[20px] font-semibold text-[#111827]">3,200+</h3>
-    <p className="text-[14px] text-[#6B7280] mt-1">Active Teams</p>
+    <p className="text-[14px] text-[#6B7280] mt-1">{t("home.activeTeams")}</p>
   </div>
 
   {/* Card 4 */}
@@ -334,7 +313,7 @@ const Home = () => {
       <Star size={18} />
     </div>
     <h3 className="text-[20px] font-semibold text-[#111827]">4.8/5</h3>
-    <p className="text-[14px] text-[#6B7280] mt-1">Average Rating</p>
+    <p className="text-[14px] text-[#6B7280] mt-1">{t("home.averageRating")}</p>
   </div>
 
 </div>
@@ -342,7 +321,7 @@ const Home = () => {
 {/* Section 3 - Part 2 */}
 <section className="bg-[#F5FAFA] px-5 md:px-8 py-16">
   <h2 className="text-center text-[26px] md:text-[32px] font-semibold text-[#111827] mb-12">
-    Ready to build or join your next team?
+    {t("home.readyTitle")}
   </h2>
 
   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-15">
@@ -352,33 +331,31 @@ const Home = () => {
         <BriefcaseBusiness size={18} />
       </div>
 
-      <h3 className="text-[18px] font-semibold text-[#111827] mb-5">Client</h3>
+      <h3 className="text-[18px] font-semibold text-[#111827] mb-5">{t("home.clientCardTitle")}</h3>
 
-      <p className="text-[15px] leading-8 text-[#5F6B76] mb-5">
-        Post projects, find skilled developers, and
-        <br />
-        build custom teams for your needs.
+      <p className="text-[15px] leading-8 text-[#5F6B76] mb-5 whitespace-pre-line">
+        {t("home.clientCardDesc")}
       </p>
 
       <div className="space-y-3 mb-6">
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Post unlimited projects</span>
+          <span>{t("home.clientFeature1")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>AI team suggestions</span>
+          <span>{t("home.clientFeature2")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Rate team members</span>
+          <span>{t("home.clientFeature3")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Track project progress</span>
+          <span>{t("home.clientFeature4")}</span>
         </div>
       </div>
 
@@ -386,7 +363,7 @@ const Home = () => {
         onClick={() => handleSignUp("client")}
         className="block w-full text-center border border-[#0B6F6C] text-[#0B6F6C] rounded-[8px] py-3 text-[15px] font-medium hover:bg-[#EAF6F5] transition"
       >
-        {isAuthenticated ? "Go to Dashboard" : "Sign up as client"}
+        {isAuthenticated ? t("home.goToDashboard") : t("home.signUpAsClient")}
       </button>
     </div>
 
@@ -396,33 +373,31 @@ const Home = () => {
         <CodeXml size={18} />
       </div>
 
-      <h3 className="text-[18px] font-semibold text-[#111827] mb-5">Developer</h3>
+      <h3 className="text-[18px] font-semibold text-[#111827] mb-5">{t("home.developerCardTitle")}</h3>
 
-      <p className="text-[15px] leading-8 text-[#5F6B76] mb-5">
-        Apply to projects, join teams, and grow
-        <br />
-        your professional ranking.
+      <p className="text-[15px] leading-8 text-[#5F6B76] mb-5 whitespace-pre-line">
+        {t("home.developerCardDesc")}
       </p>
 
       <div className="space-y-3 mb-6">
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Browse open projects</span>
+          <span>{t("home.devFeature1")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Get AI-matched invites</span>
+          <span>{t("home.devFeature2")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Build your reputation</span>
+          <span>{t("home.devFeature3")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Earn performance badges</span>
+          <span>{t("home.devFeature4")}</span>
         </div>
       </div>
 
@@ -430,7 +405,7 @@ const Home = () => {
         onClick={() => handleSignUp("developer")}
         className="block w-full text-center border border-[#0B6F6C] text-[#0B6F6C] rounded-[8px] py-3 text-[15px] font-medium hover:bg-[#EAF6F5] transition"
       >
-        {isAuthenticated ? "Go to Dashboard" : "Sign up as Developer"}
+        {isAuthenticated ? t("home.goToDashboard") : t("home.signUpAsDeveloper")}
       </button>
     </div>
 
@@ -440,33 +415,31 @@ const Home = () => {
         <Building2 size={18} />
       </div>
 
-      <h3 className="text-[18px] font-semibold text-[#111827] mb-5">Company</h3>
+      <h3 className="text-[18px] font-semibold text-[#111827] mb-5">{t("home.companyCardTitle")}</h3>
 
-      <p className="text-[15px] leading-8 text-[#5F6B76] mb-5">
-        Hire developers, manage internal teams,
-        <br />
-        and scale your workforce.
+      <p className="text-[15px] leading-8 text-[#5F6B76] mb-5 whitespace-pre-line">
+        {t("home.companyCardDesc")}
       </p>
 
       <div className="space-y-3 mb-6">
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Post job openings</span>
+          <span>{t("home.companyFeature1")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Access talent pool</span>
+          <span>{t("home.companyFeature2")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Manage multiple teams</span>
+          <span>{t("home.companyFeature3")}</span>
         </div>
 
         <div className="flex items-center gap-3 text-[15px] text-[#4B5563]">
           <Check size={16} className="text-[#0B6F6C]" />
-          <span>Analytics & reporting</span>
+          <span>{t("home.companyFeature4")}</span>
         </div>
       </div>
 
@@ -474,7 +447,7 @@ const Home = () => {
         onClick={() => handleSignUp("company")}
         className="block w-full text-center border border-[#0B6F6C] text-[#0B6F6C] rounded-[8px] py-3 text-[15px] font-medium hover:bg-[#EAF6F5] transition"
       >
-        {isAuthenticated ? "Go to Dashboard" : "Sign up as Company"}
+        {isAuthenticated ? t("home.goToDashboard") : t("home.signUpAsCompany")}
       </button>
     </div>
   </div>
@@ -495,11 +468,11 @@ const Home = () => {
       </div>
 
       <p className="text-[15px] text-[#6B7280] leading-7 mb-14">
-        Building teams, powering success.
+        {t("home.footerSlogan")}
       </p>
 
       <p className="text-[15px] text-[#4B5563]">
-        © 2024 TeamUp. All rights reserved.
+        {t("home.footerCopyright")}
       </p>
     </div>
 
@@ -510,7 +483,7 @@ const Home = () => {
         {/* Product */}
         <div>
           <h3 className="text-[18px] font-bold text-[#111827] mb-5">
-            Product
+            {t("home.product")}
           </h3>
 
           <div className="flex flex-col gap-3">
@@ -518,19 +491,19 @@ const Home = () => {
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Features
+              {t("home.features")}
             </a>
             <a
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Pricing
+              {t("home.pricing")}
             </a>
             <a
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              How it Work
+              {t("home.howItWorks")}
             </a>
           </div>
         </div>
@@ -538,7 +511,7 @@ const Home = () => {
         {/* Company */}
         <div>
           <h3 className="text-[18px] font-bold text-[#111827] mb-5">
-            Company
+            {t("home.company")}
           </h3>
 
           <div className="flex flex-col gap-3">
@@ -546,19 +519,19 @@ const Home = () => {
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              About
+              {t("home.about")}
             </a>
             <a
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Blog
+              {t("home.blog")}
             </a>
             <a
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Careers
+              {t("home.careers")}
             </a>
           </div>
         </div>
@@ -566,7 +539,7 @@ const Home = () => {
         {/* Support */}
         <div>
           <h3 className="text-[18px] font-bold text-[#111827] mb-5">
-            Support
+            {t("home.support")}
           </h3>
 
           <div className="flex flex-col gap-3">
@@ -574,19 +547,19 @@ const Home = () => {
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Helper Center
+              {t("home.helpCenter")}
             </a>
             <a
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Contact
+              {t("home.contact")}
             </a>
             <a
               href="#"
               className="block text-[15px] text-[#6B7280] hover:text-[#0B6F6C] transition"
             >
-              Privacy
+              {t("home.privacy")}
             </a>
           </div>
         </div>

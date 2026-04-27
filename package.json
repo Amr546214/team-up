@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "i18next": "^26.0.8",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^17.0.6",
     "react-router-dom": "^7.14.1",
     "sweetalert2": "^11.26.24"
   },

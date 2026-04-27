@@ -9,12 +9,14 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
 import { getCurrentUser } from "../../services/fakeApi";
 
 function DeveloperSidebar() {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { t } = useTranslation();
 
   /* =========================
      Current User from localStorage
@@ -30,25 +32,25 @@ function DeveloperSidebar() {
     {
       id: 1,
       key: "dashboard",
-      name: "Dashboard",
+      name: t("navigation.dashboard"),
       path: "/developer/dashboard",
     },
     {
       id: 2,
       key: "projects",
-      name: "My Projects",
+      name: t("navigation.myProjects"),
       path: "/developer/projects",
     },
     {
       id: 3,
       key: "applications",
-      name: "Applications",
+      name: t("navigation.applications"),
       path: "/developer/applications",
     },
     {
       id: 4,
       key: "profile",
-      name: "Profile",
+      name: t("navigation.profile"),
       path: "/developer/profile",
     },
   ];
@@ -157,7 +159,7 @@ function DeveloperSidebar() {
           {!isCollapsed && (
             <div className="px-6 mt-10">
               <h3 className="text-[12px] font-semibold text-[#B0B7C3] mb-3">
-                Active Projects
+                {t("navigation.activeProjects")}
               </h3>
 
               <div className="flex items-center gap-2">

@@ -4,8 +4,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
 import Notification from "./Notification";
+import LanguageSwitcher from "./LanguageSwitcher";
 import { useAuth } from "../../hooks/useAuth";
 
 function getDashboardPathByRole(role) {
@@ -26,6 +28,7 @@ function getDashboardPathByRole(role) {
 function Header({ profileImage }) {
   const navigate = useNavigate();
   const { session, isAuthenticated, logout } = useAuth();
+  const { t } = useTranslation();
 
   const [open, setOpen] = useState(false);
   const menuRef = useRef();
@@ -72,6 +75,9 @@ function Header({ profileImage }) {
           {/* Notifications - Only shows when logged in */}
           {isAuthenticated && <Notification />}
 
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+
           {/* Theme */}
           <button
             className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
@@ -114,13 +120,13 @@ function Header({ profileImage }) {
                     }}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
                   >
-                    Dashboard
+                    {t("navigation.dashboard")}
                   </button>
                   <button
                     onClick={handleLogout}
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
                   >
-                    Logout
+                    {t("common.logout")}
                   </button>
                 </div>
               )}
@@ -132,13 +138,13 @@ function Header({ profileImage }) {
                 onClick={() => navigate("/login")}
                 className="h-10 px-4 text-sm font-medium text-gray-700 hover:text-[#0f766e] transition"
               >
-                Login
+                {t("common.login")}
               </button>
               <button
                 onClick={() => navigate("/register")}
                 className="h-10 px-4 text-sm font-medium bg-[#0f766e] text-white rounded-lg hover:bg-[#0d9488] transition"
               >
-                Register
+                {t("common.register")}
               </button>
             </div>
           )}
