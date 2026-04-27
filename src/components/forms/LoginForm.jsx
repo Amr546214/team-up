@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 const LoginForm = () => {
   const navigate = useNavigate();
@@ -86,13 +86,14 @@ const LoginForm = () => {
       return;
     }
 
+    const actualRole = authResult.account?.role || userType;
     const roleRedirects = {
       client: "/client/profile",
       developer: "/developer/dashboard",
       company: "/company/profile",
       admin: "/",
     };
-    const targetRoute = roleRedirects[userType];
+    const targetRoute = roleRedirects[actualRole];
 
     resetForm();
     navigate(targetRoute);

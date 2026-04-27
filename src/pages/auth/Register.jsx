@@ -2,7 +2,7 @@ import React from "react";
 import RegisterForm from "../../components/forms/RegisterForm";
 import { Bell, Moon, CircleUser, Check } from "lucide-react";
 import logo from "../../assets/logo/teamup-logo.png";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
 function getDashboardPathByRole(role) {

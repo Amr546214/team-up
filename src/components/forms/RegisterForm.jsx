@@ -5,6 +5,7 @@ import {
   registerUser,
   findUserByEmail,
 } from "../../services/fakeApi";
+import { useAuth } from "../../hooks/useAuth";
 
 // -------------- CONSTANTS -------------- //
 const roles = [
@@ -41,6 +42,7 @@ const initialFormData = {
   companyName: "",
   companyEmail: "",
   companyPassword: "",
+  companyConfirmPassword: "",
   companySize: "",
   companyIndustry: "",
   // admin
@@ -55,12 +57,14 @@ const initialShowPassword = {
   devPassword: false,
   devConfirmPassword: false,
   companyPassword: false,
+  companyConfirmPassword: false,
   adminPassword: false,
   adminCode: false,
 };
 
 const RegisterForm = () => {
   const navigate = useNavigate();
+  const { refreshSession } = useAuth();
   const [searchParams] = useSearchParams();
   const preselectedRole = searchParams.get("role");
   const [activeRole, setActiveRole] = useState("client");
@@ -115,6 +119,12 @@ const RegisterForm = () => {
     }
     if (activeRole === "developer") {
       if (formData.devPassword !== formData.devConfirmPassword) {
+        window.alert("Passwords do not match.");
+        return;
+      }
+    }
+    if (activeRole === "company") {
+      if (formData.companyPassword !== formData.companyConfirmPassword) {
         window.alert("Passwords do not match.");
         return;
       }
@@ -209,6 +219,9 @@ const RegisterForm = () => {
     }
 
     // Registration successful - user is already logged in (auto-login)
+    // Sync AuthContext session with the newly registered user in localStorage
+    refreshSession();
+
     // Navigate to appropriate page based on role
     const roleRedirects = {
       client: "/client/profile",
@@ -630,6 +643,37 @@ const RegisterForm = () => {
                     className="absolute inset-y-0 right-3 flex items-center text-gray-400"
                   >
                     {showPassword.companyPassword ? (
+                      <Eye className="w-4 h-4" />
+                    ) : (
+                      <EyeOff className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm Password <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={
+                      showPassword.companyConfirmPassword ? "text" : "password"
+                    }
+                    name="companyConfirmPassword"
+                    value={formData.companyConfirmPassword}
+                    onChange={handleChange}
+                    placeholder="***********"
+                    className="w-full h-11 rounded-lg border border-gray-200 px-3 pr-10 text-sm outline-none focus:border-[#0B6F6C] focus:ring-1 focus:ring-[#0B6F6C]"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toggleShowPassword("companyConfirmPassword")
+                    }
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-400"
+                  >
+                    {showPassword.companyConfirmPassword ? (
                       <Eye className="w-4 h-4" />
                     ) : (
                       <EyeOff className="w-4 h-4" />

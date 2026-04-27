@@ -646,9 +646,6 @@ export function addNotification(userId, notificationData) {
   const newNotification = {
     id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     userId,
-    title: notificationData.title || "Notification",
-    message: notificationData.message || "",
-    type: notificationData.type || "general",
     isRead: false,
     createdAt: new Date().toISOString(),
     ...notificationData,

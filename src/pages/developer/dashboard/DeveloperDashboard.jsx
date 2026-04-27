@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DeveloperLayout from "../../../layouts/DeveloperLayout";
 import Header from "../../../components/common/Header";
+import { getCurrentUser } from "../../../services/fakeApi";
 import {
   BriefcaseBusiness,
   Send,
@@ -17,12 +19,14 @@ import {
 function DeveloperDashboard() {
   const navigate = useNavigate();
   /* =========================
+     Current User from localStorage
+  ========================== */
+  const [currentUser] = useState(() => getCurrentUser());
+  const userFirstName = currentUser?.name?.split(" ")[0] || "Developer";
+
+  /* =========================
      Fake API Data (Data only)
   ========================== */
-  const user = {
-    firstName: "Hanan",
-  };
-
   const statsCards = [
     {
       id: 1,
@@ -250,7 +254,7 @@ function DeveloperDashboard() {
         <section>
           <div className="mb-6">
             <h1 className="text-[18px] md:text-[20px] font-bold text-[#111827]">
-              Hello {user.firstName}, manage your work.
+              Hello {userFirstName}, manage your work.
             </h1>
             <p className="mt-1 text-[13px] md:text-[14px] text-[#6B7280]">
               Track your projects, applications, and performance metrics.

@@ -2,7 +2,7 @@ import Header from "../../components/common/Header";
 import heroImage from "../../assets/images/image.png";
 import { Link, useNavigate } from "react-router-dom";
 import footerLogo from "../../assets/logo/teamup-logo.png";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 import {
   UserPlus,

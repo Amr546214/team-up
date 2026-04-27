@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useMemo, useState } from "react";
 import {
   loginUser,
   logoutUser,
@@ -51,23 +51,22 @@ export function AuthProvider({ children }) {
     setSession(null);
   }, []);
 
+  const refreshSession = useCallback(() => {
+    setSession(getCurrentUser());
+  }, []);
+
   const value = useMemo(
     () => ({
       session,
       isAuthenticated: Boolean(session?.id && session?.email && session?.role),
       login,
       logout,
+      refreshSession,
     }),
-    [session, login, logout]
+    [session, login, logout, refreshSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return ctx;
-}
+export { AuthContext };

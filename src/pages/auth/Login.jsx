@@ -1,7 +1,7 @@
 import Header from "../../components/common/Header";
 import HeroSection from "../../components/common/HeroSection";
 import LoginForm from "../../components/forms/LoginForm";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
 function getDashboardPathByRole(role) {

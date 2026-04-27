@@ -453,7 +453,7 @@ function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
 
 
                     <a
-                      href={`/developer/profile/${developerId}`}
+                      href="/developer/profile"
                       className="mt-4 inline-flex items-center justify-center w-full h-[40px] rounded-[8px] bg-[#0B6B63] text-white text-[14px] font-medium hover:opacity-90 transition"
                     >
                       View Profile

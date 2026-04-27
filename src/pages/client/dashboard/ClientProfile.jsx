@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../../components/common/Header";
+import { getCurrentUser } from "../../../services/fakeApi";
 
 import {
   ChevronDown,
@@ -13,34 +14,59 @@ import {
   Star,
 } from "lucide-react";
 
+const COUNTRY_CODES = {
+  Egypt: "+20",
+  "Saudi Arabia": "+966",
+  UAE: "+971",
+  Jordan: "+962",
+  Kuwait: "+965",
+  Qatar: "+974",
+  Bahrain: "+973",
+  Oman: "+968",
+};
+
+function loadInitialProfile() {
+  const user = getCurrentUser();
+  if (!user) return null;
+  const cp = user.clientProfile || {};
+  const loaded = {
+    fullName: user.name || cp.fullName || "",
+    userName: cp.userName || "",
+    email: user.email || cp.email || "",
+    phoneNumber: cp.phoneNumber || "",
+    country: cp.country || "Egypt",
+    bio: cp.bio || "",
+    photo: cp.photo || null,
+  };
+  const code = COUNTRY_CODES[loaded.country] || "+20";
+  const hasSaved = !!(cp.fullName || cp.userName);
+  return { loaded, code, hasSaved };
+}
+
 function ClientProfile() {
   const navigate = useNavigate();
-  const countryCodes = {
-    Egypt: "+20",
-    "Saudi Arabia": "+966",
-    UAE: "+971",
-    Jordan: "+962",
-    Kuwait: "+965",
-    Qatar: "+974",
-    Bahrain: "+973",
-    Oman: "+968",
-  };
+  const countryCodes = COUNTRY_CODES;
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    userName: "",
-    email: "",
-    phoneNumber: "",
-    country: "Egypt",
-    bio: "",
-    photo: null,
-  });
+  const [initial] = useState(() => loadInitialProfile());
 
-  const [savedProfile, setSavedProfile] = useState(null);
-  const [isEditing, setIsEditing] = useState(true);
+  const [formData, setFormData] = useState(() =>
+    initial?.loaded || {
+      fullName: "",
+      userName: "",
+      email: "",
+      phoneNumber: "",
+      country: "Egypt",
+      bio: "",
+      photo: null,
+    }
+  );
 
+  const [savedProfile, setSavedProfile] = useState(() =>
+    initial?.hasSaved ? { ...initial.loaded, phoneCode: initial.code } : null
+  );
+  const [isEditing, setIsEditing] = useState(() => !initial?.hasSaved);
   const [showAdditionalInfo, setShowAdditionalInfo] = useState(true);
-  const [phoneCode, setPhoneCode] = useState("+20");
+  const [phoneCode, setPhoneCode] = useState(() => initial?.code || "+20");
 
   const [paymentMethods, setPaymentMethods] = useState([
     "Bank Account",
@@ -99,20 +125,54 @@ function ClientProfile() {
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
       setFormData((prev) => ({
         ...prev,
-        photo: URL.createObjectURL(file),
+        photo: reader.result,
       }));
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProfile = () => {
-    setSavedProfile({
-      ...formData,
-      phoneCode,
-    });
+    const profileToSave = { ...formData, phoneCode };
+    setSavedProfile(profileToSave);
     setIsEditing(false);
+
+    // Persist to localStorage
+    try {
+      const usersRaw = window.localStorage.getItem("teamup_users");
+      const users = usersRaw ? JSON.parse(usersRaw) : [];
+      const currentUser = getCurrentUser();
+      if (currentUser?.id) {
+        const idx = users.findIndex((u) => u.id === currentUser.id);
+        if (idx !== -1) {
+          users[idx] = {
+            ...users[idx],
+            name: formData.fullName || users[idx].name,
+            clientProfile: {
+              ...users[idx].clientProfile,
+              fullName: formData.fullName,
+              userName: formData.userName,
+              email: formData.email,
+              phoneNumber: formData.phoneNumber,
+              country: formData.country,
+              bio: formData.bio,
+              photo: formData.photo,
+              phoneCode,
+            },
+          };
+          window.localStorage.setItem("teamup_users", JSON.stringify(users));
+          const { password: _password, ...safeUser } = users[idx];
+          window.localStorage.setItem("teamup_current_user", JSON.stringify(safeUser));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to persist client profile:", err);
+    }
+
     alert("Profile saved successfully!");
   };
 
@@ -563,7 +623,7 @@ function ClientProfile() {
                   <div className="px-6 py-5">
                     {item.rating > 0 ? (
                       <div className="flex items-center gap-1">
-                        {[1, 2, 3].map((star) => (
+                        {Array.from({ length: item.rating }, (_, i) => i + 1).map((star) => (
                           <Star
                             key={star}
                             size={20}

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Plus, X, Save, Loader2 } from "lucide-react";
 import Header from "../../../components/common/Header";
+import { getCurrentUser } from "../../../services/fakeApi";
 
 const TRACK_OPTIONS = [
   "Frontend Developer",
@@ -52,60 +53,58 @@ const DevProfile = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  const [currentUser, setCurrentUser] = useState(null);
+  // Lazy initialization from localStorage to avoid setState in useEffect
+  const [currentUser] = useState(() => {
+    const user = getCurrentUser();
+    if (user?.role !== "developer") return null;
+    return user;
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errors, setErrors] = useState({});
 
-  const [formData, setFormData] = useState({
-    image: "",
-    name: "",
-    track: "",
-    experience: "",
-    skills: [],
-    portfolio: "",
-    hourlyRate: "",
-    hoursPerWeek: "",
-    availability: "Yes",
+  const [formData, setFormData] = useState(() => {
+    const user = getCurrentUser();
+    if (!user || user.role !== "developer") {
+      return {
+        image: "",
+        name: "",
+        track: "",
+        experience: "",
+        skills: [],
+        portfolio: "",
+        hourlyRate: "",
+        hoursPerWeek: "",
+        availability: "Yes",
+      };
+    }
+    const devProfile = user.developerProfile || {};
+    return {
+      image: devProfile.image || "",
+      name: user.name || "",
+      track: devProfile.track || "",
+      experience: devProfile.experience || "",
+      skills: devProfile.skills || [],
+      portfolio: devProfile.portfolio || "",
+      hourlyRate: devProfile.hour_rate_usd?.toString() || "",
+      hoursPerWeek: devProfile.hours_per_week?.toString() || "",
+      availability: devProfile.available === false ? "No" : "Yes",
+    };
   });
 
   const [newSkill, setNewSkill] = useState("");
   const [showSkillDropdown, setShowSkillDropdown] = useState(false);
 
+  // Redirect if not a developer (runs once on mount)
   useEffect(() => {
-    const rawUser = window.localStorage.getItem("teamup_current_user");
-    if (!rawUser) {
-      navigate("/login");
+    const user = getCurrentUser();
+    if (!user || user.role !== "developer") {
+      navigate(user ? "/" : "/login");
       return;
     }
-
-    try {
-      const user = JSON.parse(rawUser);
-      if (user.role !== "developer") {
-        navigate("/");
-        return;
-      }
-
-      setCurrentUser(user);
-      const devProfile = user.developerProfile || {};
-
-      setFormData({
-        image: devProfile.image || "",
-        name: user.name || "",
-        track: devProfile.track || "",
-        experience: devProfile.experience || "",
-        skills: devProfile.skills || [],
-        portfolio: devProfile.portfolio || "",
-        hourlyRate: devProfile.hour_rate_usd?.toString() || "",
-        hoursPerWeek: devProfile.hours_per_week?.toString() || "",
-        availability: devProfile.available === false ? "No" : "Yes",
-      });
-    } catch {
-      navigate("/login");
-    } finally {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   }, [navigate]);
 
   const handleImageChange = (e) => {
@@ -231,12 +230,12 @@ const DevProfile = () => {
       users[userIndex] = updatedUser;
       window.localStorage.setItem("teamup_users", JSON.stringify(users));
 
-      const { password, ...safeUser } = updatedUser;
+      const { password: _password, ...safeUser } = updatedUser;
       window.localStorage.setItem("teamup_current_user", JSON.stringify(safeUser));
 
       setSuccessMessage("Profile saved successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
-    } catch (error) {
+    } catch {
       setErrors({ submit: "Failed to save profile. Please try again." });
     } finally {
       setIsSaving(false);
@@ -249,7 +248,7 @@ const DevProfile = () => {
       !formData.skills.some((s) => s.toLowerCase() === skill.toLowerCase())
   );
 
-  if (isLoading) {
+  if (isLoading || !currentUser) {
     return (
       <>
         <Header />

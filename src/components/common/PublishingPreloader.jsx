@@ -1,6 +1,6 @@
 function PublishingPreloader() {
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#F5FAFA]/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-[#F5FAFA]/90 backdrop-blur-sm">
       <div className="w-full max-w-[420px] rounded-[20px] bg-white border border-[#D9EFEF] p-8 shadow-lg text-center">
         <div className="flex flex-col items-center gap-6">
           <div className="w-12 h-12 border-4 border-[#D9EFEF] border-t-[#0B6B63] rounded-full animate-spin" />

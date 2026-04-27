@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -19,12 +19,7 @@ function DeveloperSidebar() {
   /* =========================
      Current User from localStorage
   ========================== */
-  const [currentUser, setCurrentUser] = useState(null);
-
-  useEffect(() => {
-    const user = getCurrentUser();
-    setCurrentUser(user);
-  }, []);
+  const [currentUser] = useState(() => getCurrentUser());
 
   const activeProjectData = {
     name: "TeamUp Platform",

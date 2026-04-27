@@ -59,7 +59,7 @@ function StatIcon({ type }) {
   return <UsersIcon className="h-[20px] w-[20px] text-[#18936f] stroke-[2]" />;
 }
 
-export default function App() {
+export default function MyJobPosts() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState(() => {
     let saved = [];
