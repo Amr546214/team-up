@@ -35,7 +35,7 @@ function LanguageSwitcher() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
+        className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-600 transition hover:bg-teal-50 hover:text-[#0B6B63]"
         aria-label="Select language"
       >
         <GlobeAltIcon className="h-5 w-5" />

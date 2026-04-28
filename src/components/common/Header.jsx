@@ -80,7 +80,7 @@ function Header({ profileImage }) {
 
           {/* Theme */}
           <button
-            className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-600 transition hover:bg-teal-50 hover:text-[#0B6B63]"
             type="button"
           >
             <MoonIcon className="h-5 w-5" />
@@ -92,7 +92,7 @@ function Header({ profileImage }) {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setOpen(!open)}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-500 transition hover:bg-teal-50 hover:text-[#0B6B63]"
                 type="button"
               >
                 {profileImage ? (
@@ -136,13 +136,13 @@ function Header({ profileImage }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigate("/login")}
-                className="h-10 px-4 text-sm font-medium text-gray-700 hover:text-[#0f766e] transition"
+                className="h-10 cursor-pointer px-4 text-sm font-medium text-gray-700 transition hover:text-[#0B6B63]"
               >
                 {t("common.login")}
               </button>
               <button
                 onClick={() => navigate("/register")}
-                className="h-10 px-4 text-sm font-medium bg-[#0f766e] text-white rounded-lg hover:bg-[#0d9488] transition"
+                className="h-10 cursor-pointer px-4 text-sm font-medium bg-[#0f766e] text-white rounded-lg transition hover:bg-[#0d9488]"
               >
                 {t("common.register")}
               </button>
