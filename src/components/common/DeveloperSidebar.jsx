@@ -12,6 +12,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
 import { getCurrentUser } from "../../services/fakeApi";
+import { getStoredUserAvatar, getUserInitials } from "../../utils/avatar";
 
 function DeveloperSidebar() {
   const location = useLocation();
@@ -186,7 +187,7 @@ function DeveloperSidebar() {
           >
             <div className="flex items-center gap-2 min-w-0">
               {(() => {
-                const avatarImage = currentUser?.developerProfile?.image || currentUser?.profile?.image;
+                const avatarImage = getStoredUserAvatar(currentUser);
                 return avatarImage ? (
                   <img
                     src={avatarImage}
@@ -194,7 +195,9 @@ function DeveloperSidebar() {
                     className="w-[28px] h-[28px] rounded-full object-cover shrink-0"
                   />
                 ) : (
-                  <div className="w-[28px] h-[28px] rounded-full bg-[#D9D9D9] shrink-0"></div>
+                  <div className="w-[28px] h-[28px] rounded-full bg-[#D9D9D9] shrink-0 flex items-center justify-center text-[10px] font-semibold text-[#6B7280]">
+                    {getUserInitials(currentUser?.name)}
+                  </div>
                 );
               })()}
 

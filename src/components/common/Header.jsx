@@ -8,7 +8,9 @@ import { useTranslation } from "react-i18next";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
 import Notification from "./Notification";
 import LanguageSwitcher from "./LanguageSwitcher";
+import Avatar from "./Avatar";
 import { useAuth } from "../../hooks/useAuth";
+import { getStoredUserAvatar } from "../../utils/avatar";
 
 function getDashboardPathByRole(role) {
   switch (role) {
@@ -95,15 +97,13 @@ function Header({ profileImage }) {
                 className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-500 transition hover:bg-teal-50 hover:text-[#0B6B63]"
                 type="button"
               >
-                {profileImage ? (
-                  <img
-                    src={profileImage}
-                    alt="profile"
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <UserCircleIcon className="h-8 w-8" />
-                )}
+                <Avatar
+                  user={session}
+                  src={profileImage || getStoredUserAvatar(session)}
+                  alt={session?.name || "Profile"}
+                  size="md"
+                  fallbackClassName="bg-gray-200"
+                />
               </button>
 
               {/* Dropdown Menu */}

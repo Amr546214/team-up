@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { ChatBubbleLeftEllipsisIcon, XMarkIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
+import { getStoredUserAvatar, getUserInitials } from "../../utils/avatar";
 
 const getLaunchDate = () => {
   const now = new Date();
@@ -68,7 +69,7 @@ function RollingNumber({ value, minDigits = 2 }) {
 
 function ChatbotWidget({ forceShow = false }) {
   const { isAuthenticated, session } = useAuth();
-  const userAvatar = session?.developerProfile?.image || session?.profileImage || null;
+  const userAvatar = getStoredUserAvatar(session);
   const userName = (session?.name || session?.fullName || session?.displayName || session?.username || (session?.email ? session.email.split("@")[0] : "")).split(" ")[0];
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(() => [
@@ -286,7 +287,7 @@ function ChatbotWidget({ forceShow = false }) {
                       />
                     ) : (
                       <span className="text-sm font-semibold text-gray-200">
-                        {session?.name?.charAt(0)?.toUpperCase() || "U"}
+                        {getUserInitials(session?.name)}
                       </span>
                     )}
                   </div>
