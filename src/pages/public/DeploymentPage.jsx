@@ -6,9 +6,9 @@ const MotionSpan = motion.span;
 
 const getLaunchDate = () => {
   const now = new Date();
-  let launch = new Date(now.getFullYear(), 7, 1, 0, 0, 0);
+  let launch = new Date(now.getFullYear(), 4, 20, 0, 0, 0);
   if (launch <= now) {
-    launch = new Date(now.getFullYear() + 1, 7, 1, 0, 0, 0);
+    launch = new Date(now.getFullYear() + 1, 4, 20, 0, 0, 0);
   }
   return launch;
 };
@@ -124,7 +124,7 @@ function DeploymentPage() {
 
         {/* Launch Date */}
         <p className="mb-8 text-xs uppercase tracking-widest text-gray-500">
-          Launching August 1st
+          Launching May 20th
         </p>
 
         {/* CTA Button */}
