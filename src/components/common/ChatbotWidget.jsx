@@ -13,6 +13,8 @@ const getLaunchDate = () => {
   return launch;
 };
 
+const MotionSpan = motion.span;
+
 const getTimeLeft = () => {
   const difference = getLaunchDate().getTime() - new Date().getTime();
   if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
@@ -38,7 +40,7 @@ function RollingDigit({ digit }) {
   return (
     <span className="relative inline-block h-[1em] w-[0.62em] overflow-hidden text-center tabular-nums">
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span
+        <MotionSpan
           key={digit}
           initial={{ y: "100%", opacity: 0 }}
           animate={{ y: "0%", opacity: 1 }}
@@ -47,7 +49,7 @@ function RollingDigit({ digit }) {
           className="absolute inset-0 flex items-center justify-center"
         >
           {digit}
-        </motion.span>
+        </MotionSpan>
       </AnimatePresence>
     </span>
   );
