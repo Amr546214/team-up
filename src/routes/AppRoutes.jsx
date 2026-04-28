@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
-// import Home from "../pages/public/Home";
+import Home from "../pages/public/Home";
 import DeploymentPage from "../pages/public/DeploymentPage";
 import NotFound from "../pages/public/NotFound";
 import PrivateRoute from "./PrivateRoute";
@@ -36,10 +36,12 @@ import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
 function AppRoutes() {
+  const isProd = import.meta.env.PROD;
+
   return (
     <Routes>
-      {/* Public routes - Temporary deployment page */}
-      <Route path="/" element={<DeploymentPage />} />
+      {/* Public routes - Show DeploymentPage in production, Home in development */}
+      <Route path="/" element={isProd ? <DeploymentPage /> : <Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/skill-quiz" element={<SkillQuiz />} />

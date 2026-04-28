@@ -66,7 +66,7 @@ function RollingNumber({ value, minDigits = 2 }) {
   );
 }
 
-function ChatbotWidget() {
+function ChatbotWidget({ forceShow = false }) {
   const { isAuthenticated, session } = useAuth();
   const userAvatar = session?.developerProfile?.image || session?.profileImage || null;
   const userName = (session?.name || session?.fullName || session?.displayName || session?.username || (session?.email ? session.email.split("@")[0] : "")).split(" ")[0];
@@ -142,8 +142,8 @@ function ChatbotWidget() {
     };
   }, [isOpen]);
 
-  // Don't render for unauthenticated users - must be after all hooks
-  if (!isAuthenticated) {
+  // Don't render for unauthenticated users unless forceShow is true - must be after all hooks
+  if (!forceShow && !isAuthenticated) {
     return null;
   }
 
