@@ -55,12 +55,24 @@ export function AuthProvider({ children }) {
 
       // Upsert profile into the profiles table, then redirect
       const pendingRole = localStorage.getItem("pendingAuthRole");
+      const authSource = localStorage.getItem("pendingAuthSource");
+
       if (pendingRole) {
         console.log("[Auth] Pending role found:", pendingRole);
+        console.log("[Auth] Auth source:", authSource || "app");
 
         await upsertUserProfile(sbSession);
 
         localStorage.removeItem("pendingAuthRole");
+
+        // Production join: stay on landing page with success modal
+        if (authSource === "production_join") {
+          localStorage.removeItem("pendingAuthSource");
+          localStorage.setItem("showJoinSuccess", "true");
+          console.log("[Auth] Production join — redirecting to landing page.");
+          window.location.replace("/");
+          return;
+        }
 
         const target = ROLE_REDIRECTS[pendingRole] || "/";
         console.log("[Auth] Redirecting to:", target);
