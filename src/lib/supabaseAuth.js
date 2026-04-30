@@ -78,10 +78,70 @@ export async function upsertUserProfile(session) {
     // Send welcome email (only once per user)
     await sendWelcomeEmailIfNeeded(user.id, profile.email, profile.full_name);
 
+    // Notify admin about the new signup (only once per user)
+    await sendAdminNotificationIfNeeded(profile);
+
     return { ok: true };
   } catch (err) {
     console.error("[Supabase Profile] Unexpected error:", err);
     return { ok: false, error: err };
+  }
+}
+
+/**
+ * Notify the admin about a new user signup via the Supabase Edge Function,
+ * but only if `admin_notified` is false/null in the user's profile row.
+ * On success, sets `admin_notified = true`.
+ */
+async function sendAdminNotificationIfNeeded(profile) {
+  try {
+    const { data: row, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("admin_notified")
+      .eq("id", profile.id)
+      .single();
+
+    if (fetchErr) {
+      console.error("[Admin Notify] Failed to read profile:", fetchErr.message);
+      return;
+    }
+
+    if (row?.admin_notified) {
+      console.log("[Admin Notify] Already sent — skipping.");
+      return;
+    }
+
+    console.log("[Admin Notify] Sending...");
+    const { error: fnErr } = await supabase.functions.invoke(
+      "send-admin-signup-notification",
+      {
+        body: {
+          email: profile.email,
+          name: profile.full_name,
+          role: profile.role,
+          provider: profile.provider,
+          userId: profile.id,
+        },
+      }
+    );
+
+    if (fnErr) {
+      console.error("[Admin Notify] Failed:", fnErr.message);
+      return;
+    }
+
+    console.log("[Admin Notify] Sent successfully.");
+
+    const { error: updateErr } = await supabase
+      .from("profiles")
+      .update({ admin_notified: true })
+      .eq("id", profile.id);
+
+    if (updateErr) {
+      console.error("[Admin Notify] Failed to set admin_notified:", updateErr.message);
+    }
+  } catch (err) {
+    console.error("[Admin Notify] Unexpected error:", err);
   }
 }
 
