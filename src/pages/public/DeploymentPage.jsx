@@ -118,15 +118,51 @@ function AnimatedCheckmark() {
   );
 }
 
+function Avatar({ url, name, size = 64 }) {
+  const initial = (name || "?").charAt(0).toUpperCase();
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex items-center justify-center rounded-full bg-teal-600 text-white font-semibold text-xl"
+      style={{ width: size, height: size }}
+    >
+      {initial}
+    </div>
+  );
+}
+
 function DeploymentPage() {
   const [timeLeft, setTimeLeft] = useState(getTimeLeft);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(() => {
+  const [joinResult, setJoinResult] = useState(() => {
+    // Check new joinResult flag first
+    const result = localStorage.getItem("joinResult");
+    if (result === "new" || result === "existing") {
+      const name = localStorage.getItem("joinUserName") || "there";
+      const avatar = localStorage.getItem("joinUserAvatar") || "";
+      // Clear flags immediately
+      localStorage.removeItem("joinResult");
+      localStorage.removeItem("joinUserName");
+      localStorage.removeItem("joinUserAvatar");
+      // Also clear old flag for backwards compatibility
+      localStorage.removeItem("showJoinSuccess");
+      return { type: result, name, avatar };
+    }
+    // Backwards compatibility: check old showJoinSuccess flag
     if (localStorage.getItem("showJoinSuccess") === "true") {
       localStorage.removeItem("showJoinSuccess");
-      return true;
+      return { type: "new", name: "there", avatar: "" };
     }
-    return false;
+    return null;
   });
 
   useEffect(() => {
@@ -137,6 +173,19 @@ function DeploymentPage() {
   }, []);
 
   const closeModal = useCallback(() => setIsJoinOpen(false), []);
+
+  const closeJoinResultModal = useCallback(() => {
+    setJoinResult(null);
+  }, []);
+
+  const openJoinModal = useCallback(() => {
+    localStorage.removeItem("showJoinSuccess");
+    localStorage.removeItem("joinResult");
+    localStorage.removeItem("joinUserName");
+    localStorage.removeItem("joinUserAvatar");
+    localStorage.removeItem("pendingAuthSource");
+    setIsJoinOpen(true);
+  }, []);
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#0f172a] px-4">
@@ -181,7 +230,7 @@ function DeploymentPage() {
         {/* CTA Button */}
         <button
           type="button"
-          onClick={() => setIsJoinOpen(true)}
+          onClick={openJoinModal}
           className="rounded-full bg-gradient-to-r from-teal-600 to-teal-500 px-10 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-900/30 transition hover:from-teal-500 hover:to-teal-400 hover:shadow-teal-800/40 active:scale-[0.97] cursor-pointer"
         >
           Join TeamUP
@@ -244,7 +293,7 @@ function DeploymentPage() {
                 {/* Google */}
                 <button
                   type="button"
-                  onClick={() => { localStorage.setItem("pendingAuthSource", "production_join"); signInWithGoogle("client"); }}
+                  onClick={() => signInWithGoogle("client", "production_join")}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
@@ -259,7 +308,7 @@ function DeploymentPage() {
                 {/* GitHub */}
                 <button
                   type="button"
-                  onClick={() => { localStorage.setItem("pendingAuthSource", "production_join"); signInWithGitHub("client"); }}
+                  onClick={() => signInWithGitHub("client", "production_join")}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white" aria-hidden="true">
@@ -271,7 +320,7 @@ function DeploymentPage() {
                 {/* LinkedIn */}
                 <button
                   type="button"
-                  onClick={() => { localStorage.setItem("pendingAuthSource", "production_join"); signInWithLinkedIn("client"); }}
+                  onClick={() => signInWithLinkedIn("client", "production_join")}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
@@ -285,9 +334,9 @@ function DeploymentPage() {
         )}
       </AnimatePresence>
 
-      {/* Success Modal */}
+      {/* Join Result Modal (New User) */}
       <AnimatePresence>
-        {showSuccessModal && (
+        {joinResult?.type === "new" && (
           <motion.div
             className="fixed inset-0 z-50 flex items-center justify-center px-4"
             initial={{ opacity: 0 }}
@@ -319,7 +368,54 @@ function DeploymentPage() {
 
               <button
                 type="button"
-                onClick={() => setShowSuccessModal(false)}
+                onClick={closeJoinResultModal}
+                className="w-full rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer"
+              >
+                Got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Welcome Back Modal (Existing User) */}
+      <AnimatePresence>
+        {joinResult?.type === "existing" && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+            {/* Card */}
+            <motion.div
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-700/50 bg-gray-900/95 p-8 text-center shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              {/* Avatar */}
+              <div className="mx-auto mb-5">
+                <Avatar url={joinResult.avatar} name={joinResult.name} size={72} />
+              </div>
+
+              <h2 className="mb-2 text-xl font-bold text-white">
+                Welcome back!
+              </h2>
+              <p className="mb-6 text-sm leading-relaxed text-gray-400">
+                Hi {joinResult.name}, you're already on the TeamUP waitlist.
+                <br />
+                We'll email you as soon as TeamUP is ready to launch.
+              </p>
+
+              <button
+                type="button"
+                onClick={closeJoinResultModal}
                 className="w-full rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer"
               >
                 Got it

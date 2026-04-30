@@ -68,7 +68,6 @@ export function AuthProvider({ children }) {
         // Production join: stay on landing page with success modal
         if (authSource === "production_join") {
           localStorage.removeItem("pendingAuthSource");
-          localStorage.setItem("showJoinSuccess", "true");
           console.log("[Auth] Production join — redirecting to landing page.");
           window.location.replace("/");
           return;
