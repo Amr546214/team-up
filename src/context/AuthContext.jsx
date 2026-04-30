@@ -9,6 +9,19 @@ import { upsertUserProfile } from "../lib/supabaseAuth";
 
 const AuthContext = createContext(null);
 
+function clearAllAuthStorage() {
+  localStorage.removeItem("pendingAuthRole");
+  localStorage.removeItem("pendingAuthSource");
+  localStorage.removeItem("pendingOAuthAttemptId");
+  localStorage.removeItem("pendingOAuthStartedAt");
+  localStorage.removeItem("joinResult");
+  localStorage.removeItem("joinUserName");
+  localStorage.removeItem("joinUserAvatar");
+  localStorage.removeItem("showJoinSuccess");
+  localStorage.removeItem("teamup_demo_session_v1");
+  sessionStorage.removeItem("teamup_demo_session_v1");
+}
+
 const ROLE_REDIRECTS = {
   client: "/client/profile",
   developer: "/developer/dashboard",
@@ -17,20 +30,20 @@ const ROLE_REDIRECTS = {
 };
 
 /**
- * Map a Supabase user object to the app's session shape.
- * Reads the pending role from localStorage (set before OAuth redirect).
+ * Map a Supabase user and optional profile to the app's session shape.
+ * Prefers profile data when available, falls back to user metadata.
  */
-function mapSupabaseUser(supabaseUser) {
+function mapSupabaseUser(supabaseUser, profile = null) {
   if (!supabaseUser) return null;
   const meta = supabaseUser.user_metadata || {};
   const pendingRole = localStorage.getItem("pendingAuthRole");
-  const role = pendingRole || meta.role || "client";
+  const role = pendingRole || profile?.role || meta.role || "client";
   return {
     id: supabaseUser.id,
-    email: supabaseUser.email,
-    name: meta.full_name || meta.name || supabaseUser.email?.split("@")[0] || "",
+    email: profile?.email || supabaseUser.email,
+    name: profile?.full_name || meta.full_name || meta.name || supabaseUser.email?.split("@")[0] || "",
     role,
-    avatar: meta.avatar_url || meta.picture || "",
+    avatar: profile?.avatar_url || meta.avatar_url || meta.picture || "",
     provider: supabaseUser.app_metadata?.provider || "supabase",
     supabase: true,
   };
@@ -45,9 +58,32 @@ export function AuthProvider({ children }) {
     async function handleSupabaseSession(sbSession) {
       if (!sbSession?.user) return;
       console.log("[Auth] Supabase session detected for:", sbSession.user.email);
+
+      // Validate the user still exists in profiles
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id,email,full_name,avatar_url,role")
+        .eq("id", sbSession.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("[Auth] Failed to validate profile:", profileError.message);
+      }
+
+      if (!profile) {
+        console.log("[Auth] User profile not found — signing out stale session.");
+        await supabase.auth.signOut();
+        logoutUser();
+        clearAllAuthStorage();
+        setSupabaseSession(null);
+        setSession(null);
+        return;
+      }
+
+      console.log("[Auth] Profile validated:", profile.email);
       setSupabaseSession(sbSession);
 
-      const mapped = mapSupabaseUser(sbSession.user);
+      const mapped = mapSupabaseUser(sbSession.user, profile);
       setSession((prev) => {
         if (prev && !prev.supabase) return prev; // keep existing local session
         return mapped;
@@ -162,11 +198,7 @@ export function AuthProvider({ children }) {
     logoutUser();
     // Sign out of Supabase too
     try { await supabase.auth.signOut(); } catch { /* ignore */ }
-    // Clear legacy session keys
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem("teamup_demo_session_v1");
-      window.localStorage.removeItem("teamup_demo_session_v1");
-    }
+    clearAllAuthStorage();
     setSupabaseSession(null);
     setSession(null);
   }, []);
