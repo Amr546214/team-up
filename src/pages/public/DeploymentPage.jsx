@@ -141,7 +141,7 @@ function Avatar({ url, name, size = 64 }) {
   );
 }
 
-function AuthenticatedWaitlistCard({ name, avatar }) {
+function AuthenticatedWaitlistCard({ name, avatar, onSignOut }) {
   return (
     <div className="rounded-2xl border border-gray-700/50 bg-gray-900/80 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
       <div className="mx-auto mb-4 flex justify-center">
@@ -153,12 +153,21 @@ function AuthenticatedWaitlistCard({ name, avatar }) {
       <p className="max-w-xs text-sm leading-relaxed text-gray-400">
         You're already on the TeamUP waitlist. We'll email you as soon as TeamUP is ready to launch.
       </p>
+      {onSignOut && (
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="mt-4 text-xs text-gray-500 hover:text-gray-300 transition cursor-pointer"
+        >
+          Not you? Sign out
+        </button>
+      )}
     </div>
   );
 }
 
 function DeploymentPage() {
-  const { session } = useContext(AuthContext);
+  const { session, logout } = useContext(AuthContext);
   const isLoggedIn = Boolean(session?.id && session?.email);
   const displayName = session?.name || session?.email?.split("@")[0] || "there";
   const avatarUrl = session?.avatar || "";
@@ -248,7 +257,7 @@ function DeploymentPage() {
 
         {/* CTA Section - Join button or Authenticated Card */}
         {isLoggedIn ? (
-          <AuthenticatedWaitlistCard name={displayName} avatar={avatarUrl} />
+          <AuthenticatedWaitlistCard name={displayName} avatar={avatarUrl} onSignOut={logout} />
         ) : (
           <button
             type="button"
