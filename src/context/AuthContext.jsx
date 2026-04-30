@@ -59,7 +59,60 @@ export function AuthProvider({ children }) {
       if (!sbSession?.user) return;
       console.log("[Auth] Supabase session detected for:", sbSession.user.email);
 
-      // Validate the user still exists in profiles
+      // Check for pending production join attempt first
+      const pendingRole = localStorage.getItem("pendingAuthRole");
+      const authSource = localStorage.getItem("pendingAuthSource");
+
+      // Production join flow: validate freshness, upsert profile, redirect to landing
+      if (authSource === "production_join" && pendingRole) {
+        console.log("[Auth] Production join detected");
+
+        const attemptId = localStorage.getItem("pendingOAuthAttemptId");
+        const startedAt = Number(localStorage.getItem("pendingOAuthStartedAt") || 0);
+        const now = Date.now();
+        const lastSignInAt = new Date(sbSession.user.last_sign_in_at || 0).getTime();
+
+        console.log("[Auth] OAuth attempt validation:", {
+          attemptIdExists: Boolean(attemptId),
+          startedAtExists: Boolean(startedAt),
+          ageMs: now - startedAt,
+          lastSignInAtDiff: lastSignInAt - startedAt,
+        });
+
+        const isFresh =
+          attemptId &&
+          startedAt > 0 &&
+          now - startedAt < 10 * 60 * 1000 && // 10 minute window
+          lastSignInAt >= startedAt - 5000; // signed in after attempt started (5s buffer)
+
+        if (!isFresh) {
+          console.log("[Auth] Production join attempt invalid — clearing flags");
+          localStorage.removeItem("pendingAuthRole");
+          localStorage.removeItem("pendingAuthSource");
+          localStorage.removeItem("pendingOAuthAttemptId");
+          localStorage.removeItem("pendingOAuthStartedAt");
+          // Do NOT show success modal, do NOT upsert for this stale attempt
+          return;
+        }
+
+        console.log("[Auth] Production join attempt valid");
+        console.log("[Auth] Upserting profile for production join");
+
+        // Upsert profile (creates if new, updates if existing)
+        await upsertUserProfile(sbSession);
+
+        // Clear all production join flags
+        localStorage.removeItem("pendingAuthRole");
+        localStorage.removeItem("pendingAuthSource");
+        localStorage.removeItem("pendingOAuthAttemptId");
+        localStorage.removeItem("pendingOAuthStartedAt");
+
+        console.log("[Auth] Production join complete — returning to landing page");
+        window.location.replace("/");
+        return;
+      }
+
+      // For non-production sessions, validate profile exists to prevent stale sessions
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("id,email,full_name,avatar_url,role")
@@ -71,7 +124,7 @@ export function AuthProvider({ children }) {
       }
 
       if (!profile) {
-        console.log("[Auth] User profile not found — signing out stale session.");
+        console.log("[Auth] Existing session profile missing — signing out");
         await supabase.auth.signOut();
         logoutUser();
         clearAllAuthStorage();
@@ -89,58 +142,13 @@ export function AuthProvider({ children }) {
         return mapped;
       });
 
-      // Upsert profile into the profiles table, then redirect
-      const pendingRole = localStorage.getItem("pendingAuthRole");
-      const authSource = localStorage.getItem("pendingAuthSource");
-
+      // Handle normal role-based redirects
       if (pendingRole) {
         console.log("[Auth] Pending role found:", pendingRole);
         console.log("[Auth] Auth source:", authSource || "app");
 
-        // Validate production join attempt is fresh (not stale session)
-        if (authSource === "production_join") {
-          const attemptId = localStorage.getItem("pendingOAuthAttemptId");
-          const startedAt = Number(localStorage.getItem("pendingOAuthStartedAt") || 0);
-          const now = Date.now();
-          const lastSignInAt = new Date(sbSession.user.last_sign_in_at || 0).getTime();
-
-          console.log("[Auth] OAuth attempt validation:", {
-            attemptIdExists: Boolean(attemptId),
-            startedAtExists: Boolean(startedAt),
-            ageMs: now - startedAt,
-            lastSignInAtDiff: lastSignInAt - startedAt,
-          });
-
-          const isFresh =
-            attemptId &&
-            startedAt > 0 &&
-            now - startedAt < 10 * 60 * 1000 && // 10 minute window
-            lastSignInAt >= startedAt - 5000; // signed in after attempt started (5s buffer)
-
-          if (!isFresh) {
-            console.log("[Auth] Production join attempt invalid or stale — clearing flags and skipping.");
-            localStorage.removeItem("pendingAuthRole");
-            localStorage.removeItem("pendingAuthSource");
-            localStorage.removeItem("pendingOAuthAttemptId");
-            localStorage.removeItem("pendingOAuthStartedAt");
-            // Do NOT show success modal, do NOT upsert for this stale attempt
-            return;
-          }
-        }
-
         await upsertUserProfile(sbSession);
-
         localStorage.removeItem("pendingAuthRole");
-
-        // Production join: stay on landing page with success modal
-        if (authSource === "production_join") {
-          localStorage.removeItem("pendingAuthSource");
-          localStorage.removeItem("pendingOAuthAttemptId");
-          localStorage.removeItem("pendingOAuthStartedAt");
-          console.log("[Auth] Production join — redirecting to landing page.");
-          window.location.replace("/");
-          return;
-        }
 
         const target = ROLE_REDIRECTS[pendingRole] || "/";
         console.log("[Auth] Redirecting to:", target);
