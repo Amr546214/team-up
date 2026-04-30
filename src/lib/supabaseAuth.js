@@ -1,0 +1,138 @@
+import { supabase } from "./supabase";
+
+/**
+ * Sign in with an OAuth provider via Supabase.
+ * Stores the selected role in localStorage so the app can redirect correctly after OAuth callback.
+ * @param {"google" | "github" | "linkedin_oidc"} provider
+ * @param {string} [role] - The currently selected role tab (client, developer, company, admin)
+ */
+export async function signInWithProvider(provider, role) {
+  try {
+    if (role) {
+      localStorage.setItem("pendingAuthRole", role);
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      console.error(`[Supabase OAuth] ${provider} sign-in error:`, error.message);
+      return { ok: false, error };
+    }
+
+    return { ok: true, data };
+  } catch (err) {
+    console.error(`[Supabase OAuth] Unexpected error during ${provider} sign-in:`, err);
+    return { ok: false, error: err };
+  }
+}
+
+export const signInWithGoogle = (role) => signInWithProvider("google", role);
+export const signInWithGitHub = (role) => signInWithProvider("github", role);
+export const signInWithLinkedIn = (role) => signInWithProvider("linkedin_oidc", role);
+
+/**
+ * Upsert the authenticated user into the `profiles` table.
+ * Reads the pending role from localStorage; falls back to "client".
+ * @param {import("@supabase/supabase-js").Session} session
+ */
+export async function upsertUserProfile(session) {
+  if (!session?.user) {
+    console.warn("[Supabase Profile] No user in session — skipping upsert.");
+    return { ok: false, error: "no_user" };
+  }
+
+  const user = session.user;
+  const meta = user.user_metadata || {};
+  const pendingRole = localStorage.getItem("pendingAuthRole");
+  const role = pendingRole || "client";
+
+  const profile = {
+    id: user.id,
+    email: user.email,
+    full_name: meta.full_name || meta.name || "",
+    avatar_url: meta.avatar_url || meta.picture || "",
+    provider: user.app_metadata?.provider || "",
+    role,
+  };
+
+  console.log("[Supabase Profile] Upserting profile:", profile);
+  console.log("[Supabase Profile] Role used:", role, pendingRole ? "(from pendingAuthRole)" : "(fallback)");
+
+  try {
+    const { error } = await supabase.from("profiles").upsert(profile, {
+      onConflict: "id",
+    });
+
+    if (error) {
+      console.error("[Supabase Profile] Upsert failed:", error.message);
+      return { ok: false, error };
+    }
+
+    console.log("[Supabase Profile] Profile saved successfully.");
+
+    // Send welcome email (only once per user)
+    await sendWelcomeEmailIfNeeded(user.id, profile.email, profile.full_name);
+
+    return { ok: true };
+  } catch (err) {
+    console.error("[Supabase Profile] Unexpected error:", err);
+    return { ok: false, error: err };
+  }
+}
+
+/**
+ * Send a welcome email via the Supabase Edge Function, but only if
+ * `welcome_email_sent` is false/null in the user's profile row.
+ * On success, sets `welcome_email_sent = true`.
+ */
+async function sendWelcomeEmailIfNeeded(userId, email, name) {
+  try {
+    // 1. Check current flag
+    const { data: row, error: fetchErr } = await supabase
+      .from("profiles")
+      .select("welcome_email_sent")
+      .eq("id", userId)
+      .single();
+
+      
+    if (fetchErr) {
+      console.error("[Welcome Email] Failed to read profile:", fetchErr.message);
+      return;
+    }
+
+    if (row?.welcome_email_sent) {
+      console.log("[Welcome Email] Already sent — skipping.");
+      return;
+    }
+
+    // 2. Invoke the Edge Function
+    console.log("[Welcome Email] Sending to:", email);
+    const { error: fnErr } = await supabase.functions.invoke("send-welcome-email", {
+      body: { email, name },
+    });
+
+    if (fnErr) {
+      console.error("[Welcome Email] Edge Function failed:", fnErr.message);
+      return;
+    }
+
+    console.log("[Welcome Email] Sent successfully.");
+
+    // 3. Mark as sent
+    const { error: updateErr } = await supabase
+      .from("profiles")
+      .update({ welcome_email_sent: true })
+      .eq("id", userId);
+
+    if (updateErr) {
+      console.error("[Welcome Email] Failed to set welcome_email_sent:", updateErr.message);
+    }
+  } catch (err) {
+    console.error("[Welcome Email] Unexpected error:", err);
+  }
+}
