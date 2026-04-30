@@ -52,6 +52,7 @@ function mapSupabaseUser(supabaseUser, profile = null) {
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => getCurrentUser());
   const [supabaseSession, setSupabaseSession] = useState(null);
+  const [isProcessingJoinAuth, setIsProcessingJoinAuth] = useState(false);
 
   // Listen for Supabase auth state changes (OAuth redirect callback)
   useEffect(() => {
@@ -66,6 +67,7 @@ export function AuthProvider({ children }) {
       // Production join flow: validate freshness, upsert profile, redirect to landing
       if (authSource === "production_join" && pendingRole) {
         console.log("[Auth] Production join detected");
+        setIsProcessingJoinAuth(true);
 
         const attemptId = localStorage.getItem("pendingOAuthAttemptId");
         const startedAt = Number(localStorage.getItem("pendingOAuthStartedAt") || 0);
@@ -91,6 +93,7 @@ export function AuthProvider({ children }) {
           localStorage.removeItem("pendingAuthSource");
           localStorage.removeItem("pendingOAuthAttemptId");
           localStorage.removeItem("pendingOAuthStartedAt");
+          setIsProcessingJoinAuth(false);
           // Do NOT show success modal, do NOT upsert for this stale attempt
           return;
         }
@@ -98,8 +101,12 @@ export function AuthProvider({ children }) {
         console.log("[Auth] Production join attempt valid");
         console.log("[Auth] Upserting profile for production join");
 
-        // Upsert profile (creates if new, updates if existing)
-        await upsertUserProfile(sbSession);
+        try {
+          // Upsert profile (creates if new, updates if existing)
+          await upsertUserProfile(sbSession);
+        } catch (err) {
+          console.error("[Auth] Profile upsert failed:", err);
+        }
 
         // Clear all production join flags
         localStorage.removeItem("pendingAuthRole");
@@ -108,6 +115,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem("pendingOAuthStartedAt");
 
         console.log("[Auth] Production join complete — returning to landing page");
+        // Keep isProcessingJoinAuth true during redirect to prevent UI flash
         window.location.replace("/");
         return;
       }
@@ -220,11 +228,12 @@ export function AuthProvider({ children }) {
       session,
       supabaseSession,
       isAuthenticated: Boolean(session?.id && session?.email && session?.role),
+      isProcessingJoinAuth,
       login,
       logout,
       refreshSession,
     }),
-    [session, supabaseSession, login, logout, refreshSession]
+    [session, supabaseSession, isProcessingJoinAuth, login, logout, refreshSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

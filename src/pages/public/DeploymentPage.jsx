@@ -166,14 +166,70 @@ function AuthenticatedWaitlistCard({ name, avatar, onSignOut }) {
   );
 }
 
+function JoinAuthPreloader() {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+      {/* Card */}
+      <motion.div
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-700/50 bg-gray-900/95 p-8 text-center shadow-2xl"
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.92, opacity: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      >
+        {/* Spinner */}
+        <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center">
+          <svg
+            className="h-10 w-10 animate-spin text-teal-500"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+        </div>
+
+        <h2 className="mb-2 text-lg font-semibold text-white">
+          Setting up your TeamUP account...
+        </h2>
+        <p className="text-sm leading-relaxed text-gray-400">
+          Please wait a moment while we finish your registration.
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function DeploymentPage() {
-  const { session, logout } = useContext(AuthContext);
+  const { session, logout, isProcessingJoinAuth } = useContext(AuthContext);
   const isLoggedIn = Boolean(session?.id && session?.email);
   const displayName = session?.name || session?.email?.split("@")[0] || "there";
   const avatarUrl = session?.avatar || "";
 
   const [timeLeft, setTimeLeft] = useState(getTimeLeft);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [joinResult, setJoinResult] = useState(() => {
     // Only show modal if joinResult was set by a fresh OAuth attempt (not stale session)
     const result = localStorage.getItem("joinResult");
@@ -196,7 +252,10 @@ function DeploymentPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const closeModal = useCallback(() => setIsJoinOpen(false), []);
+  const closeModal = useCallback(() => {
+    if (isRedirecting) return; // prevent closing while redirecting
+    setIsJoinOpen(false);
+  }, [isRedirecting]);
 
   const closeJoinResultModal = useCallback(() => {
     setJoinResult(null);
@@ -325,11 +384,13 @@ function DeploymentPage() {
                 {/* Google */}
                 <button
                   type="button"
+                  disabled={isRedirecting}
                   onClick={() => {
+                    setIsRedirecting(true);
                     const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                     signInWithGoogle("client", "production_join", attemptId);
                   }}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
                     <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.63Z" />
@@ -337,42 +398,51 @@ function DeploymentPage() {
                     <path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.88 12c0-.79.14-1.56.37-2.28V6.6H1.25A12 12 0 0 0 0 12c0 1.93.46 3.76 1.25 5.4l4-3.12Z" />
                     <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.11 15.23 0 12 0A12 12 0 0 0 1.25 6.6l4 3.12c.95-2.85 3.61-4.97 6.75-4.97Z" />
                   </svg>
-                  Continue with Google
+                  {isRedirecting ? "Redirecting..." : "Continue with Google"}
                 </button>
 
                 {/* GitHub */}
                 <button
                   type="button"
+                  disabled={isRedirecting}
                   onClick={() => {
+                    setIsRedirecting(true);
                     const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                     signInWithGitHub("client", "production_join", attemptId);
                   }}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white" aria-hidden="true">
                     <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.74-1.33-1.74-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.23 1.84 1.23 1.08 1.83 2.83 1.3 3.52 1 .1-.77.42-1.3.76-1.6-2.67-.3-5.47-1.32-5.47-5.9 0-1.3.47-2.36 1.23-3.2-.12-.3-.53-1.5.12-3.13 0 0 1-.32 3.3 1.22A11.5 11.5 0 0 1 12 6.3c1.02 0 2.04.14 3 .4 2.29-1.54 3.29-1.22 3.29-1.22.65 1.63.24 2.83.12 3.13.77.84 1.23 1.9 1.23 3.2 0 4.6-2.8 5.6-5.48 5.9.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
                   </svg>
-                  Continue with GitHub
+                  {isRedirecting ? "Redirecting..." : "Continue with GitHub"}
                 </button>
 
                 {/* LinkedIn */}
                 <button
                   type="button"
+                  disabled={isRedirecting}
                   onClick={() => {
+                    setIsRedirecting(true);
                     const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                     signInWithLinkedIn("client", "production_join", attemptId);
                   }}
-                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
                     <path fill="#0A66C2" d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05a3.74 3.74 0 0 1 3.37-1.85c3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43A2.06 2.06 0 1 1 5.34 3.3a2.06 2.06 0 0 1 0 4.13ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77A1.75 1.75 0 0 0 0 1.73v20.54A1.75 1.75 0 0 0 1.77 24h20.45A1.75 1.75 0 0 0 24 22.27V1.73A1.75 1.75 0 0 0 22.22 0Z" />
                   </svg>
-                  Continue with LinkedIn
+                  {isRedirecting ? "Redirecting..." : "Continue with LinkedIn"}
                 </button>
               </div>
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Join Auth Preloader (Processing OAuth) */}
+      <AnimatePresence>
+        {isProcessingJoinAuth && <JoinAuthPreloader />}
       </AnimatePresence>
 
       {/* Join Result Modal (New User) */}
