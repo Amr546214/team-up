@@ -61,6 +61,37 @@ export function AuthProvider({ children }) {
         console.log("[Auth] Pending role found:", pendingRole);
         console.log("[Auth] Auth source:", authSource || "app");
 
+        // Validate production join attempt is fresh (not stale session)
+        if (authSource === "production_join") {
+          const attemptId = localStorage.getItem("pendingOAuthAttemptId");
+          const startedAt = Number(localStorage.getItem("pendingOAuthStartedAt") || 0);
+          const now = Date.now();
+          const lastSignInAt = new Date(sbSession.user.last_sign_in_at || 0).getTime();
+
+          console.log("[Auth] OAuth attempt validation:", {
+            attemptIdExists: Boolean(attemptId),
+            startedAtExists: Boolean(startedAt),
+            ageMs: now - startedAt,
+            lastSignInAtDiff: lastSignInAt - startedAt,
+          });
+
+          const isFresh =
+            attemptId &&
+            startedAt > 0 &&
+            now - startedAt < 10 * 60 * 1000 && // 10 minute window
+            lastSignInAt >= startedAt - 5000; // signed in after attempt started (5s buffer)
+
+          if (!isFresh) {
+            console.log("[Auth] Production join attempt invalid or stale — clearing flags and skipping.");
+            localStorage.removeItem("pendingAuthRole");
+            localStorage.removeItem("pendingAuthSource");
+            localStorage.removeItem("pendingOAuthAttemptId");
+            localStorage.removeItem("pendingOAuthStartedAt");
+            // Do NOT show success modal, do NOT upsert for this stale attempt
+            return;
+          }
+        }
+
         await upsertUserProfile(sbSession);
 
         localStorage.removeItem("pendingAuthRole");
@@ -68,6 +99,8 @@ export function AuthProvider({ children }) {
         // Production join: stay on landing page with success modal
         if (authSource === "production_join") {
           localStorage.removeItem("pendingAuthSource");
+          localStorage.removeItem("pendingOAuthAttemptId");
+          localStorage.removeItem("pendingOAuthStartedAt");
           console.log("[Auth] Production join — redirecting to landing page.");
           window.location.replace("/");
           return;
