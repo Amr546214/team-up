@@ -6,13 +6,17 @@ import { supabase } from "./supabase";
  * @param {"google" | "github" | "linkedin_oidc"} provider
  * @param {string} [role] - The currently selected role tab (client, developer, company, admin)
  */
-export async function signInWithProvider(provider, role, source) {
+export async function signInWithProvider(provider, role, source, attemptId) {
   try {
     if (role) {
       localStorage.setItem("pendingAuthRole", role);
     }
     if (source) {
       localStorage.setItem("pendingAuthSource", source);
+    }
+    if (attemptId) {
+      localStorage.setItem("pendingOAuthAttemptId", attemptId);
+      localStorage.setItem("pendingOAuthStartedAt", String(Date.now()));
     }
 
     const options = {
@@ -34,6 +38,8 @@ export async function signInWithProvider(provider, role, source) {
       console.error(`[Supabase OAuth] ${provider} sign-in error:`, error.message);
       localStorage.removeItem("pendingAuthSource");
       localStorage.removeItem("pendingAuthRole");
+      localStorage.removeItem("pendingOAuthAttemptId");
+      localStorage.removeItem("pendingOAuthStartedAt");
       return { ok: false, error };
     }
 
@@ -42,13 +48,15 @@ export async function signInWithProvider(provider, role, source) {
     console.error(`[Supabase OAuth] Unexpected error during ${provider} sign-in:`, err);
     localStorage.removeItem("pendingAuthSource");
     localStorage.removeItem("pendingAuthRole");
+    localStorage.removeItem("pendingOAuthAttemptId");
+    localStorage.removeItem("pendingOAuthStartedAt");
     return { ok: false, error: err };
   }
 }
 
-export const signInWithGoogle = (role, source) => signInWithProvider("google", role, source);
-export const signInWithGitHub = (role, source) => signInWithProvider("github", role, source);
-export const signInWithLinkedIn = (role, source) => signInWithProvider("linkedin_oidc", role, source);
+export const signInWithGoogle = (role, source, attemptId) => signInWithProvider("google", role, source, attemptId);
+export const signInWithGitHub = (role, source, attemptId) => signInWithProvider("github", role, source, attemptId);
+export const signInWithLinkedIn = (role, source, attemptId) => signInWithProvider("linkedin_oidc", role, source, attemptId);
 
 
 /**
@@ -109,11 +117,16 @@ export async function upsertUserProfile(session) {
     // Notify admin about the new signup (only once per user)
     await sendAdminNotificationIfNeeded(profile);
 
-    // Store result type for production join modal
+    // Store result type for production join modal (only for new users)
     if (authSource === "production_join") {
-      localStorage.setItem("joinResult", isExistingProfile ? "existing" : "new");
-      localStorage.setItem("joinUserName", profile.full_name || profile.email || "there");
-      localStorage.setItem("joinUserAvatar", profile.avatar_url || "");
+      if (isExistingProfile) {
+        // Existing users see the permanent authenticated card, no modal needed
+        console.log("[Supabase Profile] Existing user — showing permanent card, no modal.");
+      } else {
+        localStorage.setItem("joinResult", "new");
+        localStorage.setItem("joinUserName", profile.full_name || profile.email || "there");
+        localStorage.setItem("joinUserAvatar", profile.avatar_url || "");
+      }
     }
 
     return { ok: true };
