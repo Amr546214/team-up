@@ -78,9 +78,56 @@ function CountdownUnit({ value, label }) {
   );
 }
 
+function AnimatedCheckmark() {
+  return (
+    <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-2 border-teal-400/30">
+      <motion.svg
+        viewBox="0 0 52 52"
+        className="h-12 w-12"
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.circle
+          cx="26"
+          cy="26"
+          r="24"
+          fill="none"
+          stroke="#2dd4bf"
+          strokeWidth="2.5"
+          variants={{
+            hidden: { pathLength: 0, opacity: 0 },
+            visible: { pathLength: 1, opacity: 1 },
+          }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+        <motion.path
+          fill="none"
+          stroke="#2dd4bf"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15 27l8 8 14-16"
+          variants={{
+            hidden: { pathLength: 0, opacity: 0 },
+            visible: { pathLength: 1, opacity: 1 },
+          }}
+          transition={{ duration: 0.4, delay: 0.45, ease: "easeOut" }}
+        />
+      </motion.svg>
+    </div>
+  );
+}
+
 function DeploymentPage() {
   const [timeLeft, setTimeLeft] = useState(getTimeLeft);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(() => {
+    if (localStorage.getItem("showJoinSuccess") === "true") {
+      localStorage.removeItem("showJoinSuccess");
+      return true;
+    }
+    return false;
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -197,7 +244,7 @@ function DeploymentPage() {
                 {/* Google */}
                 <button
                   type="button"
-                  onClick={() => signInWithGoogle("client")}
+                  onClick={() => { localStorage.setItem("pendingAuthSource", "production_join"); signInWithGoogle("client"); }}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
@@ -212,7 +259,7 @@ function DeploymentPage() {
                 {/* GitHub */}
                 <button
                   type="button"
-                  onClick={() => signInWithGitHub("client")}
+                  onClick={() => { localStorage.setItem("pendingAuthSource", "production_join"); signInWithGitHub("client"); }}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white" aria-hidden="true">
@@ -224,7 +271,7 @@ function DeploymentPage() {
                 {/* LinkedIn */}
                 <button
                   type="button"
-                  onClick={() => signInWithLinkedIn("client")}
+                  onClick={() => { localStorage.setItem("pendingAuthSource", "production_join"); signInWithLinkedIn("client"); }}
                   className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
@@ -233,6 +280,50 @@ function DeploymentPage() {
                   Continue with LinkedIn
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+            {/* Card */}
+            <motion.div
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-700/50 bg-gray-900/95 p-8 text-center shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <AnimatedCheckmark />
+
+              <h2 className="mb-2 text-xl font-bold text-white">
+                Welcome to TeamUP!
+              </h2>
+              <p className="mb-6 text-sm leading-relaxed text-gray-400">
+                Your account has been created successfully.
+                <br />
+                We'll let you know when TeamUP is ready to launch.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer"
+              >
+                Got it
+              </button>
             </motion.div>
           </motion.div>
         )}
