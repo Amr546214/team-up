@@ -222,8 +222,6 @@ function JoinAuthPreloader() {
 }
 
 function DeploymentPage() {
-  // TEMPORARY: Disable production signups while testing email/auth flow
-  const SIGNUPS_DISABLED = true;
 
   const { session, logout, isProcessingJoinAuth } = useContext(AuthContext);
   const isLoggedIn = Boolean(session?.id && session?.email);
@@ -323,14 +321,10 @@ function DeploymentPage() {
         ) : (
           <button
             type="button"
-            disabled={SIGNUPS_DISABLED}
-            onClick={() => {
-              if (SIGNUPS_DISABLED) return;
-              openJoinModal();
-            }}
-            className="rounded-full bg-gradient-to-r from-teal-600 to-teal-500 px-10 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-900/30 transition opacity-60 cursor-not-allowed pointer-events-none"
+            onClick={openJoinModal}
+            className="rounded-full bg-gradient-to-r from-teal-600 to-teal-500 px-10 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-900/30 transition hover:from-teal-500 hover:to-teal-400 hover:shadow-teal-800/40 active:scale-[0.97] cursor-pointer"
           >
-            Join TeamUP — Coming soon
+            Join TeamUP
           </button>
         )}
 
@@ -391,9 +385,8 @@ function DeploymentPage() {
                 {/* Google */}
                 <button
                   type="button"
-                  disabled={isRedirecting || SIGNUPS_DISABLED}
+                  disabled={isRedirecting}
                   onClick={() => {
-                    if (SIGNUPS_DISABLED) return;
                     setIsRedirecting(true);
                     const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                     signInWithGoogle("client", "production_join", attemptId);
@@ -412,9 +405,8 @@ function DeploymentPage() {
                 {/* GitHub */}
                 <button
                   type="button"
-                  disabled={isRedirecting || SIGNUPS_DISABLED}
+                  disabled={isRedirecting}
                   onClick={() => {
-                    if (SIGNUPS_DISABLED) return;
                     setIsRedirecting(true);
                     const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                     signInWithGitHub("client", "production_join", attemptId);
@@ -430,9 +422,8 @@ function DeploymentPage() {
                 {/* LinkedIn */}
                 <button
                   type="button"
-                  disabled={isRedirecting || SIGNUPS_DISABLED}
+                  disabled={isRedirecting}
                   onClick={() => {
-                    if (SIGNUPS_DISABLED) return;
                     setIsRedirecting(true);
                     const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
                     signInWithLinkedIn("client", "production_join", attemptId);
