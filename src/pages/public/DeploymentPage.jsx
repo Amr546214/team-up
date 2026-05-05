@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useContext } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
+import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
+import { AuthContext } from "../../context/AuthContext";
 
 const MotionSpan = motion.span;
 
@@ -77,14 +79,200 @@ function CountdownUnit({ value, label }) {
   );
 }
 
+function AnimatedCheckmark() {
+  return (
+    <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border-2 border-teal-400/30">
+      <motion.svg
+        viewBox="0 0 52 52"
+        className="h-12 w-12"
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.circle
+          cx="26"
+          cy="26"
+          r="24"
+          fill="none"
+          stroke="#2dd4bf"
+          strokeWidth="2.5"
+          variants={{
+            hidden: { pathLength: 0, opacity: 0 },
+            visible: { pathLength: 1, opacity: 1 },
+          }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+        <motion.path
+          fill="none"
+          stroke="#2dd4bf"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15 27l8 8 14-16"
+          variants={{
+            hidden: { pathLength: 0, opacity: 0 },
+            visible: { pathLength: 1, opacity: 1 },
+          }}
+          transition={{ duration: 0.4, delay: 0.45, ease: "easeOut" }}
+        />
+      </motion.svg>
+    </div>
+  );
+}
+
+function Avatar({ url, name, size = 64 }) {
+  const initial = (name || "?").charAt(0).toUpperCase();
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex items-center justify-center rounded-full bg-teal-600 text-white font-semibold text-xl"
+      style={{ width: size, height: size }}
+    >
+      {initial}
+    </div>
+  );
+}
+
+function AuthenticatedWaitlistCard({ name, avatar, onSignOut }) {
+  return (
+    <div className="rounded-2xl border border-gray-700/50 bg-gray-900/80 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
+      <div className="mx-auto mb-4 flex justify-center">
+        <Avatar url={avatar} name={name} size={72} />
+      </div>
+      <h2 className="mb-2 text-lg font-semibold text-white">
+        Welcome, {name}!
+      </h2>
+      <p className="max-w-xs text-sm leading-relaxed text-gray-400">
+        You're already on the TeamUP waitlist. We'll email you as soon as TeamUP is ready to launch.
+      </p>
+      {onSignOut && (
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="mt-4 text-xs text-gray-500 hover:text-gray-300 transition cursor-pointer"
+        >
+          Not you? Sign out
+        </button>
+      )}
+    </div>
+  );
+}
+
+function JoinAuthPreloader() {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+      {/* Card */}
+      <motion.div
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-700/50 bg-gray-900/95 p-8 text-center shadow-2xl"
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.92, opacity: 0 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      >
+        {/* Spinner */}
+        <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center">
+          <svg
+            className="h-10 w-10 animate-spin text-teal-500"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+        </div>
+
+        <h2 className="mb-2 text-lg font-semibold text-white">
+          Setting up your TeamUP account...
+        </h2>
+        <p className="text-sm leading-relaxed text-gray-400">
+          Please wait a moment while we finish your registration.
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function DeploymentPage() {
+
+  const { session, logout, isProcessingJoinAuth } = useContext(AuthContext);
+  const isLoggedIn = Boolean(session?.id && session?.email);
+  const displayName = session?.name || session?.email?.split("@")[0] || "there";
+  const avatarUrl = session?.avatar || "";
+
   const [timeLeft, setTimeLeft] = useState(getTimeLeft);
+  const [isJoinOpen, setIsJoinOpen] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [joinResult, setJoinResult] = useState(() => {
+    // Only show modal if joinResult was set by a fresh OAuth attempt (not stale session)
+    const result = localStorage.getItem("joinResult");
+    if (result === "new" || result === "existing") {
+      const name = localStorage.getItem("joinUserName") || "there";
+      const avatar = localStorage.getItem("joinUserAvatar") || "";
+      // Clear flags immediately
+      localStorage.removeItem("joinResult");
+      localStorage.removeItem("joinUserName");
+      localStorage.removeItem("joinUserAvatar");
+      return { type: result, name, avatar };
+    }
+    return null;
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft(getTimeLeft());
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    if (isRedirecting) return; // prevent closing while redirecting
+    setIsJoinOpen(false);
+  }, [isRedirecting]);
+
+  const closeJoinResultModal = useCallback(() => {
+    setJoinResult(null);
+  }, []);
+
+  const openJoinModal = useCallback(() => {
+    // Clear all stale result flags before starting a new attempt
+    localStorage.removeItem("joinResult");
+    localStorage.removeItem("joinUserName");
+    localStorage.removeItem("joinUserAvatar");
+    localStorage.removeItem("showJoinSuccess");
+    localStorage.removeItem("pendingAuthSource");
+    localStorage.removeItem("pendingAuthRole");
+    localStorage.removeItem("pendingOAuthAttemptId");
+    localStorage.removeItem("pendingOAuthStartedAt");
+    setIsJoinOpen(true);
   }, []);
 
   return (
@@ -127,20 +315,181 @@ function DeploymentPage() {
           Launching May 20th
         </p>
 
-        {/* CTA Button */}
-        <button
-          type="button"
-          disabled
-          className="rounded-full bg-gradient-to-r from-teal-600 to-teal-500 px-10 py-3 text-sm font-semibold text-white opacity-60 shadow-lg shadow-teal-900/20 cursor-not-allowed"
-        >
-          Launching Soon
-        </button>
+        {/* CTA Section - Join button or Authenticated Card */}
+        {isLoggedIn ? (
+          <AuthenticatedWaitlistCard name={displayName} avatar={avatarUrl} onSignOut={logout} />
+        ) : (
+          <button
+            type="button"
+            onClick={openJoinModal}
+            className="rounded-full bg-gradient-to-r from-teal-600 to-teal-500 px-10 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-900/30 transition hover:from-teal-500 hover:to-teal-400 hover:shadow-teal-800/40 active:scale-[0.97] cursor-pointer"
+          >
+            Join TeamUP
+          </button>
+        )}
 
         {/* Footer */}
         <p className="mt-12 text-xs text-gray-600">
           © {new Date().getFullYear()} TeamUP. All rights reserved.
         </p>
       </div>
+
+      {/* Join Modal */}
+      <AnimatePresence>
+        {isJoinOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={closeModal}
+            />
+
+            {/* Card */}
+            <motion.div
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-700/50 bg-gray-900/95 p-6 shadow-2xl sm:p-8"
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close */}
+              <button
+                type="button"
+                onClick={closeModal}
+                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-800 hover:text-white cursor-pointer"
+                aria-label="Close"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6 text-center">
+                <div className="mb-3 flex items-center justify-center gap-2">
+                  <img src={teamupLogo} alt="TeamUp" className="h-8 w-8 object-contain" />
+                  <h2 className="text-xl font-bold text-white">Join TeamUP</h2>
+                </div>
+                <p className="text-sm text-gray-400">Continue with your preferred account</p>
+              </div>
+
+              {/* OAuth Buttons */}
+              <div className="space-y-3">
+                {/* Google */}
+                <button
+                  type="button"
+                  disabled={isRedirecting}
+                  onClick={() => {
+                    setIsRedirecting(true);
+                    const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                    signInWithGoogle("client", "production_join", attemptId);
+                  }}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+                    <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.63Z" />
+                    <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.87-3c-1.07.72-2.44 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.97H1.25v3.12A12 12 0 0 0 12 24Z" />
+                    <path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.88 12c0-.79.14-1.56.37-2.28V6.6H1.25A12 12 0 0 0 0 12c0 1.93.46 3.76 1.25 5.4l4-3.12Z" />
+                    <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.11 15.23 0 12 0A12 12 0 0 0 1.25 6.6l4 3.12c.95-2.85 3.61-4.97 6.75-4.97Z" />
+                  </svg>
+                  {isRedirecting ? "Redirecting..." : "Continue with Google"}
+                </button>
+
+                {/* GitHub */}
+                <button
+                  type="button"
+                  disabled={isRedirecting}
+                  onClick={() => {
+                    setIsRedirecting(true);
+                    const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                    signInWithGitHub("client", "production_join", attemptId);
+                  }}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white" aria-hidden="true">
+                    <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.74-1.33-1.74-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.23 1.84 1.23 1.08 1.83 2.83 1.3 3.52 1 .1-.77.42-1.3.76-1.6-2.67-.3-5.47-1.32-5.47-5.9 0-1.3.47-2.36 1.23-3.2-.12-.3-.53-1.5.12-3.13 0 0 1-.32 3.3 1.22A11.5 11.5 0 0 1 12 6.3c1.02 0 2.04.14 3 .4 2.29-1.54 3.29-1.22 3.29-1.22.65 1.63.24 2.83.12 3.13.77.84 1.23 1.9 1.23 3.2 0 4.6-2.8 5.6-5.48 5.9.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+                  </svg>
+                  {isRedirecting ? "Redirecting..." : "Continue with GitHub"}
+                </button>
+
+                {/* LinkedIn */}
+                <button
+                  type="button"
+                  disabled={isRedirecting}
+                  onClick={() => {
+                    setIsRedirecting(true);
+                    const attemptId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+                    signInWithLinkedIn("client", "production_join", attemptId);
+                  }}
+                  className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-sm font-medium text-white transition hover:border-gray-600 hover:bg-gray-800 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+                    <path fill="#0A66C2" d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05a3.74 3.74 0 0 1 3.37-1.85c3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43A2.06 2.06 0 1 1 5.34 3.3a2.06 2.06 0 0 1 0 4.13ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77A1.75 1.75 0 0 0 0 1.73v20.54A1.75 1.75 0 0 0 1.77 24h20.45A1.75 1.75 0 0 0 24 22.27V1.73A1.75 1.75 0 0 0 22.22 0Z" />
+                  </svg>
+                  {isRedirecting ? "Redirecting..." : "Continue with LinkedIn"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Join Auth Preloader (Processing OAuth) */}
+      <AnimatePresence>
+        {isProcessingJoinAuth && <JoinAuthPreloader />}
+      </AnimatePresence>
+
+      {/* Join Result Modal (New User) */}
+      <AnimatePresence>
+        {joinResult?.type === "new" && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+            {/* Card */}
+            <motion.div
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-gray-700/50 bg-gray-900/95 p-8 text-center shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <AnimatedCheckmark />
+
+              <h2 className="mb-2 text-xl font-bold text-white">
+                Welcome to TeamUP!
+              </h2>
+              <p className="mb-6 text-sm leading-relaxed text-gray-400">
+                Your account has been created successfully.
+                <br />
+                We'll let you know when TeamUP is ready to launch.
+              </p>
+
+              <button
+                type="button"
+                onClick={closeJoinResultModal}
+                className="w-full rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white transition hover:bg-teal-500 cursor-pointer"
+              >
+                Got it
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
