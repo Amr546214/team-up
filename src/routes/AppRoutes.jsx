@@ -4,6 +4,7 @@ import Register from "../pages/auth/Register";
 import Home from "../pages/public/Home";
 import DeploymentPage from "../pages/public/DeploymentPage";
 import NotFound from "../pages/public/NotFound";
+import ChatTest from "../pages/dev/ChatTest";
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute";
 
@@ -90,6 +91,9 @@ function AppRoutes() {
           <Route path="/team-leader/reports" element={<Reports />} />
         </Route>
       </Route>
+
+      {/* Dev-only routes - NOT available in production */}
+      <Route path="/dev/chat-test" element={<ChatTest />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

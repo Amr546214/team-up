@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { getStoredUserAvatar, getUserInitials } from "../../utils/avatar";
 
 /**
@@ -5,8 +6,8 @@ import { getStoredUserAvatar, getUserInitials } from "../../utils/avatar";
  * Displays user avatar image from localStorage/session with fallback to initials
  *
  * @param {Object} props
- * @param {Object} props.user - User object (optional, will be checked for avatar fields)
- * @param {string} props.src - Direct image URL (optional, overrides user avatar)
+ * @param {Object|null} [props.user] - User object (optional, will be checked for avatar fields)
+ * @param {string|null} props.src - Direct image URL (optional, overrides user avatar)
  * @param {string} props.alt - Alt text for image
  * @param {string} props.size - Size variant: 'sm' | 'md' | 'lg' | 'xl' (default: 'md')
  * @param {string} props.className - Additional CSS classes
@@ -20,47 +21,51 @@ function Avatar({
   className = "",
   fallbackClassName = "",
 }) {
+  const [imageError, setImageError] = useState(false);
+
   // Get avatar URL from various sources
   const avatarSrc = src || getStoredUserAvatar(user);
 
   // Get user name for initials fallback
   const userName = user?.name || user?.fullName || user?.displayName || user?.username || "";
-  const initials = getUserInitials(userName);
+  const initials = getUserInitials(userName) || userName.charAt(0).toUpperCase();
 
   // Size classes
   const sizeClasses = {
-    sm: "h-8 w-8",
-    md: "h-10 w-10",
-    lg: "h-12 w-12",
-    xl: "h-24 w-24",
+    sm: "h-8 w-8 text-xs",
+    md: "h-10 w-10 text-sm",
+    lg: "h-12 w-12 text-base",
+    xl: "h-24 w-24 text-2xl",
   };
 
-  const baseClasses =
-    "rounded-full object-cover overflow-hidden shrink-0";
+  const baseClasses = "rounded-full object-cover overflow-hidden shrink-0";
   const sizeClass = sizeClasses[size] || sizeClasses.md;
 
-  if (avatarSrc) {
+  console.log("[Avatar Component] render", { src, avatarSrc, name: userName, imageError, initials });
+
+  // Show initials fallback if no src or image failed to load
+  if (!avatarSrc || imageError) {
     return (
-      <img
-        src={avatarSrc}
-        alt={alt}
-        className={`${baseClasses} ${sizeClass} ${className}`}
-        onError={(e) => {
-          // On image error, hide the broken image and show fallback
-          e.target.style.display = "none";
-          e.target.nextSibling.style.display = "flex";
-        }}
-      />
+      <div
+        className={`${sizeClass} ${baseClasses} flex items-center justify-center bg-gray-200 text-gray-600 font-semibold ${fallbackClassName}`}
+        title={alt}
+      >
+        {initials}
+      </div>
     );
   }
 
-  // Fallback to initials
+  // Render image with error handler
   return (
-    <div
-      className={`${sizeClass} ${baseClasses} flex items-center justify-center bg-gray-200 text-gray-600 font-semibold ${fallbackClassName}`}
-    >
-      {initials}
-    </div>
+    <img
+      src={avatarSrc}
+      alt={alt}
+      className={`${baseClasses} ${sizeClass} ${className}`}
+      onError={() => {
+        console.warn("[Avatar Component] image failed, switching to fallback", avatarSrc);
+        setImageError(true);
+      }}
+    />
   );
 }
 

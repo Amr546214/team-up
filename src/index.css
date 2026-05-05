@@ -5,6 +5,13 @@
   to   { transform: translateY(0%);   opacity: 1; }
 }
 
+@keyframes messagePop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.06); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12); }
+  70%  { transform: scale(0.98); box-shadow: none; }
+  100% { transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .digit-roll {
     animation: roll-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
