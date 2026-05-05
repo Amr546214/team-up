@@ -1,0 +1,190 @@
+import { useEffect, useCallback } from 'react';
+import { Phone, Video, User, Users, X } from 'lucide-react';
+import type { Conversation } from '../types';
+import { getOtherParticipant } from '../data/mockChatData';
+
+interface ChatUserPopoverProps {
+  conversation: Conversation;
+  isOpen: boolean;
+  onClose: () => void;
+  onVoiceCall?: () => void;
+  onVideoCall?: () => void;
+  onViewProfile?: () => void;
+}
+
+export function ChatUserPopover({
+  conversation,
+  isOpen,
+  onClose,
+  onVoiceCall,
+  onVideoCall,
+  onViewProfile,
+}: ChatUserPopoverProps) {
+  const isGroup = conversation.type === 'group';
+  const otherUser = getOtherParticipant(conversation);
+
+  // Handle Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleKeyDown]);
+
+  if (!isOpen) return null;
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="absolute top-full left-0 mt-2 z-50"
+      onClick={handleBackdropClick}
+    >
+      <div className="w-[280px] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        {/* Close button for mobile/accessibility */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+          aria-label="Close popover"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Header with avatar and name */}
+        <div className="p-5 pb-4">
+          <div className="flex items-center gap-4">
+            {/* Large Avatar */}
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white font-semibold text-xl shadow-md ${
+              isGroup
+                ? 'bg-linear-to-br from-indigo-400 to-indigo-500'
+                : 'bg-linear-to-br from-teal-400 to-teal-500'
+            }`}>
+              {isGroup
+                ? (conversation.avatar
+                    ? <img src={conversation.avatar} alt={conversation.name} className="w-full h-full rounded-full object-cover" />
+                    : conversation.name?.charAt(0).toUpperCase()
+                  )
+                : (otherUser?.avatar
+                    ? <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full rounded-full object-cover" />
+                    : otherUser?.name.charAt(0).toUpperCase()
+                  )
+              }
+            </div>
+
+            {/* Name and status */}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 truncate text-lg">
+                {isGroup ? conversation.name : otherUser?.name}
+              </h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {isGroup
+                  ? `${conversation.membersCount || conversation.participants.length} members`
+                  : otherUser?.role
+                }
+              </p>
+              {!isGroup && otherUser?.status && (
+                <p className="text-xs text-gray-400 mt-0.5 capitalize flex items-center gap-1">
+                  <span className={`w-2 h-2 rounded-full ${
+                    otherUser.status === 'online' ? 'bg-green-500' :
+                    otherUser.status === 'busy' ? 'bg-red-500' :
+                    otherUser.status === 'away' ? 'bg-yellow-500' : 'bg-gray-400'
+                  }`} />
+                  {otherUser.status}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="px-4 pb-4">
+          <div className="grid grid-cols-3 gap-2">
+            {/* Voice Call */}
+            <button
+              onClick={() => {
+                onVoiceCall?.();
+                onClose();
+              }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+              aria-label="Voice call"
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                isGroup ? 'bg-gray-100 text-gray-400' : 'bg-teal-50 text-teal-600'
+              }`}>
+                <Phone className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium text-gray-700">Call</span>
+            </button>
+
+            {/* Video Call */}
+            <button
+              onClick={() => {
+                onVideoCall?.();
+                onClose();
+              }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+              aria-label="Video call"
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                isGroup ? 'bg-gray-100 text-gray-400' : 'bg-purple-50 text-purple-600'
+              }`}>
+                <Video className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium text-gray-700">Video</span>
+            </button>
+
+            {/* View Profile */}
+            <button
+              onClick={() => {
+                onViewProfile?.();
+                // Don't close on profile click - let it show the coming soon state
+              }}
+              disabled={isGroup}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent relative"
+              aria-label="View profile"
+              title={isGroup ? 'Coming soon' : undefined}
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                isGroup ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
+              }`}>
+                {isGroup ? <Users className="w-5 h-5" /> : <User className="w-5 h-5" />}
+              </div>
+              <span className="text-xs font-medium text-gray-700">
+                {isGroup ? 'Group' : 'Profile'}
+              </span>
+              {isGroup && (
+                <span className="absolute -top-1 -right-1 text-[9px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
+                  Soon
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Hint text for mock actions */}
+          {!isGroup && (
+            <p className="text-center text-xs text-gray-400 mt-3">
+              Click an action to test (mock only)
+            </p>
+          )}
+          {isGroup && (
+            <p className="text-center text-xs text-gray-400 mt-3">
+              Group calls coming soon
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

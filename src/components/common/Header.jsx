@@ -1,6 +1,7 @@
 import {
   MoonIcon,
   UserCircleIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
@@ -11,6 +12,8 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import Avatar from "./Avatar";
 import { useAuth } from "../../hooks/useAuth";
 import { getStoredUserAvatar } from "../../utils/avatar";
+import { mockConversations } from "../../features/chat/data/mockChatData";
+import { getTotalUnreadMessagesCount, formatUnreadBadge } from "../../features/chat/utils/unread";
 
 function getDashboardPathByRole(role) {
   switch (role) {
@@ -74,8 +77,8 @@ function Header({ profileImage }) {
         {/* Right side */}
         <div className="flex items-center gap-4">
 
-          {/* Notifications - Only shows when logged in */}
-          {isAuthenticated && <Notification />}
+          {/* Notifications */}
+          <Notification />
 
           {/* Language Switcher */}
           <LanguageSwitcher />
@@ -86,6 +89,26 @@ function Header({ profileImage }) {
             type="button"
           >
             <MoonIcon className="h-5 w-5" />
+          </button>
+
+          {/* TEMP: Chat Button - Remove before production */}
+          <button
+            onClick={() => navigate("/dev/chat-test")}
+            className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-600 transition hover:bg-teal-50 hover:text-[#0B6B63]"
+            type="button"
+            title="Chat (Dev Only)"
+          >
+            <ChatBubbleLeftRightIcon className="h-5 w-5" />
+            {/* Unread messages badge */}
+            {(() => {
+              const unreadCount = getTotalUnreadMessagesCount(mockConversations);
+              const badge = formatUnreadBadge(unreadCount);
+              return badge ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 shadow-sm">
+                  {badge}
+                </span>
+              ) : null;
+            })()}
           </button>
 
           {/* Auth Buttons */}
