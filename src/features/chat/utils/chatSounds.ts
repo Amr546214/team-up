@@ -1,179 +1,136 @@
 // Centralized chat sound manager
 // Guards browser APIs and prevents overlapping sound loops
 
-// Module-level audio instances
-let notificationAudio: HTMLAudioElement | null = null;
-let outgoingCallAudio: HTMLAudioElement | null = null;
-let incomingCallAudio: HTMLAudioElement | null = null;
-
-// Sound configuration
-const SOUNDS = {
-  notification: {
-    path: '/Notify.mp3',
-    loop: false,
-    volume: 0.6,
-  },
-  outgoingCall: {
-    path: '/RingWaiting.mp3',
-    loop: true,
-    volume: 0.55,
-  },
-  incomingCall: {
-    path: '/ringback.mp3',
-    loop: true,
-    volume: 0.65,
-  },
+// Exact public folder paths (case-sensitive for production)
+const CALL_SOUNDS = {
+  notification: '/Notify.mp3',
+  outgoing: '/RingWaiting.mp3',
+  incoming: '/ringback.mp3',
 };
 
+// Module-level audio refs — one per sound channel
+let outgoingAudio: HTMLAudioElement | null = null;
+let incomingAudio: HTMLAudioElement | null = null;
+let notificationAudio: HTMLAudioElement | null = null;
+
 /**
- * Get or create notification audio instance
+ * Safely stop and destroy an audio instance
  */
-function getNotificationAudio(): HTMLAudioElement | null {
-  if (typeof window === 'undefined') return null;
-  
-  if (!notificationAudio) {
-    notificationAudio = new Audio(SOUNDS.notification.path);
-    notificationAudio.volume = SOUNDS.notification.volume;
-    notificationAudio.loop = SOUNDS.notification.loop;
+function stopAndDestroy(audio: HTMLAudioElement | null, label: string): null {
+  if (!audio) return null;
+  try {
+    console.log('[Call Audio] stop', label);
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = '';
+    audio.load();
+  } catch (err) {
+    console.warn('[Call Audio] stop error', { label, err });
   }
-  
-  return notificationAudio;
+  return null;
 }
 
 /**
- * Get or create outgoing call audio instance
+ * Create and play a looping audio, returning the element
  */
-function getOutgoingCallAudio(): HTMLAudioElement | null {
+function playLoopingAudio(src: string, volume: number, label: string): HTMLAudioElement | null {
   if (typeof window === 'undefined') return null;
-  
-  if (!outgoingCallAudio) {
-    outgoingCallAudio = new Audio(SOUNDS.outgoingCall.path);
-    outgoingCallAudio.volume = SOUNDS.outgoingCall.volume;
-    outgoingCallAudio.loop = SOUNDS.outgoingCall.loop;
-  }
-  
-  return outgoingCallAudio;
-}
 
-/**
- * Get or create incoming call audio instance
- */
-function getIncomingCallAudio(): HTMLAudioElement | null {
-  if (typeof window === 'undefined') return null;
-  
-  if (!incomingCallAudio) {
-    incomingCallAudio = new Audio(SOUNDS.incomingCall.path);
-    incomingCallAudio.volume = SOUNDS.incomingCall.volume;
-    incomingCallAudio.loop = SOUNDS.incomingCall.loop;
+  console.log('[Call Audio] attempt play', src);
+
+  try {
+    const audio = new Audio(src);
+    audio.loop = true;
+    audio.volume = volume;
+
+    audio.play()
+      .then(() => {
+        console.log('[Call Audio] playing', src);
+      })
+      .catch((error) => {
+        console.warn('[Call Audio] play failed', { src, error });
+      });
+
+    return audio;
+  } catch (error) {
+    console.warn('[Call Audio] create failed', { src, error });
+    return null;
   }
-  
-  return incomingCallAudio;
 }
 
 /**
  * Play notification sound (one-time, no loop)
  */
 export function playNotificationSound(): void {
-  const audio = getNotificationAudio();
-  if (!audio) {
-    console.log('[ChatSound] notification - audio not available');
-    return;
+  if (typeof window === 'undefined') return;
+
+  console.log('[Call Audio] attempt play', CALL_SOUNDS.notification);
+
+  try {
+    // One-shot: create fresh each time
+    const audio = new Audio(CALL_SOUNDS.notification);
+    audio.volume = 0.6;
+    audio.loop = false;
+
+    audio.play()
+      .then(() => {
+        console.log('[Call Audio] playing', CALL_SOUNDS.notification);
+      })
+      .catch((error) => {
+        console.warn('[Call Audio] play failed', { src: CALL_SOUNDS.notification, error });
+      });
+  } catch (error) {
+    console.warn('[Call Audio] create failed', { src: CALL_SOUNDS.notification, error });
   }
-  
-  // Reset and play
-  audio.currentTime = 0;
-  
-  console.log('[ChatSound] play notification');
-  
-  audio.play().catch((err) => {
-    console.warn('[ChatSound] play failed - notification', err);
-  });
 }
 
 /**
  * Play outgoing call waiting sound (loops)
+ * Best called directly from a click handler for browser autoplay policy.
  */
 export function playOutgoingCallWaitingSound(): void {
-  const audio = getOutgoingCallAudio();
-  if (!audio) {
-    console.log('[ChatSound] outgoing waiting - audio not available');
+  // Prevent duplicate
+  if (outgoingAudio) {
+    console.log('[Call Audio] outgoing - already playing, skipping');
     return;
   }
-  
-  // Check if already playing
-  if (!audio.paused) {
-    console.log('[ChatSound] outgoing waiting - already playing');
-    return;
-  }
-  
-  // Reset and play
-  audio.currentTime = 0;
-  
-  console.log('[ChatSound] play outgoing waiting');
-  
-  audio.play().catch((err) => {
-    console.warn('[ChatSound] play failed - outgoing waiting', err);
-  });
+
+  outgoingAudio = playLoopingAudio(CALL_SOUNDS.outgoing, 0.55, 'outgoing');
 }
 
 /**
  * Stop outgoing call waiting sound
  */
 export function stopOutgoingCallWaitingSound(): void {
-  if (!outgoingCallAudio) return;
-  
-  if (!outgoingCallAudio.paused) {
-    console.log('[ChatSound] stop outgoing waiting');
-    outgoingCallAudio.pause();
-    outgoingCallAudio.currentTime = 0;
-  }
+  outgoingAudio = stopAndDestroy(outgoingAudio, 'outgoing');
 }
 
 /**
  * Play incoming call ringtone (loops)
  */
 export function playIncomingCallRingtone(): void {
-  const audio = getIncomingCallAudio();
-  if (!audio) {
-    console.log('[ChatSound] incoming ringtone - audio not available');
+  // Prevent duplicate
+  if (incomingAudio) {
+    console.log('[Call Audio] incoming - already playing, skipping');
     return;
   }
-  
-  // Check if already playing
-  if (!audio.paused) {
-    console.log('[ChatSound] incoming ringtone - already playing');
-    return;
-  }
-  
-  // Reset and play
-  audio.currentTime = 0;
-  
-  console.log('[ChatSound] play incoming ringtone');
-  
-  audio.play().catch((err) => {
-    console.warn('[ChatSound] play failed - incoming ringtone', err);
-  });
+
+  incomingAudio = playLoopingAudio(CALL_SOUNDS.incoming, 0.65, 'incoming');
 }
 
 /**
  * Stop incoming call ringtone
  */
 export function stopIncomingCallRingtone(): void {
-  if (!incomingCallAudio) return;
-  
-  if (!incomingCallAudio.paused) {
-    console.log('[ChatSound] stop incoming ringtone');
-    incomingCallAudio.pause();
-    incomingCallAudio.currentTime = 0;
-  }
+  incomingAudio = stopAndDestroy(incomingAudio, 'incoming');
 }
 
 /**
  * Stop all chat sounds
  */
 export function stopAllChatSounds(): void {
-  console.log('[ChatSound] stop all sounds');
+  console.log('[Call Audio] stop all sounds');
   stopOutgoingCallWaitingSound();
   stopIncomingCallRingtone();
-  // Notification is one-time, no need to stop
+  notificationAudio = stopAndDestroy(notificationAudio, 'notification');
 }

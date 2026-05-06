@@ -2,8 +2,9 @@ import { useReducer, useEffect, useRef, useCallback } from 'react';
 import { Phone, Video, Mic, MicOff, Video as VideoIcon, VideoOff, Volume2, X } from 'lucide-react';
 import type { Conversation } from '../types';
 import { getOtherParticipant } from '../data/mockChatData';
+import type { CallSession } from '../services/supabaseCallService';
+import { endCall, markCallMissed } from '../services/supabaseCallService';
 import {
-  playOutgoingCallWaitingSound,
   stopOutgoingCallWaitingSound,
   stopAllChatSounds,
 } from '../utils/chatSounds';
@@ -13,14 +14,15 @@ interface CallModalProps {
   mode: 'voice' | 'video';
   isOpen: boolean;
   onClose: () => void;
+  callSession?: CallSession | null;
+  callStatus?: 'ringing' | 'accepted' | 'rejected' | 'missed' | 'ended' | null;
+  isIncoming?: boolean;
 }
 
-type CallStatus = 'requesting-permission' | 'calling' | 'connected' | 'not-answered' | 'permission-denied' | 'unsupported' | 'ended';
+type UICallStatus = 'calling' | 'connected' | 'not-answered' | 'rejected' | 'ended';
 
 type CallAction =
-  | { type: 'SET_STATUS'; payload: CallStatus }
-  | { type: 'SET_ERROR'; payload: string }
-  | { type: 'SET_STREAM'; payload: MediaStream | null }
+  | { type: 'SET_STATUS'; payload: UICallStatus }
   | { type: 'SET_MUTED'; payload: boolean }
   | { type: 'SET_CAMERA_OFF'; payload: boolean }
   | { type: 'SET_SPEAKER_ON'; payload: boolean }
@@ -28,33 +30,25 @@ type CallAction =
   | { type: 'RESET_CALL' };
 
 interface CallState {
-  callStatus: CallStatus;
-  localStream: MediaStream | null;
+  callStatus: UICallStatus;
   isMuted: boolean;
   isCameraOff: boolean;
   isSpeakerOn: boolean;
   elapsedSeconds: number;
-  errorMessage: string;
 }
 
 const initialState: CallState = {
-  callStatus: 'requesting-permission',
-  localStream: null,
+  callStatus: 'calling',
   isMuted: false,
   isCameraOff: false,
   isSpeakerOn: true,
   elapsedSeconds: 0,
-  errorMessage: '',
 };
 
 function callReducer(state: CallState, action: CallAction): CallState {
   switch (action.type) {
     case 'SET_STATUS':
       return { ...state, callStatus: action.payload };
-    case 'SET_ERROR':
-      return { ...state, errorMessage: action.payload };
-    case 'SET_STREAM':
-      return { ...state, localStream: action.payload };
     case 'SET_MUTED':
       return { ...state, isMuted: action.payload };
     case 'SET_CAMERA_OFF':
@@ -70,17 +64,42 @@ function callReducer(state: CallState, action: CallAction): CallState {
   }
 }
 
-export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProps) {
-  const isGroup = conversation.type === 'group';
-  const otherUser = getOtherParticipant(conversation);
 
-  const [state, dispatch] = useReducer(callReducer, initialState);
-  const { callStatus, localStream, isMuted, isCameraOff, isSpeakerOn, elapsedSeconds, errorMessage } = state;
+export function CallModal({
+  conversation,
+  mode,
+  isOpen,
+  onClose,
+  callSession = null,
+  callStatus: externalCallStatus = null,
+  isIncoming = false,
+}: CallModalProps) {
+  const isGroup = conversation?.type === 'group';
+  const otherUser = conversation ? getOtherParticipant(conversation) : null;
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [state, dispatch] = useReducer(callReducer, {
+    ...initialState,
+    callStatus: isIncoming && externalCallStatus === 'accepted' ? 'connected' : 'calling',
+  });
+  const { callStatus, isMuted, isCameraOff, isSpeakerOn, elapsedSeconds } = state;
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const noAnswerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const closeAfterNoAnswerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const closeAfterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debug logs
+  console.log('[Calls UI] currentCall', callSession);
+  console.log('[Calls UI] outgoing call state', {
+    callId: callSession?.id,
+    status: callSession?.status,
+    type: callSession?.type,
+    callerId: callSession?.caller_id,
+    receiverId: callSession?.receiver_id,
+    externalCallStatus,
+    internalCallStatus: callStatus,
+    isIncoming,
+    mode,
+  });
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -89,100 +108,128 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
     return `${mins}:${secs}`;
   };
 
-  // Request media permissions
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Check if media devices are supported
-    if (typeof window === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      dispatch({ type: 'SET_STATUS', payload: 'unsupported' });
-      dispatch({ type: 'SET_ERROR', payload: `${mode === 'voice' ? 'Voice' : 'Video'} calls are not supported in this browser` });
-      return;
-    }
-
-    const requestMedia = async () => {
-      try {
-        dispatch({ type: 'SET_STATUS', payload: 'requesting-permission' });
-
-        const constraints: MediaStreamConstraints = {
-          audio: true,
-          video: mode === 'video',
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        dispatch({ type: 'SET_STREAM', payload: stream });
-        dispatch({ type: 'SET_STATUS', payload: 'calling' });
-        playOutgoingCallWaitingSound();
-
-        // 30-second no-answer timeout
-        noAnswerTimeoutRef.current = setTimeout(() => {
-          handleNoAnswer();
-        }, 30000);
-      } catch (err) {
-        console.error('[Call] Permission denied:', err);
-        stopOutgoingCallWaitingSound();
-        dispatch({ type: 'SET_STATUS', payload: 'permission-denied' });
-        dispatch({
-          type: 'SET_ERROR',
-          payload: mode === 'voice'
-            ? 'Microphone permission denied'
-            : 'Camera or microphone permission denied',
-        });
-      }
-    };
-
-    requestMedia();
-
-    return () => {
-      // Cleanup
-      if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
-      if (closeAfterNoAnswerTimeoutRef.current) clearTimeout(closeAfterNoAnswerTimeoutRef.current);
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isOpen, mode]);
-
-  // Set video source when stream changes or camera is toggled back on
-  useEffect(() => {
-    if (!videoRef.current || !localStream || mode !== 'video') return;
-
-    // Always ensure srcObject is set
-    if (videoRef.current.srcObject !== localStream) {
-      videoRef.current.srcObject = localStream;
-    }
-
-    // Try to play when camera is turned back on
-    if (!isCameraOff) {
-      videoRef.current.play().catch((err) => {
-        console.warn('[VideoCall] video play failed', err);
-      });
-    }
-  }, [localStream, mode, isCameraOff]);
-
   // Handle no answer (30s timeout)
-  const handleNoAnswer = useCallback(() => {
+  const handleNoAnswer = useCallback(async () => {
+    console.log('[Calls] no answer timeout');
     stopOutgoingCallWaitingSound();
-
-    // Stop local stream tracks
-    if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
-    }
 
     // Clear any existing timers
     if (timerRef.current) clearInterval(timerRef.current);
+
+    // Mark call as missed in Supabase
+    if (callSession?.id) {
+      await markCallMissed(callSession.id).catch((err) => {
+        console.error('[Calls] markCallMissed failed', err);
+      });
+    }
 
     // Set status to not-answered
     dispatch({ type: 'SET_STATUS', payload: 'not-answered' });
 
     // Auto-close modal after 2 seconds
-    closeAfterNoAnswerTimeoutRef.current = setTimeout(() => {
+    closeAfterTimeoutRef.current = setTimeout(() => {
       dispatch({ type: 'RESET_CALL' });
       onClose();
     }, 2000);
-  }, [localStream, onClose]);
+  }, [callSession?.id, onClose]);
 
-  // Handle simulate answer (dev-only)
+  // Handle end call
+  const handleEndCall = useCallback(async () => {
+    console.log('[Calls] ending call');
+    
+    // Stop sounds safely
+    stopOutgoingCallWaitingSound();
+
+    // Clear all timers
+    if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
+    if (closeAfterTimeoutRef.current) clearTimeout(closeAfterTimeoutRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    // End call in Supabase
+    if (callSession?.id) {
+      await endCall(callSession.id).catch((err) => {
+        console.error('[Calls] endCall failed', err);
+      });
+    }
+
+    // Reset state
+    dispatch({ type: 'RESET_CALL' });
+
+    // Close modal
+    onClose();
+  }, [callSession?.id, onClose]);
+
+  // Start outgoing call - Phase 1: no WebRTC, just signaling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // For incoming calls that are already accepted, just start timer
+    if (isIncoming && externalCallStatus === 'accepted') {
+      dispatch({ type: 'SET_STATUS', payload: 'connected' });
+      timerRef.current = setInterval(() => {
+        dispatch({ type: 'INCREMENT_TIMER' });
+      }, 1000);
+      return;
+    }
+
+    // For outgoing calls — sound is played from click handler (user gesture)
+    // Here we only set up the 30-second no-answer timeout
+    if (!isIncoming) {
+      noAnswerTimeoutRef.current = setTimeout(() => {
+        handleNoAnswer();
+      }, 30000);
+    }
+
+    return () => {
+      if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
+      if (closeAfterTimeoutRef.current) clearTimeout(closeAfterTimeoutRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isOpen, isIncoming, externalCallStatus, handleNoAnswer]);
+
+  // Handle external call status changes
+  useEffect(() => {
+    if (!externalCallStatus || !isOpen) return;
+
+    console.log('[Calls] external status changed', externalCallStatus);
+
+    switch (externalCallStatus) {
+      case 'accepted':
+        if (noAnswerTimeoutRef.current) {
+          clearTimeout(noAnswerTimeoutRef.current);
+          noAnswerTimeoutRef.current = null;
+        }
+        stopOutgoingCallWaitingSound();
+        dispatch({ type: 'SET_STATUS', payload: 'connected' });
+        timerRef.current = setInterval(() => {
+          dispatch({ type: 'INCREMENT_TIMER' });
+        }, 1000);
+        break;
+
+      case 'rejected':
+        stopOutgoingCallWaitingSound();
+        dispatch({ type: 'SET_STATUS', payload: 'rejected' });
+        closeAfterTimeoutRef.current = setTimeout(() => {
+          handleEndCall();
+        }, 2000);
+        break;
+
+      case 'missed':
+        stopOutgoingCallWaitingSound();
+        dispatch({ type: 'SET_STATUS', payload: 'not-answered' });
+        closeAfterTimeoutRef.current = setTimeout(() => {
+          handleEndCall();
+        }, 2000);
+        break;
+
+      case 'ended':
+        handleEndCall();
+        break;
+    }
+  }, [externalCallStatus, isOpen, handleEndCall]);
+
+  // Handle simulate answer (dev-only) - kept for testing without real receiver
   const handleSimulateAnswer = useCallback(() => {
-    // Clear the no-answer timeout
     if (noAnswerTimeoutRef.current) {
       clearTimeout(noAnswerTimeoutRef.current);
       noAnswerTimeoutRef.current = null;
@@ -191,95 +238,20 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
     stopOutgoingCallWaitingSound();
     dispatch({ type: 'SET_STATUS', payload: 'connected' });
 
-    // Start call timer
     timerRef.current = setInterval(() => {
       dispatch({ type: 'INCREMENT_TIMER' });
     }, 1000);
   }, []);
 
-  // Handle end call
-  const handleEndCall = useCallback(() => {
-    // Stop outgoing call waiting sound
-    stopOutgoingCallWaitingSound();
-
-    // Clear all timers
-    if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
-    if (closeAfterNoAnswerTimeoutRef.current) clearTimeout(closeAfterNoAnswerTimeoutRef.current);
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    // Stop all tracks
-    if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
-    }
-
-    // Reset state
-    dispatch({ type: 'RESET_CALL' });
-
-    // Close modal
-    onClose();
-  }, [localStream, onClose]);
-
-  // Handle mute toggle
+  // Handle mute toggle - Phase 1: UI only, no actual media
   const handleToggleMute = useCallback(() => {
-    if (localStream) {
-      const audioTracks = localStream.getAudioTracks();
-      audioTracks.forEach((track) => {
-        track.enabled = !track.enabled;
-      });
-      dispatch({ type: 'SET_MUTED', payload: !isMuted });
-    }
-  }, [localStream, isMuted]);
+    dispatch({ type: 'SET_MUTED', payload: !isMuted });
+  }, [isMuted]);
 
-  // Handle camera toggle
+  // Handle camera toggle - Phase 1: UI only, no actual media
   const handleToggleCamera = useCallback(() => {
-    if (!localStream) {
-      console.warn('[VideoCall] no localStream available');
-      return;
-    }
-
-    const videoTracks = localStream.getVideoTracks();
-    if (videoTracks.length === 0) {
-      console.warn('[VideoCall] no video tracks found');
-      return;
-    }
-
-    const nextCameraOff = !isCameraOff;
-
-    console.log('[VideoCall] camera toggle', {
-      nextCameraOff,
-      videoTracks: videoTracks.length,
-      trackStates: videoTracks.map(t => ({
-        enabled: t.enabled,
-        readyState: t.readyState,
-        muted: t.muted
-      }))
-    });
-
-    // Check if any track is ended - if so, we need to re-request media
-    const hasEndedTrack = videoTracks.some(t => t.readyState === 'ended');
-    if (hasEndedTrack && !nextCameraOff) {
-      console.warn('[VideoCall] video track is ended, cannot resume. Re-request media needed.');
-      // For now, just show a warning - the track is dead
-      alert('Camera track was stopped. Please end the call and start a new video call.');
-      return;
-    }
-
-    // Toggle track enabled state
-    videoTracks.forEach((track) => {
-      track.enabled = !nextCameraOff;
-    });
-
-    dispatch({ type: 'SET_CAMERA_OFF', payload: nextCameraOff });
-
-    // If turning camera back on, reattach and play
-    if (!nextCameraOff && videoRef.current) {
-      console.log('[VideoCall] attempting to resume video preview');
-      videoRef.current.srcObject = localStream;
-      videoRef.current.play().catch((err) => {
-        console.warn('[VideoCall] video play failed after toggle', err);
-      });
-    }
-  }, [localStream, isCameraOff, mode]);
+    dispatch({ type: 'SET_CAMERA_OFF', payload: !isCameraOff });
+  }, [isCameraOff]);
 
   // Handle speaker toggle (UI mock)
   const handleToggleSpeaker = useCallback(() => {
@@ -308,7 +280,6 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
     if (isOpen) {
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
-      console.log('[VideoCall] modal open', isOpen);
 
       return () => {
         document.body.style.overflow = originalOverflow;
@@ -316,34 +287,32 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
     }
   }, [isOpen]);
 
-  // Cleanup on unmount - empty deps array so it only runs on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Stop all chat sounds
       stopAllChatSounds();
 
-      // Clear all timers
       if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
-      if (closeAfterNoAnswerTimeoutRef.current) clearTimeout(closeAfterNoAnswerTimeoutRef.current);
+      if (closeAfterTimeoutRef.current) clearTimeout(closeAfterTimeoutRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!isOpen) return null;
+  if (!isOpen || !conversation) return null;
 
   // Controls visibility for active call states
   const showActiveControls =
-    callStatus === 'requesting-permission' ||
     callStatus === 'calling' ||
     callStatus === 'connected';
 
-  console.log('[VideoCall] controls rendered', callStatus, 'showActiveControls:', showActiveControls);
-
   const isVoice = mode === 'voice';
-  const displayName = isGroup ? conversation.name : otherUser?.name;
+  const displayName = isGroup ? conversation.name : otherUser?.name || 'Unknown';
   const avatarUrl = isGroup ? conversation.avatar : otherUser?.avatar;
-  const avatarInitial = displayName?.charAt(0).toUpperCase();
+  const avatarInitial = displayName?.charAt(0)?.toUpperCase() || '?';
+
+  // Determine if this is a real Supabase call (hide Simulate Answer for real calls)
+  const isRealCall = !!callSession?.id;
 
   return (
     <div
@@ -371,21 +340,18 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
               </div>
               <h3 className="text-xl font-semibold mb-1">{displayName}</h3>
               <p className="text-gray-400 text-sm">
-                {isGroup ? `${conversation.membersCount || conversation.participants.length} members` : otherUser?.role}
+                {isGroup ? `${conversation.membersCount || conversation.participants?.length || 0} members` : otherUser?.role}
               </p>
             </div>
 
             {/* Status */}
             <div className="text-center mb-8">
-              {callStatus === 'requesting-permission' && (
-                <p className="text-gray-400">Requesting microphone...</p>
-              )}
               {callStatus === 'calling' && (
                 <>
                   <p className="text-gray-400">Calling...</p>
                   <p className="text-gray-500 text-xs mt-1">Ringing for up to 30 seconds</p>
-                  {/* Dev-only Simulate Answer button */}
-                  {process.env.NODE_ENV !== 'production' && (
+                  {/* Dev-only Simulate Answer button - hidden for real Supabase calls */}
+                  {!isRealCall && process.env.NODE_ENV !== 'production' && (
                     <button
                       onClick={handleSimulateAnswer}
                       className="mt-3 px-3 py-1.5 bg-teal-600 hover:bg-teal-500 rounded text-xs text-white transition-colors"
@@ -405,21 +371,16 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
                   <p className="text-xs text-gray-500 mt-2">Call ended</p>
                 </div>
               )}
-              {(callStatus === 'permission-denied' || callStatus === 'unsupported') && (
+              {callStatus === 'rejected' && (
                 <div className="text-red-400">
-                  <p>{errorMessage}</p>
-                  <button
-                    onClick={handleEndCall}
-                    className="mt-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
-                  >
-                    Close
-                  </button>
+                  <p className="text-lg font-medium">Call rejected</p>
+                  <p className="text-sm text-gray-400 mt-1">{displayName} declined the call</p>
                 </div>
               )}
             </div>
 
             {/* Controls */}
-            {callStatus !== 'permission-denied' && callStatus !== 'unsupported' && callStatus !== 'not-answered' && (
+            {callStatus !== 'rejected' && callStatus !== 'not-answered' && (
               <div className="flex items-center justify-center gap-6">
                 {/* Mute */}
                 <button
@@ -456,38 +417,27 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
           </div>
         </div>
       ) : (
-        // Video Call UI - Viewport-based layout with fixed controls
+        // Video Call UI - Phase 1: no real video, avatar placeholder with controls
         <div className="absolute inset-0 bg-black">
-          {/* Video Layer */}
+          {/* Placeholder Video Layer */}
           <div className="absolute inset-0 z-0">
-            {callStatus !== 'permission-denied' && callStatus !== 'unsupported' && callStatus !== 'not-answered' ? (
-              <>
-                {/* Video element - always mounted when stream exists */}
-                {localStream && (
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className={`absolute inset-0 h-full w-full object-cover ${isCameraOff ? 'opacity-0' : 'opacity-100'}`}
-                  />
-                )}
-
-                {/* Placeholder overlay when camera is off */}
-                {isCameraOff && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-bold ${
-                      isGroup
-                        ? 'bg-linear-to-br from-indigo-500 to-indigo-600'
-                        : 'bg-linear-to-br from-teal-500 to-teal-600'
-                    } text-white`}>
-                      {avatarInitial}
-                    </div>
-                  </div>
-                )}
-              </>
+            {callStatus !== 'not-answered' && callStatus !== 'rejected' ? (
+              // Phase 1: show avatar placeholder instead of video
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-bold ${
+                  isGroup
+                    ? 'bg-linear-to-br from-indigo-500 to-indigo-600'
+                    : 'bg-linear-to-br from-teal-500 to-teal-600'
+                } text-white`}>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    avatarInitial
+                  )}
+                </div>
+              </div>
             ) : (
-              // Error / Not Answered State
+              // Not Answered / Rejected State
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center text-white">
                   {callStatus === 'not-answered' ? (
@@ -503,7 +453,8 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
                       <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
                         <VideoOff className="w-10 h-10 text-red-400" />
                       </div>
-                      <p className="text-red-400 mb-4">{errorMessage}</p>
+                      <p className="text-red-400 mb-1 text-lg font-medium">Call rejected</p>
+                      <p className="text-sm text-gray-400 mb-4">{displayName} declined the call</p>
                     </>
                   )}
                   <button
@@ -521,13 +472,12 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 text-center pointer-events-none">
             <h3 className="text-white font-semibold text-lg drop-shadow-lg">{displayName}</h3>
             <p className="text-white/80 text-sm drop-shadow-lg">
-              {callStatus === 'requesting-permission' && 'Requesting camera...'}
               {callStatus === 'calling' && (
                 <span className="pointer-events-auto inline-block">
                   Calling...
                   <span className="block text-xs text-white/60 mt-0.5">Ringing for up to 30 seconds</span>
-                  {/* Dev-only Simulate Answer button */}
-                  {process.env.NODE_ENV !== 'production' && (
+                  {/* Dev-only Simulate Answer button - hidden for real calls */}
+                  {!isRealCall && process.env.NODE_ENV !== 'production' && (
                     <button
                       onClick={handleSimulateAnswer}
                       className="mt-2 px-2 py-1 bg-teal-600/80 hover:bg-teal-500/80 rounded text-xs text-white transition-colors"
@@ -542,6 +492,9 @@ export function CallModal({ conversation, mode, isOpen, onClose }: CallModalProp
               )}
               {callStatus === 'not-answered' && (
                 <span className="text-amber-400">No answer</span>
+              )}
+              {callStatus === 'rejected' && (
+                <span className="text-red-400">Call rejected</span>
               )}
             </p>
           </div>
