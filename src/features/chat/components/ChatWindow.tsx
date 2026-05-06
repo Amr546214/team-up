@@ -13,6 +13,12 @@ import { ReportMessageModal } from './ReportMessageModal';
 import { ReportUserModal } from './ReportUserModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { reportUser } from '../services/supabaseChatService';
+import {
+  createCallSession,
+  endCall,
+  type CallSession,
+} from '../services/supabaseCallService';
+import { playOutgoingCallWaitingSound } from '../utils/chatSounds';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -44,6 +50,15 @@ interface ChatWindowProps {
   onReportMessage?: (messageId: string, reason: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
   highlightedMessageId?: string | null;
+  // Call props
+  onCallStateChange?: (state: {
+    callSession: CallSession | null;
+    callStatus: CallSession['status'] | null;
+    isIncoming: boolean;
+    mode: 'audio' | 'video' | null;
+  }) => void;
+  externalCallSession?: CallSession | null;
+  externalCallStatus?: CallSession['status'] | null;
 }
 
 export function ChatWindow({
@@ -67,6 +82,9 @@ export function ChatWindow({
   onReportMessage,
   onDeleteForEveryone,
   highlightedMessageId = null,
+  onCallStateChange,
+  externalCallSession = null,
+  externalCallStatus = null,
 }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -119,32 +137,177 @@ export function ChatWindow({
     action: 'clear' | 'delete' | null;
   }>({ isOpen: false, action: null });
 
-  // Call modal state
+  // Call state
   const [callModalMode, setCallModalMode] = useState<'voice' | 'video' | null>(null);
+  const [activeCallSession, setActiveCallSession] = useState<CallSession | null>(null);
+  const [callStatus, setCallStatus] = useState<CallSession['status'] | null>(null);
 
   // Group call coming soon popup state
   const [showGroupCallPopup, setShowGroupCallPopup] = useState(false);
 
+  // Error toast state for call failures
+  const [callError, setCallError] = useState<string | null>(null);
+
+  // Auto-clear call error after 3 seconds
+  useEffect(() => {
+    if (!callError) return;
+    const timer = setTimeout(() => setCallError(null), 3000);
+    return () => clearTimeout(timer);
+  }, [callError]);
+
   // Call handlers
-  const handleVoiceCall = useCallback(() => {
+  const handleVoiceCall = useCallback(async () => {
     if (conversation?.type === 'group') {
       setShowGroupCallPopup(true);
       return;
     }
-    setCallModalMode('voice');
-  }, [conversation?.type]);
 
-  const handleVideoCall = useCallback(() => {
+    try {
+      if (!conversation) {
+        setCallError('No conversation selected');
+        return;
+      }
+
+      // Get receiver (other participant)
+      const otherUser = getOtherParticipant(conversation);
+      if (!otherUser) {
+        console.error('[Calls] cannot start call - no other user');
+        setCallError('Cannot start call - no participant found');
+        return;
+      }
+
+      // Don't allow calling yourself
+      if (otherUser.id === currentUser.id) {
+        console.error('[Calls] cannot call yourself');
+        setCallError('Cannot call yourself');
+        return;
+      }
+
+      console.log('[Calls] starting voice call', {
+        conversationId: conversation.id,
+        receiverId: otherUser.id,
+      });
+
+      const { call, error } = await createCallSession({
+        conversationId: conversation.id,
+        receiverId: otherUser.id,
+        type: 'audio',
+      });
+
+      if (error || !call) {
+        console.error('[Calls] failed to start call', error);
+        setCallError('Failed to start call');
+        return;
+      }
+
+      // Play ringing sound in user-gesture context (browser autoplay policy)
+      playOutgoingCallWaitingSound();
+
+      setActiveCallSession(call);
+      setCallStatus('ringing');
+      setCallModalMode('voice');
+
+      // Notify parent
+      onCallStateChange?.({
+        callSession: call,
+        callStatus: 'ringing',
+        isIncoming: false,
+        mode: 'audio',
+      });
+    } catch (err) {
+      console.error('[Calls] unexpected error starting voice call', err);
+      setCallError('Failed to start call');
+    }
+  }, [conversation, currentUser.id, onCallStateChange]);
+
+  const handleVideoCall = useCallback(async () => {
     if (conversation?.type === 'group') {
       setShowGroupCallPopup(true);
       return;
     }
-    setCallModalMode('video');
-  }, [conversation?.type]);
 
-  const handleCloseCall = useCallback(() => {
+    try {
+      if (!conversation) {
+        setCallError('No conversation selected');
+        return;
+      }
+
+      // Get receiver (other participant)
+      const otherUser = getOtherParticipant(conversation);
+      if (!otherUser) {
+        console.error('[Calls] cannot start call - no other user');
+        setCallError('Cannot start call - no participant found');
+        return;
+      }
+
+      // Don't allow calling yourself
+      if (otherUser.id === currentUser.id) {
+        console.error('[Calls] cannot call yourself');
+        setCallError('Cannot call yourself');
+        return;
+      }
+
+      console.log('[Calls] starting video call', {
+        conversationId: conversation.id,
+        receiverId: otherUser.id,
+      });
+
+      const { call, error } = await createCallSession({
+        conversationId: conversation.id,
+        receiverId: otherUser.id,
+        type: 'video',
+      });
+
+      if (error || !call) {
+        console.error('[Calls] failed to start call', error);
+        setCallError('Failed to start call');
+        return;
+      }
+
+      // Play ringing sound in user-gesture context (browser autoplay policy)
+      playOutgoingCallWaitingSound();
+
+      setActiveCallSession(call);
+      setCallStatus('ringing');
+      setCallModalMode('video');
+
+      // Notify parent
+      onCallStateChange?.({
+        callSession: call,
+        callStatus: 'ringing',
+        isIncoming: false,
+        mode: 'video',
+      });
+    } catch (err) {
+      console.error('[Calls] unexpected error starting video call', err);
+      setCallError('Failed to start call');
+    }
+  }, [conversation, currentUser.id, onCallStateChange]);
+
+  const handleCloseCall = useCallback(async () => {
+    console.log('[Calls] closing call modal');
+
+    try {
+      // End call in Supabase if active
+      if (activeCallSession?.id && callStatus && ['ringing', 'accepted'].includes(callStatus)) {
+        await endCall(activeCallSession.id);
+      }
+    } catch (err) {
+      console.error('[Calls] error ending call', err);
+    }
+
     setCallModalMode(null);
-  }, []);
+    setActiveCallSession(null);
+    setCallStatus(null);
+
+    // Notify parent
+    onCallStateChange?.({
+      callSession: null,
+      callStatus: null,
+      isIncoming: false,
+      mode: null,
+    });
+  }, [activeCallSession?.id, callStatus, onCallStateChange]);
 
   const handleCloseGroupCallPopup = useCallback(() => {
     setShowGroupCallPopup(false);
@@ -590,13 +753,25 @@ export function ChatWindow({
       )}
 
       {/* Call Modal */}
-      {callModalMode && (
+      {callModalMode && conversation && (
         <CallModal
           conversation={conversation}
           mode={callModalMode}
           isOpen={!!callModalMode}
           onClose={handleCloseCall}
+          callSession={activeCallSession}
+          callStatus={externalCallStatus || callStatus}
+          isIncoming={!!externalCallSession}
         />
+      )}
+
+      {/* Call Error Toast */}
+      {callError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="bg-red-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium">
+            {callError}
+          </div>
+        </div>
       )}
     </div>
   );

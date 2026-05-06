@@ -19,6 +19,7 @@ export { ChatUserPopover } from './components/ChatUserPopover';
 export { ChatHeaderMenu } from './components/ChatHeaderMenu';
 export { ConfirmActionModal } from './components/ConfirmActionModal';
 export { CallModal } from './components/CallModal';
+export { IncomingCallModal } from './components/IncomingCallModal';
 
 // Types
 export type { ChatUser, Conversation, Message, ChatState, ChatFilter, MessageType, ChatProfile } from './types';
@@ -89,3 +90,15 @@ export {
   cleanReadConversationIds,
   isConversationRead,
 } from './utils/chatStorage';
+
+// Call services
+export {
+  createCallSession,
+  acceptCall,
+  rejectCall,
+  endCall,
+  markCallMissed,
+  getActiveCallForConversation,
+  type CallSession,
+  type CreateCallSessionParams,
+} from './services/supabaseCallService';

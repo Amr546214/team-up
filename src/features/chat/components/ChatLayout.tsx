@@ -1,10 +1,13 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatWindow } from './ChatWindow';
 import { ChatUploadModal } from './ChatUploadModal';
+import { IncomingCallModal } from './IncomingCallModal';
 import { useChat } from '../hooks/useChat';
 import { MessageSquare, ArrowRight } from 'lucide-react';
 import type { Conversation, Message } from '../types';
+import type { CallSession } from '../services/supabaseCallService';
+import { supabase } from '../../../lib/supabase';
 
 import type { ReactNode } from 'react';
 
@@ -59,6 +62,14 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
     setUploadModal,
   } = useChat();
 
+  // Call state
+  const [incomingCall, setIncomingCall] = useState<CallSession | null>(null);
+  const [activeCallSession, setActiveCallSession] = useState<CallSession | null>(null);
+  const [activeCallStatus, setActiveCallStatus] = useState<CallSession['status'] | null>(null);
+  const [activeCallMode, setActiveCallMode] = useState<'voice' | 'video' | null>(null);
+  const callSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+
   const selectConversationAndHighlight = useCallback(
     (conversationId: string, messageId: string) => {
       selectConversation(conversationId);
@@ -83,6 +94,128 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
       });
     }
   }, [onReady, openRealConversation, refreshConversations, selectConversation, selectConversationAndHighlight, currentUser?.id, totalUnreadCount, unreadChatsCount]);
+
+  // Sync current user ref for realtime callbacks
+  useEffect(() => {
+    currentUserIdRef.current = currentUser?.id || null;
+  }, [currentUser?.id]);
+
+  // Realtime subscription for call_sessions
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    console.log('[Calls] setting up realtime subscription for user', currentUser.id);
+
+    const channel = supabase
+      .channel('call_sessions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'call_sessions',
+        },
+        (payload) => {
+          const call = payload.new as CallSession;
+          console.log('[Calls] INSERT event received', call);
+
+          // Check if this is an incoming call for current user
+          if (call.receiver_id === currentUserIdRef.current && call.status === 'ringing') {
+            console.log('[Calls] incoming call detected', call);
+            setIncomingCall(call);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'call_sessions',
+        },
+        (payload) => {
+          const call = payload.new as CallSession;
+          console.log('[Calls] UPDATE event received', call);
+
+          // Check if this call involves current user
+          const userId = currentUserIdRef.current;
+          if (call.caller_id === userId || call.receiver_id === userId) {
+            console.log('[Calls] call update for current user', call.status);
+
+            // Update active call status if this is the active call
+            if (activeCallSession?.id === call.id) {
+              setActiveCallStatus(call.status);
+            }
+
+            // Handle accepted - close incoming modal
+            if (call.status === 'accepted') {
+              setIncomingCall(null);
+              setActiveCallSession(call);
+              setActiveCallStatus('accepted');
+              setActiveCallMode(call.type === 'audio' ? 'voice' : 'video');
+            }
+
+            // Handle rejected/missed/ended - close modals
+            if (['rejected', 'missed', 'ended'].includes(call.status)) {
+              setIncomingCall(null);
+              if (activeCallSession?.id === call.id) {
+                // Keep modal open briefly to show status, then close
+                setTimeout(() => {
+                  setActiveCallSession(null);
+                  setActiveCallStatus(null);
+                  setActiveCallMode(null);
+                }, 2000);
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    callSubscriptionRef.current = channel;
+
+    return () => {
+      console.log('[Calls] cleaning up realtime subscription');
+      channel.unsubscribe();
+    };
+  }, [currentUser?.id, activeCallSession?.id]);
+
+  // Handle incoming call acceptance
+  const handleIncomingAccepted = useCallback(() => {
+    console.log('[Calls] incoming call accepted');
+    if (incomingCall) {
+      setActiveCallSession(incomingCall);
+      setActiveCallStatus('accepted');
+      setActiveCallMode(incomingCall.type === 'audio' ? 'voice' : 'video');
+    }
+  }, [incomingCall]);
+
+  // Handle incoming call rejection
+  const handleIncomingRejected = useCallback(() => {
+    console.log('[Calls] incoming call rejected');
+    setIncomingCall(null);
+  }, []);
+
+  // Handle call state from ChatWindow
+  const handleCallStateChange = useCallback((state: {
+    callSession: CallSession | null;
+    callStatus: CallSession['status'] | null;
+    isIncoming: boolean;
+    mode: 'audio' | 'video' | null;
+  }) => {
+    console.log('[Calls] state change from ChatWindow', state);
+    if (state.callSession) {
+      setActiveCallSession(state.callSession);
+      setActiveCallStatus(state.callStatus);
+      if (state.mode) {
+        setActiveCallMode(state.mode === 'audio' ? 'voice' : 'video');
+      }
+    } else {
+      setActiveCallSession(null);
+      setActiveCallStatus(null);
+      setActiveCallMode(null);
+    }
+  }, []);
 
   // Loading state (mock - inactive by default)
   if (isLoading) {
@@ -181,6 +314,9 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
                 onReportMessage={onReportMessage}
                 onDeleteForEveryone={onDeleteForEveryone}
                 highlightedMessageId={highlightedMessageId}
+                onCallStateChange={handleCallStateChange}
+                externalCallSession={activeCallSession}
+                externalCallStatus={activeCallStatus}
               />
             ) : (
               /* Empty state when no conversation is selected */
@@ -210,6 +346,32 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
         state={uploadModal}
         onClose={() => setUploadModal({ open: false, status: 'uploading' })}
       />
+
+      {/* Incoming Call Modal */}
+      {incomingCall && (
+        <IncomingCallModal
+          call={incomingCall}
+          callerName={(() => {
+            // Find caller name from conversations
+            const conv = sortedConversations.find(c => c.id === incomingCall.conversation_id);
+            if (conv?.type === 'direct') {
+              const other = conv.participants.find(p => p.id === incomingCall.caller_id);
+              return other?.name || 'Unknown';
+            }
+            return conv?.name || 'Unknown';
+          })()}
+          callerAvatar={(() => {
+            const conv = sortedConversations.find(c => c.id === incomingCall.conversation_id);
+            if (conv?.type === 'direct') {
+              const other = conv.participants.find(p => p.id === incomingCall.caller_id);
+              return other?.avatar;
+            }
+            return conv?.avatar;
+          })()}
+          onAccepted={handleIncomingAccepted}
+          onRejected={handleIncomingRejected}
+        />
+      )}
     </div>
   );
 }
