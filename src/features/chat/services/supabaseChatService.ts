@@ -615,6 +615,77 @@ export async function sendMediaMessage({
 }
 
 /**
+ * Create a new group conversation.
+ * Creates conversation row and adds participants (current user + selected members).
+ */
+export async function createGroupConversation({
+  title,
+  memberIds,
+}: {
+  title: string;
+  memberIds: string[];
+}): Promise<{ conversationId: string | null; error: string | null }> {
+  try {
+    // 1. Get current authenticated user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { conversationId: null, error: 'Not authenticated' };
+
+    const currentUserId = user.id;
+    console.log('[Group Chat] creating group', { title, memberIds, currentUserId });
+
+    // 2. Create the group conversation
+    const { data: convo, error: convoError } = await supabase
+      .from('conversations')
+      .insert({
+        type: 'group',
+        title: title.trim(),
+        created_by: currentUserId,
+      })
+      .select('id')
+      .single();
+
+    if (convoError || !convo) {
+      console.error('[Group Chat] failed to create conversation', convoError);
+      return { conversationId: null, error: convoError?.message || 'Failed to create group' };
+    }
+
+    const conversationId = convo.id;
+
+    // 3. Prepare participants list (avoid duplicates)
+    const uniqueMemberIds = [...new Set(memberIds)].filter((id) => id !== currentUserId);
+    const participants = [
+      // Current user as admin
+      { conversation_id: conversationId, user_id: currentUserId, role: 'admin' },
+      // Selected members
+      ...uniqueMemberIds.map((id) => ({
+        conversation_id: conversationId,
+        user_id: id,
+        role: 'member',
+      })),
+    ];
+
+    // 4. Insert participants
+    const { error: partError } = await supabase
+      .from('conversation_participants')
+      .insert(participants);
+
+    if (partError) {
+      console.error('[Group Chat] failed to add participants', partError);
+      // Don't delete the conversation - let the user retry or clean up manually
+      return { conversationId: null, error: partError.message };
+    }
+
+    console.log('[Group Chat] group created', conversationId);
+    return { conversationId, error: null };
+  } catch (err: any) {
+    console.error('[Group Chat] create error', err);
+    return { conversationId: null, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
  * Fetch all conversations where the current user is a participant.
  * Returns conversations with participants, profiles, last messages, and unread counts.
  */
@@ -774,6 +845,39 @@ export async function getMyConversations(): Promise<{
   } catch (err: any) {
     console.error('[Chat] load real conversations failed', err);
     return { conversations: [], currentUserId: null, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Mark a conversation as read for the current user.
+ * Updates conversation_participants.last_read_at to now.
+ */
+export async function markConversationAsRead(
+  conversationId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    console.log('[Unread] mark read', conversationId);
+
+    const { error } = await supabase
+      .from('conversation_participants')
+      .update({ last_read_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('[Unread] mark read failed', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    console.error('[Unread] mark read failed', err);
+    return { success: false, error: err?.message || 'Unexpected error' };
   }
 }
 

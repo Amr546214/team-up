@@ -12,7 +12,7 @@ import {
   playNotificationSound,
 } from '../../features/chat';
 import { getAvailableProfiles } from '../../features/chat/services/profileService';
-import { getOrCreateDirectConversation, getConversationById, getConversationMessages } from '../../features/chat/services/supabaseChatService';
+import { getOrCreateDirectConversation, getConversationById, getConversationMessages, createGroupConversation } from '../../features/chat/services/supabaseChatService';
 import { useAuth } from '../../hooks/useAuth';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
@@ -110,6 +110,45 @@ function ChatTest() {
     chatActionsRef.current = actions;
     selectConversationRef.current = actions.selectConversation;
     setCurrentUserId(actions.currentUserId);
+  };
+
+  const handleCreateGroup = async (title, memberIds) => {
+    console.log('[ChatTest] creating group', { title, memberIds });
+    const { conversationId, error } = await createGroupConversation({ title, memberIds });
+
+    if (error || !conversationId) {
+      console.error('[ChatTest] create group failed', error);
+      return null;
+    }
+
+    console.log('[ChatTest] group created, loading conversation', conversationId);
+
+    // Load the new group conversation
+    const [convoResult, msgsResult] = await Promise.all([
+      getConversationById(conversationId),
+      getConversationMessages(conversationId),
+    ]);
+
+    if (convoResult.error || !convoResult.conversation) {
+      console.error('[ChatTest] load group conversation failed', convoResult.error);
+      return conversationId; // Still return ID so it can be selected later
+    }
+
+    // Open the group conversation
+    if (chatActionsRef.current) {
+      chatActionsRef.current.openRealConversation(
+        convoResult.conversation,
+        msgsResult.messages || [],
+        convoResult.currentUserId
+      );
+    }
+
+    // Refresh conversations list
+    if (chatActionsRef.current?.refreshConversations) {
+      await chatActionsRef.current.refreshConversations();
+    }
+
+    return conversationId;
   };
 
   const handleSelectConversation = (conversationId, messageId) => {
@@ -215,6 +254,7 @@ function ChatTest() {
             onTestNotification={handleTestNotification}
             onFetchAvailableUsers={fetchProfiles}
             onStartChat={handleStartChat}
+            onCreateGroup={handleCreateGroup}
             onCopyId={handleCopyId}
             onSelectConversation={handleSelectConversation}
             copiedId={copiedId}
