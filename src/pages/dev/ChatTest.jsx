@@ -20,8 +20,27 @@ import { useAuth } from '../../hooks/useAuth';
 function ChatTest() {
   const navigate = useNavigate();
   const { session } = useAuth();
-  // Disable in production
-  const isProd = import.meta.env.PROD;
+  // Access control: allow in dev, staging, or when explicitly enabled
+  const isDev = import.meta.env.DEV;
+  const appEnv = import.meta.env.VITE_APP_ENV;
+  const enableChatTest = import.meta.env.VITE_ENABLE_CHAT_TEST === 'true';
+
+  const canAccessChatTest =
+    isDev ||
+    appEnv === 'staging' ||
+    appEnv === 'development' ||
+    enableChatTest;
+
+  // Debug logging
+  console.log('[ChatTest Access]', {
+    mode: import.meta.env.MODE,
+    dev: import.meta.env.DEV,
+    prod: import.meta.env.PROD,
+    appEnv,
+    enableChatTest,
+    hostname: typeof window !== 'undefined' ? window.location.hostname : 'ssr',
+    canAccessChatTest,
+  });
 
   // Available Users panel state
   const [profiles, setProfiles] = useState([]);
@@ -214,12 +233,12 @@ function ChatTest() {
     }
   }, [totalUnreadCount, unreadChatsCount]);
 
-  if (isProd) {
+  if (!canAccessChatTest) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <div className="text-center p-8 bg-white rounded-2xl shadow-lg">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Not Available</h1>
-          <p className="text-gray-500">This feature is only available in development mode.</p>
+          <p className="text-gray-500">This feature is not available in production.</p>
         </div>
       </div>
     );
