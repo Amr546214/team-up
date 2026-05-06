@@ -776,6 +776,25 @@ export async function getMyConversations(): Promise<{
       }
     }
 
+    // 6b. Fetch all messages for unread count calculation
+    const { data: allMessages, error: messagesError } = await supabase
+      .from('messages')
+      .select('id, conversation_id, sender_id, created_at, deleted_at, delete_scope')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: false });
+
+    if (messagesError) {
+      console.error('[Chat] fetch messages for unread count failed', messagesError);
+    }
+
+    // Group messages by conversation
+    const messagesByConversation = new Map<string, any[]>();
+    (allMessages || []).forEach((msg) => {
+      const list = messagesByConversation.get(msg.conversation_id) || [];
+      list.push(msg);
+      messagesByConversation.set(msg.conversation_id, list);
+    });
+
     // 7. Build conversations
     const conversations: Conversation[] = convos.map((convo) => {
       const myPart = myParticipations.find((p) => p.conversation_id === convo.id)!;
@@ -805,15 +824,29 @@ export async function getMyConversations(): Promise<{
       const lastMessage = lastMsgRow ? rowToMessage(lastMsgRow) : undefined;
 
       // Calculate unread count
-      let unreadCount = 0;
-      // TODO: Optimize with a single query for all unread counts
-      // For now, set to 0 as requested, or calculate if last_read_at exists
-      if (myPart.last_read_at && lastMsgRow) {
-        // If last message is from other user and after last_read_at
-        if (lastMsgRow.sender_id !== currentUserId && new Date(lastMsgRow.created_at) > new Date(myPart.last_read_at)) {
-          unreadCount = 1; // Simplified - actual count would need full message query
+      const convoMessages = messagesByConversation.get(convo.id) || [];
+      const lastReadAt = myPart.last_read_at;
+
+      const unreadCount = convoMessages.filter((msg) => {
+        // From other users only
+        if (msg.sender_id === currentUserId) return false;
+
+        // Not deleted for everyone
+        if (msg.deleted_at && msg.delete_scope === 'everyone') return false;
+
+        // After last read (or all if never read)
+        if (lastReadAt) {
+          return new Date(msg.created_at) > new Date(lastReadAt);
         }
-      }
+        return true;
+      }).length;
+
+      console.log('[Unread] conversation count', {
+        conversationId: convo.id,
+        lastReadAt,
+        unreadCount,
+        totalMessages: convoMessages.length,
+      });
 
       const conversation: Conversation = {
         id: convo.id,

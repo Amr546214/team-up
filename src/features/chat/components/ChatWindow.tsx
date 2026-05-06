@@ -19,7 +19,14 @@ interface ChatWindowProps {
   messages: Message[];
   currentUser: ChatUser;
   onSendMessage: (content: string) => void;
-  onSendAttachment: (message: Omit<Message, 'id' | 'conversationId' | 'senderId' | 'timestamp' | 'status'>) => void;
+  onSendAttachment: (data: {
+    type: 'image' | 'file' | 'voice' | 'audio';
+    fileOrBlob: File | Blob;
+    fileName: string;
+    fileSize: number;
+    fileType: string;
+    duration?: number;
+  }) => void;
   onBack?: () => void;
   isMobile?: boolean;
   // Menu actions
