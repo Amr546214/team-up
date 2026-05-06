@@ -20,25 +20,26 @@ import { useAuth } from '../../hooks/useAuth';
 function ChatTest() {
   const navigate = useNavigate();
   const { session } = useAuth();
-  // Access control: allow in dev, staging, or when explicitly enabled
+  // Access control: allow in dev, staging, netlify, or when explicitly enabled
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isDev = import.meta.env.DEV;
   const appEnv = import.meta.env.VITE_APP_ENV;
   const enableChatTest = import.meta.env.VITE_ENABLE_CHAT_TEST === 'true';
+  const isNetlify = hostname.endsWith('.netlify.app');
 
   const canAccessChatTest =
     isDev ||
+    isNetlify ||
     appEnv === 'staging' ||
-    appEnv === 'development' ||
     enableChatTest;
 
   // Debug logging
   console.log('[ChatTest Access]', {
-    mode: import.meta.env.MODE,
-    dev: import.meta.env.DEV,
-    prod: import.meta.env.PROD,
+    hostname,
+    isDev,
     appEnv,
-    enableChatTest,
-    hostname: typeof window !== 'undefined' ? window.location.hostname : 'ssr',
+    enableChatTest: import.meta.env.VITE_ENABLE_CHAT_TEST,
+    isNetlify,
     canAccessChatTest,
   });
 
