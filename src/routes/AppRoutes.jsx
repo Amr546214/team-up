@@ -37,16 +37,28 @@ import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
 function AppRoutes() {
+  // Detect environment
+  const hostname = window.location.hostname;
+  const isVercelProduction =
+    import.meta.env.PROD &&
+    (hostname.endsWith(".vercel.app") || hostname.includes("vercel"));
+
   // Debug log for routing environment
-  console.log("[Routing] rendering real app", {
+  console.log("[Routing]", {
     mode: import.meta.env.MODE,
     prod: import.meta.env.PROD,
-    hostname: window.location.hostname,
+    hostname,
+    isVercelProduction,
   });
+
+  // Show DeploymentPage only on Vercel production
+  if (isVercelProduction) {
+    return <DeploymentPage />;
+  }
 
   return (
     <Routes>
-      {/* Public routes - Always show real app */}
+      {/* Public routes - Real app for Netlify and localhost */}
       <Route path="/" element={<Home />} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />

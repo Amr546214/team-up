@@ -424,13 +424,37 @@ export function ChatWindow({
           ) : (
             <div className="flex-1 flex flex-col justify-end px-6 py-6">
               <div className="space-y-3">
-                {messages.map((message) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    isCurrentUser={message.senderId === currentUser.id}
-                    sender={message.senderId === currentUser.id ? currentUser : otherUser}
-                    isHighlighted={message.id === highlightedMessageId}
+                {messages.map((message) => {
+                  // Get sender for this message (for groups, look up in participants)
+                  const getSender = (): ChatUser | undefined => {
+                    if (message.senderId === currentUser.id) return currentUser;
+                    // For groups, find sender in participants or use senderProfile from message
+                    if (isGroup) {
+                      const senderParticipant = conversation.participants.find(
+                        (p) => p.id === message.senderId
+                      );
+                      if (senderParticipant) return senderParticipant;
+                      // Fallback: build from senderProfile if available
+                      if (message.senderProfile) {
+                        return {
+                          id: message.senderProfile.id,
+                          name: message.senderProfile.name || 'Unknown',
+                          role: (message.senderProfile.role as ChatUser['role']) || 'client',
+                          avatar: message.senderProfile.avatarUrl || undefined,
+                          status: 'offline',
+                        };
+                      }
+                    }
+                    return otherUser;
+                  };
+
+                  return (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isCurrentUser={message.senderId === currentUser.id}
+                      sender={getSender()}
+                      isHighlighted={message.id === highlightedMessageId}
                     onImageClick={message.type === 'image' && message.mediaUrl ? () => {
                       setPreviewImage({
                         url: message.mediaUrl!,
@@ -449,7 +473,8 @@ export function ChatWindow({
                       setReportModalOpen(true);
                     }}
                   />
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
             </div>

@@ -23,6 +23,7 @@ import {
   hideMessageForMe,
   reportMessage,
   deleteMessageForEveryone,
+  markConversationAsRead,
 } from '../services/supabaseChatService';
 import { supabase } from '../../../lib/supabase';
 
@@ -228,14 +229,19 @@ export function useChat(): UseChatState {
     setActiveConversationId(id);
     setIsMobileChatOpen(true);
 
+    // Clear unread count locally
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)));
-    addReadConversationId(id);
 
     if (typeof window !== 'undefined') {
       sessionStorage.setItem(LAST_CONVERSATION_STORAGE_KEY, id);
     }
 
     if (realConversationIds.current.has(id)) {
+      // Mark as read in Supabase (don't block on this)
+      markConversationAsRead(id).catch((err) => {
+        console.error('[Unread] mark read failed', err);
+      });
+
       console.log('[Messages] loading', id);
       setIsLoadingMessages(true);
 
@@ -253,6 +259,9 @@ export function useChat(): UseChatState {
         [id]: loadedMessages,
       }));
       setIsLoadingMessages(false);
+    } else {
+      // Mock fallback: use localStorage
+      addReadConversationId(id);
     }
   }, []);
 
@@ -526,10 +535,12 @@ export function useChat(): UseChatState {
 
       setConversations((prev) => {
         const exists = prev.some((c) => c.id === conversation.id);
+        // Mark as read (unreadCount = 0)
+        const conversationWithRead = { ...conversation, unreadCount: 0 };
         if (exists) {
-          return prev.map((c) => (c.id === conversation.id ? conversation : c));
+          return prev.map((c) => (c.id === conversation.id ? conversationWithRead : c));
         }
-        return [conversation, ...prev];
+        return [conversationWithRead, ...prev];
       });
 
       setMessages((prev) => ({ ...prev, [conversation.id]: msgs }));
@@ -540,6 +551,11 @@ export function useChat(): UseChatState {
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(LAST_CONVERSATION_STORAGE_KEY, conversation.id);
       }
+
+      // Mark as read in Supabase
+      markConversationAsRead(conversation.id).catch((err) => {
+        console.error('[Unread] mark read failed', err);
+      });
     },
     []
   );
@@ -623,10 +639,16 @@ export function useChat(): UseChatState {
         console.log('[Messages] restoring active conversation', savedId);
         setActiveConversationId(savedId);
         setIsMobileChatOpen(true);
-        addReadConversationId(savedId);
         setConversations((prev) =>
           prev.map((c) => (c.id === savedId ? { ...c, unreadCount: 0 } : c))
         );
+
+        // Mark as read in Supabase for real conversations
+        if (realConversationIds.current.has(savedId)) {
+          markConversationAsRead(savedId).catch((err) => {
+            console.error('[Unread] mark read failed', err);
+          });
+        }
 
         setMessages((prevMessages) => {
           const existingMessages = prevMessages[savedId];
