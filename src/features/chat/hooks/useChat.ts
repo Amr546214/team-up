@@ -45,6 +45,8 @@ interface UseChatState {
   sortedConversations: Conversation[];
   currentUser: ChatUser;
   isLoadingCurrentUser: boolean;
+  totalUnreadCount: number;
+  unreadChatsCount: number;
 
   // Actions
   setActiveConversationId: (id: string | null) => void;
@@ -108,6 +110,10 @@ export function useChat(): UseChatState {
   // Track the current user profile (from public.profiles)
   const [currentUserProfile, setCurrentUserProfile] = useState<ChatUser | null>(null);
 
+  // Refs to avoid stale closures in realtime callbacks
+  const activeConversationIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+
   // Loading state for current user profile
   const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState(true);
 
@@ -116,6 +122,15 @@ export function useChat(): UseChatState {
 
   // Conversations state - starts empty, loads real conversations
   const [conversations, setConversations] = useState<Conversation[]>([]);
+
+  // Keep refs synced with state to avoid stale closures
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    currentUserIdRef.current = currentUserProfile?.id || null;
+  }, [currentUserProfile?.id]);
 
   // Load pinned conversations from localStorage and apply on mount (SSR-safe)
   useEffect(() => {
@@ -222,6 +237,28 @@ export function useChat(): UseChatState {
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
   }, [conversations]);
+
+  // Total unread counts for UI badges
+  const totalUnreadCount = useMemo(() => {
+    return conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  }, [conversations]);
+
+  const unreadChatsCount = useMemo(() => {
+    return conversations.filter((c) => (c.unreadCount || 0) > 0).length;
+  }, [conversations]);
+
+  // Debug log for unread UI and notify navbar
+  useEffect(() => {
+    console.log('[Unread UI]', {
+      totalUnreadCount,
+      unreadChatsCount,
+    });
+
+    // Notify navbar and other components that unread count changed
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('chat-unread-updated'));
+    }
+  }, [totalUnreadCount, unreadChatsCount]);
 
   // Actions
   const selectConversation = useCallback(async (id: string) => {
@@ -679,16 +716,16 @@ export function useChat(): UseChatState {
   }, [conversations.length]);
 
   // Realtime: listen to INSERT messages for ALL loaded conversations.
-  // Active conversation messages are appended immediately (with signed URLs & profiles).
-  // Inactive conversations get sidebar lastMessage/updatedAt updated.
+  // Active conversation messages are reloaded immediately.
+  // Inactive conversations get sidebar lastMessage/updatedAt updated and unread incremented.
   useEffect(() => {
     // Only subscribe once we have loaded some real conversations
     if (realConversationIds.current.size === 0) return;
 
-    console.log('[Realtime] subscribing to chat-messages channel');
+    console.log('[Realtime Insert] subscribed');
 
     const channel = supabase
-      .channel('chat-messages')
+      .channel('chat-messages-insert')
       .on(
         'postgres_changes',
         {
@@ -700,39 +737,110 @@ export function useChat(): UseChatState {
           const row = payload.new as any;
           const convId = row.conversation_id;
 
-          console.log('[Realtime] message inserted', row);
+          console.log('[Realtime Insert] received', row);
 
           // Ignore messages for conversations we haven't loaded
           if (!realConversationIds.current.has(convId)) {
-            console.log('[Realtime] ignored message for unloaded conversation', convId);
+            console.log('[Realtime Insert] ignored unknown conversation', convId);
             return;
           }
 
-          // Avoid duplicates - check if we already have this message
-          setMessages((prev) => {
-            const current = prev[convId] || [];
-            if (current.some((m) => m.id === row.id)) {
-              console.log('[Realtime] duplicate message ignored', row.id);
-              return prev;
+          // Check if this is for the active conversation
+          const isActiveConversation = convId === activeConversationIdRef.current;
+          const currentUserId = currentUserIdRef.current;
+          const isFromOtherUser = row.sender_id !== currentUserId;
+
+          if (isActiveConversation) {
+            console.log('[Realtime Insert] active conversation message', convId);
+
+            // Check for duplicate
+            const existingMessages = messages[convId] || [];
+            if (existingMessages.some((m) => m.id === row.id)) {
+              console.log('[Realtime Insert] ignored duplicate', row.id);
+              return;
             }
-            // Trigger async message processing (cannot return promise from setState)
+
+            // Reload messages for active conversation to get full message with all fields
+            setIsLoadingMessages(true);
+            const { messages: loadedMessages, error } = await getConversationMessages(convId);
+            setIsLoadingMessages(false);
+
+            if (error) {
+              console.error('[Realtime Insert] failed to reload messages', convId, error);
+              return;
+            }
+
+            // Update messages state
+            setMessages((prev) => ({
+              ...prev,
+              [convId]: loadedMessages,
+            }));
+
+            // Keep unread at 0 for active conversation
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === convId
+                  ? {
+                      ...c,
+                      lastMessage: loadedMessages[loadedMessages.length - 1] || c.lastMessage,
+                      updatedAt: new Date(row.created_at),
+                      unreadCount: 0,
+                    }
+                  : c
+              )
+            );
+
+            // Mark as read if message is from another user
+            if (isFromOtherUser) {
+              markConversationAsRead(convId).catch((err) => {
+                console.error('[Unread] mark read failed', err);
+              });
+            }
+          } else {
+            // Inactive conversation - update sidebar preview and increment unread
+            console.log('[Realtime Insert] inactive conversation update', {
+              conversationId: convId,
+              senderId: row.sender_id,
+              currentUserId,
+            });
+
+            // Process message for sidebar preview
             processRealtimeMessage(row, convId);
-            return prev;
-          });
+
+            // Increment unread count if from other user
+            if (isFromOtherUser) {
+              console.log('[Realtime Insert] inactive conversation unread increment', {
+                conversationId: convId,
+                senderId: row.sender_id,
+                currentUserId,
+              });
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.id === convId
+                    ? {
+                        ...c,
+                        updatedAt: new Date(row.created_at),
+                        unreadCount: (c.unreadCount || 0) + 1,
+                      }
+                    : c
+                )
+              );
+            }
+          }
         }
       )
       .subscribe((status) => {
-        console.log('[Realtime] subscription status', status);
+        console.log('[Realtime Insert] status', status);
       });
 
     return () => {
-      console.log('[Realtime] cleanup chat-messages channel');
+      console.log('[Realtime Insert] cleanup chat-messages-insert channel');
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations.length]);
 
-  // Process a realtime message: map row, generate signed URL, fetch sender profile
+  // Process a realtime message for sidebar preview (inactive conversations)
   const processRealtimeMessage = useCallback(async (row: any, convId: string) => {
     // 1. Map row to Message type
     const msg: Message = {
@@ -754,23 +862,7 @@ export function useChat(): UseChatState {
       deleteReason: row.delete_reason ?? null,
     };
 
-    // 2. Generate signed URL if media
-    if (row.media_url && ['image', 'file', 'voice', 'audio'].includes(row.type)) {
-      try {
-        const { data: signedUrlData } = await supabase.storage
-          .from('chat-media')
-          .createSignedUrl(row.media_url, 60 * 60 * 24 * 7);
-
-        if (signedUrlData?.signedUrl) {
-          (msg as any).mediaUrl = signedUrlData.signedUrl;
-          (msg as any).mediaPath = row.media_url;
-        }
-      } catch (err) {
-        console.error('[Realtime] signed URL generation failed', err);
-      }
-    }
-
-    // 3. Fetch sender profile
+    // 2. Fetch sender profile for sidebar preview
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -788,29 +880,16 @@ export function useChat(): UseChatState {
         };
       }
     } catch (err) {
-      console.error('[Realtime] sender profile fetch failed', err);
+      console.error('[Realtime Insert] sender profile fetch failed', err);
     }
 
-    // 4. Default action states
+    // 3. Default action states
     msg.isStarred = false;
     msg.hiddenAt = null;
     msg.reportedAt = null;
     msg.reportReason = null;
 
-    // 5. Add message to state (re-check for duplicates)
-    setMessages((prev) => {
-      const current = prev[convId] || [];
-      if (current.some((m) => m.id === msg.id)) {
-        console.log('[Realtime] duplicate message ignored (post-process)', msg.id);
-        return prev;
-      }
-      return {
-        ...prev,
-        [convId]: [...current, msg],
-      };
-    });
-
-    // 6. Build sidebar preview content
+    // 4. Build sidebar preview content
     let previewContent = msg.content || '';
     const msgType = row.type || 'text';
     const msgFileName = row.file_name || '';
@@ -832,7 +911,7 @@ export function useChat(): UseChatState {
       previewContent = `🎵 ${msgFileName || 'Audio'}`;
     }
 
-    // 7. Update conversation lastMessage and updatedAt
+    // 5. Update conversation lastMessage and updatedAt in sidebar
     const previewMessage: Message = {
       ...msg,
       content: previewContent,
@@ -985,6 +1064,8 @@ export function useChat(): UseChatState {
     sortedConversations,
     currentUser,
     isLoadingCurrentUser,
+    totalUnreadCount,
+    unreadChatsCount,
     setActiveConversationId,
     setIsMobileChatOpen,
     setIsLoading,

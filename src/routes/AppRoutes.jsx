@@ -37,22 +37,20 @@ import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
 function AppRoutes() {
-  // Detect environment
-  const hostname = window.location.hostname;
-  const isVercelProduction =
-    import.meta.env.PROD &&
-    (hostname.endsWith(".vercel.app") || hostname.includes("vercel"));
+  // Environment variable override to show deployment page
+  const showDeploymentPage =
+    import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE === "true";
 
   // Debug log for routing environment
   console.log("[Routing]", {
     mode: import.meta.env.MODE,
-    prod: import.meta.env.PROD,
-    hostname,
-    isVercelProduction,
+    appEnv: import.meta.env.VITE_APP_ENV,
+    showDeploymentPage: import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE,
+    hostname: window.location.hostname,
   });
 
-  // Show DeploymentPage only on Vercel production
-  if (isVercelProduction) {
+  // Show DeploymentPage only when explicitly enabled via env var
+  if (showDeploymentPage) {
     return <DeploymentPage />;
   }
 

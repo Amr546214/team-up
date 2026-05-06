@@ -7,6 +7,7 @@ export { DeleteConfirmModal } from './components/DeleteConfirmModal';
 
 // Hooks
 export { useChat } from './hooks/useChat';
+export { useChatUnreadCount } from './hooks/useChatUnreadCount';
 export { ChatWindow } from './components/ChatWindow';
 export { ChatFilters } from './components/ChatFilters';
 export { ConversationItem } from './components/ConversationItem';

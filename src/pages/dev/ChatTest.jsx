@@ -1,10 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChatLayout, ChatDevRail } from '../../features/chat';
-import { mockConversations } from '../../features/chat/data/mockChatData';
 import {
-  getTotalUnreadMessagesCount,
-  getUnreadConversationsCount,
   requestNotificationPermission,
   showUnreadNotification,
   hasMockNotificationBeenShown,
@@ -14,7 +11,6 @@ import {
 import { getAvailableProfiles } from '../../features/chat/services/profileService';
 import { getOrCreateDirectConversation, getConversationById, getConversationMessages, createGroupConversation } from '../../features/chat/services/supabaseChatService';
 import { useAuth } from '../../hooks/useAuth';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 /**
  * Dev-only test page for the experimental chat feature.
@@ -34,6 +30,8 @@ function ChatTest() {
   const [copiedId, setCopiedId] = useState(null);
   const [startingChatFor, setStartingChatFor] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
+  const [unreadChatsCount, setUnreadChatsCount] = useState(0);
   // Ref to ChatLayout actions for opening real conversations
   const chatActionsRef = useRef(null);
   const selectConversationRef = useRef(null);
@@ -110,6 +108,8 @@ function ChatTest() {
     chatActionsRef.current = actions;
     selectConversationRef.current = actions.selectConversation;
     setCurrentUserId(actions.currentUserId);
+    setTotalUnreadCount(actions.totalUnreadCount);
+    setUnreadChatsCount(actions.unreadChatsCount);
   };
 
   const handleCreateGroup = async (title, memberIds) => {
@@ -179,51 +179,40 @@ function ChatTest() {
     setTimeout(() => setCopiedId(null), 1500);
   }, []);
 
-  const unreadMessages = getTotalUnreadMessagesCount(mockConversations);
-  const unreadConversations = getUnreadConversationsCount(mockConversations);
-
-  // Auto-show notification on first load (once per session)
+  // Auto-show notification on first load (once per session) - uses real unread counts
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (unreadMessages === 0) return;
+    if (totalUnreadCount === 0) return;
     if (hasMockNotificationBeenShown()) return;
 
     // Delay slightly to not be too intrusive
     const timer = setTimeout(() => {
       if (Notification.permission === 'granted') {
-        showUnreadNotification(unreadMessages, unreadConversations, () => {
+        showUnreadNotification(totalUnreadCount, unreadChatsCount, () => {
           // On notification click, navigate to chat
           window.focus();
         });
         playNotificationSound();
         markMockNotificationShown();
       } else if (Notification.permission === 'default') {
-        // Optionally request permission automatically
-        // requestNotificationPermission().then((granted) => {
-        //   if (granted) {
-        //     showUnreadNotification(unreadMessages, unreadConversations);
-        //     playNotificationSound();
-        //     markMockNotificationShown();
-        //   }
-        // });
         console.log('[Chat] Notification permission not requested automatically. Click the test button to request.');
       }
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [unreadMessages, unreadConversations]);
+  }, [totalUnreadCount, unreadChatsCount]);
 
   const handleTestNotification = useCallback(async () => {
     const granted = await requestNotificationPermission();
     if (granted) {
-      showUnreadNotification(unreadMessages, unreadConversations, () => {
+      showUnreadNotification(totalUnreadCount, unreadChatsCount, () => {
         window.focus();
       });
       playNotificationSound();
     } else {
       alert('Notification permission denied. Please allow notifications in your browser settings to test.');
     }
-  }, [unreadMessages, unreadConversations]);
+  }, [totalUnreadCount, unreadChatsCount]);
 
   if (isProd) {
     return (
@@ -243,8 +232,8 @@ function ChatTest() {
         onReady={handleChatLayoutReady}
         devRail={
           <ChatDevRail
-            unreadMessages={unreadMessages}
-            unreadConversations={unreadConversations}
+            totalUnreadCount={totalUnreadCount}
+            unreadChatsCount={unreadChatsCount}
             profiles={profiles}
             profilesLoading={profilesLoading}
             profilesError={profilesError}

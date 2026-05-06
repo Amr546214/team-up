@@ -10,6 +10,8 @@ interface ChatSidebarProps {
   onSelectConversation: (id: string) => void;
   currentUser: ChatUser;
   messages?: Record<string, Message[]>;
+  totalUnreadCount: number;
+  unreadChatsCount: number;
 }
 
 export function ChatSidebar({
@@ -18,6 +20,8 @@ export function ChatSidebar({
   onSelectConversation,
   currentUser,
   messages,
+  totalUnreadCount,
+  unreadChatsCount,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('all');
@@ -81,7 +85,14 @@ export function ChatSidebar({
     <div className="flex flex-col h-full bg-white border-r border-gray-200/70 w-full md:w-[340px] lg:w-[360px] xl:w-[380px] shrink-0">
       {/* Header */}
       <div className="px-5 py-5 border-b border-gray-100 bg-white/50 backdrop-blur-sm">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 tracking-tight">Messages</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Messages</h2>
+          {totalUnreadCount > 0 && (
+            <span className="text-xs font-medium text-teal-600 bg-teal-50 px-2 py-1 rounded-full">
+              {totalUnreadCount > 99 ? '99+' : totalUnreadCount} unread in {unreadChatsCount} {unreadChatsCount === 1 ? 'chat' : 'chats'}
+            </span>
+          )}
+        </div>
 
         {/* Search */}
         <div className="relative">

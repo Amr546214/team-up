@@ -25,8 +25,8 @@ interface Profile {
 }
 
 interface ChatDevRailProps {
-  unreadMessages: number;
-  unreadConversations: number;
+  totalUnreadCount: number;
+  unreadChatsCount: number;
   profiles: Profile[];
   profilesLoading: boolean;
   profilesError: string | null;
@@ -43,8 +43,8 @@ interface ChatDevRailProps {
 }
 
 export function ChatDevRail({
-  unreadMessages,
-  unreadConversations,
+  totalUnreadCount,
+  unreadChatsCount,
   profiles,
   profilesLoading,
   profilesError,
@@ -234,9 +234,9 @@ export function ChatDevRail({
           <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
             <ChatBubbleLeftIcon className="w-4 h-4 text-gray-500" />
           </div>
-          {unreadMessages > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-teal-600 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
-              {unreadMessages > 9 ? '9+' : unreadMessages}
+          {totalUnreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-teal-600 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
+              {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
             </span>
           )}
         </div>

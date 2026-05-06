@@ -15,6 +15,8 @@ interface ChatLayoutProps {
     selectConversation: (conversationId: string) => void;
     selectConversationAndHighlight: (conversationId: string, messageId: string) => void;
     currentUserId: string | null;
+    totalUnreadCount: number;
+    unreadChatsCount: number;
   }) => void;
   devRail?: ReactNode;
 }
@@ -30,6 +32,8 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
     isLoading,
     error,
     currentUser,
+    totalUnreadCount,
+    unreadChatsCount,
     selectConversation,
     backToList,
     sendMessage,
@@ -74,9 +78,11 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
         selectConversation,
         selectConversationAndHighlight,
         currentUserId: currentUser?.id || null,
+        totalUnreadCount,
+        unreadChatsCount,
       });
     }
-  }, [onReady, openRealConversation, refreshConversations, selectConversation, selectConversationAndHighlight, currentUser?.id]);
+  }, [onReady, openRealConversation, refreshConversations, selectConversation, selectConversationAndHighlight, currentUser?.id, totalUnreadCount, unreadChatsCount]);
 
   // Loading state (mock - inactive by default)
   if (isLoading) {
@@ -142,6 +148,8 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
               onSelectConversation={selectConversation}
               currentUser={currentUser}
               messages={messages}
+              totalUnreadCount={totalUnreadCount}
+              unreadChatsCount={unreadChatsCount}
             />
           </div>
 
