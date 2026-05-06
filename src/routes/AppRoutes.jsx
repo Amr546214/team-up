@@ -37,12 +37,19 @@ import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
 function AppRoutes() {
-  const isProd = import.meta.env.PROD;
+  // Debug log for routing environment
+  console.log("[Routing] rendering real app", {
+    mode: import.meta.env.MODE,
+    prod: import.meta.env.PROD,
+    hostname: window.location.hostname,
+  });
 
   return (
     <Routes>
-      {/* Public routes - Show DeploymentPage in production, Home in development */}
-      <Route path="/" element={isProd ? <DeploymentPage /> : <Home />} />
+      {/* Public routes - Always show real app */}
+      <Route path="/" element={<Home />} />
+      <Route path="/deployment" element={<DeploymentPage />} />
+      <Route path="/under-deployment" element={<DeploymentPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/skill-quiz" element={<SkillQuiz />} />

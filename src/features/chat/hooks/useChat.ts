@@ -53,7 +53,7 @@ interface UseChatState {
   selectConversation: (id: string) => void;
   backToList: () => void;
   sendMessage: (content: string) => void;
-  sendAttachment: (attachmentData: Omit<Message, 'id' | 'conversationId' | 'senderId' | 'timestamp' | 'status'>) => void;
+  sendAttachment: (attachmentData: { type: 'image' | 'file' | 'voice' | 'audio'; fileOrBlob: File | Blob; fileName: string; fileSize: number; fileType: string; duration?: number }) => void;
   togglePin: (conversationId: string) => void;
   toggleMute: (conversationId: string) => void;
   markUnread: (conversationId: string) => void;
@@ -181,7 +181,7 @@ export function useChat(): UseChatState {
   }, []);
 
   // Derived: current user (profile from Supabase, or mock for demo conversations)
-  const currentUser = useMemo(() => {
+  const currentUser = useMemo((): ChatUser => {
     if (currentUserProfile) {
       return currentUserProfile;
     }
@@ -189,10 +189,10 @@ export function useChat(): UseChatState {
     if (activeConversationId && realConversationIds.current.has(activeConversationId) && realUserIdRef.current) {
       return {
         id: realUserIdRef.current,
-        name: currentUserProfile?.name || 'You',
-        role: currentUserProfile?.role || ('client' as const),
-        avatar: currentUserProfile?.avatar,
-        status: 'online' as const,
+        name: 'You',
+        role: 'client',
+        avatar: undefined,
+        status: 'online',
       };
     }
 
@@ -656,80 +656,174 @@ export function useChat(): UseChatState {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations.length]);
 
-  // Realtime: listen only to INSERT messages for the active real conversation.
-  // This intentionally refetches the conversation messages so media signed URLs,
-  // sender profiles, delete/star/report state, and hidden messages stay consistent.
+  // Realtime: listen to INSERT messages for ALL loaded conversations.
+  // Active conversation messages are appended immediately (with signed URLs & profiles).
+  // Inactive conversations get sidebar lastMessage/updatedAt updated.
   useEffect(() => {
-    if (!activeConversationId) return;
-    if (!realConversationIds.current.has(activeConversationId)) return;
+    // Only subscribe once we have loaded some real conversations
+    if (realConversationIds.current.size === 0) return;
 
-    const convId = activeConversationId;
-
-    console.log('[Realtime] subscribing to', convId);
+    console.log('[Realtime] subscribing to chat-messages channel');
 
     const channel = supabase
-      .channel(`messages:${convId}`)
+      .channel('chat-messages')
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${convId}`,
         },
         async (payload) => {
           const row = payload.new as any;
+          const convId = row.conversation_id;
 
-          console.log('[Realtime] insert received', row);
+          console.log('[Realtime] message inserted', row);
 
-          const { messages: loadedMessages, error } = await getConversationMessages(convId);
-
-          if (error) {
-            console.error('[Realtime] failed to reload messages', error);
+          // Ignore messages for conversations we haven't loaded
+          if (!realConversationIds.current.has(convId)) {
+            console.log('[Realtime] ignored message for unloaded conversation', convId);
             return;
           }
 
+          // Avoid duplicates - check if we already have this message
           setMessages((prev) => {
             const current = prev[convId] || [];
-            const exists = current.some((m) => m.id === row.id);
-
-            if (exists) {
-              console.log('[Realtime] duplicate ignored', row.id);
+            if (current.some((m) => m.id === row.id)) {
+              console.log('[Realtime] duplicate message ignored', row.id);
               return prev;
             }
-
-            return {
-              ...prev,
-              [convId]: loadedMessages,
-            };
+            // Trigger async message processing (cannot return promise from setState)
+            processRealtimeMessage(row, convId);
+            return prev;
           });
-
-          const latestMessage = loadedMessages[loadedMessages.length - 1];
-
-          if (latestMessage) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === convId
-                  ? {
-                      ...c,
-                      lastMessage: latestMessage,
-                      updatedAt: latestMessage.timestamp,
-                    }
-                  : c
-              )
-            );
-          }
         }
       )
       .subscribe((status) => {
-        console.log('[Realtime] status', status);
+        console.log('[Realtime] subscription status', status);
       });
 
     return () => {
-      console.log('[Realtime] cleanup', convId);
+      console.log('[Realtime] cleanup chat-messages channel');
       supabase.removeChannel(channel);
     };
-  }, [activeConversationId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations.length]);
+
+  // Process a realtime message: map row, generate signed URL, fetch sender profile
+  const processRealtimeMessage = useCallback(async (row: any, convId: string) => {
+    // 1. Map row to Message type
+    const msg: Message = {
+      id: row.id,
+      conversationId: row.conversation_id,
+      senderId: row.sender_id,
+      content: row.content || undefined,
+      timestamp: new Date(row.created_at),
+      status: 'sent',
+      type: row.type || 'text',
+      fileName: row.file_name || undefined,
+      fileSize: row.file_size || undefined,
+      fileType: row.file_type || undefined,
+      mediaUrl: row.media_url || undefined,
+      duration: row.duration || undefined,
+      deletedAt: row.deleted_at ?? null,
+      deletedBy: row.deleted_by ?? null,
+      deleteScope: row.delete_scope ?? null,
+      deleteReason: row.delete_reason ?? null,
+    };
+
+    // 2. Generate signed URL if media
+    if (row.media_url && ['image', 'file', 'voice', 'audio'].includes(row.type)) {
+      try {
+        const { data: signedUrlData } = await supabase.storage
+          .from('chat-media')
+          .createSignedUrl(row.media_url, 60 * 60 * 24 * 7);
+
+        if (signedUrlData?.signedUrl) {
+          (msg as any).mediaUrl = signedUrlData.signedUrl;
+          (msg as any).mediaPath = row.media_url;
+        }
+      } catch (err) {
+        console.error('[Realtime] signed URL generation failed', err);
+      }
+    }
+
+    // 3. Fetch sender profile
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, avatar_url, role')
+        .eq('id', row.sender_id)
+        .single();
+
+      if (profile) {
+        msg.senderProfile = {
+          id: profile.id,
+          name: profile.full_name || null,
+          email: profile.email || null,
+          avatarUrl: profile.avatar_url || null,
+          role: profile.role || null,
+        };
+      }
+    } catch (err) {
+      console.error('[Realtime] sender profile fetch failed', err);
+    }
+
+    // 4. Default action states
+    msg.isStarred = false;
+    msg.hiddenAt = null;
+    msg.reportedAt = null;
+    msg.reportReason = null;
+
+    // 5. Add message to state (re-check for duplicates)
+    setMessages((prev) => {
+      const current = prev[convId] || [];
+      if (current.some((m) => m.id === msg.id)) {
+        console.log('[Realtime] duplicate message ignored (post-process)', msg.id);
+        return prev;
+      }
+      return {
+        ...prev,
+        [convId]: [...current, msg],
+      };
+    });
+
+    // 6. Build sidebar preview content
+    let previewContent = msg.content || '';
+    const msgType = row.type || 'text';
+    const msgFileName = row.file_name || '';
+    const msgFileType = row.file_type || '';
+
+    if (msgType === 'image') {
+      previewContent = '📷 Photo';
+    } else if (msgType === 'file') {
+      // Check if video
+      const ext = msgFileName.split('.').pop()?.toLowerCase() || '';
+      if (msgFileType.startsWith('video/') || ['mp4', 'mov', 'webm', 'mkv'].includes(ext)) {
+        previewContent = `🎬 ${msgFileName}`;
+      } else {
+        previewContent = `📎 ${msgFileName}`;
+      }
+    } else if (msgType === 'voice') {
+      previewContent = '🎤 Voice message';
+    } else if (msgType === 'audio') {
+      previewContent = `🎵 ${msgFileName || 'Audio'}`;
+    }
+
+    // 7. Update conversation lastMessage and updatedAt
+    const previewMessage: Message = {
+      ...msg,
+      content: previewContent,
+    };
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? { ...c, lastMessage: previewMessage, updatedAt: msg.timestamp }
+          : c
+      )
+    );
+  }, []);
 
   const refreshConversations = useCallback(async () => {
     await loadRealConversations();
