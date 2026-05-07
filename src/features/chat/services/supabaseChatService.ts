@@ -119,6 +119,18 @@ function toValidRole(role: string | null): ValidRole {
   return 'client';
 }
 
+function isTemporaryAuthError(error: any) {
+  if (!error) return false;
+  const message = String(error.message || error.msg || '').toLowerCase();
+  return (
+    error.status === 429 ||
+    /rate limit/i.test(message) ||
+    /timeout/i.test(message) ||
+    /network/i.test(message) ||
+    /fetch/i.test(message)
+  );
+}
+
 function profileToChatUser(profile: any): ChatUser {
   return {
     id: profile.id,
@@ -136,6 +148,7 @@ function profileToChatUser(profile: any): ChatUser {
 export async function getCurrentUserProfile(): Promise<{
   user: ChatUser | null;
   error: string | null;
+  temporary?: boolean;
 }> {
   try {
     // 1. Get current auth user
@@ -144,9 +157,14 @@ export async function getCurrentUserProfile(): Promise<{
       error: authError,
     } = await supabase.auth.getUser();
 
+    const authTemporary = isTemporaryAuthError(authError);
     if (authError || !user) {
-      console.error('[Chat] No authenticated user', authError);
-      return { user: null, error: 'Not authenticated' };
+      console.warn('[Chat] No authenticated user', authError);
+      return {
+        user: null,
+        error: 'Not authenticated',
+        temporary: authTemporary,
+      };
     }
 
     // 2. Fetch profile from public.profiles
@@ -154,11 +172,11 @@ export async function getCurrentUserProfile(): Promise<{
       .from('profiles')
       .select('id, email, full_name, avatar_url, role')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.warn('[Chat] Failed to fetch profile, using auth metadata fallback', profileError);
-      // 3. Fallback to auth user metadata
+      const profileTemporary = isTemporaryAuthError(profileError);
       const userMetadata = user.user_metadata;
       return {
         user: {
@@ -169,6 +187,7 @@ export async function getCurrentUserProfile(): Promise<{
           status: 'online',
         },
         error: null,
+        temporary: profileTemporary,
       };
     }
 
