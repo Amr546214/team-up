@@ -386,6 +386,7 @@ export function AuthProvider({ children }) {
       profileError,
       isAuthenticated: Boolean(session?.id && session?.email && session?.role),
       isAuthReady,
+      isLoading: isLoadingAuth,
       isLoadingAuth,
       isProcessingJoinAuth,
       login,

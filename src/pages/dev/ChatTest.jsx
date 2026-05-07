@@ -56,17 +56,17 @@ function ChatTest() {
   const chatActionsRef = useRef(null);
   const selectConversationRef = useRef(null);
 
-  const fetchProfiles = async () => {
+  const fetchProfiles = useCallback(async () => {
     console.log('[Profiles Debug] fetchProfiles() called');
     if (!isAuthReady) {
       console.log('[Profiles Debug] auth not ready for profile fetch');
-      setProfilesError('Waiting for auth session...');
+      setProfilesError(null);
       setProfilesLoading(false);
       return;
     }
     if (!session) {
       console.log('[Profiles Debug] current user not ready yet');
-      setProfilesError('Waiting for auth session...');
+      setProfilesError(null);
       setProfilesLoading(false);
       return;
     }
@@ -82,7 +82,22 @@ function ChatTest() {
       setProfiles(data || []);
     }
     setProfilesLoading(false);
-  };
+  }, [isAuthReady, session]);
+
+  useEffect(() => {
+    if (!isAuthReady) {
+      return;
+    }
+
+    if (!session) {
+      setProfiles([]);
+      setProfilesError(null);
+      setProfilesLoading(false);
+      return;
+    }
+
+    fetchProfiles();
+  }, [isAuthReady, session, fetchProfiles]);
 
   const handleStartChat = async (targetUserId, targetName) => {
     console.log('[Chat] start chat clicked', targetUserId, targetName);
@@ -265,6 +280,7 @@ function ChatTest() {
             profilesError={profilesError}
             startingChatFor={startingChatFor}
             currentUserId={currentUserId}
+            authUserId={session?.id}
             isAuthReady={isAuthReady}
             onBackHome={() => navigate('/')}
             onTestNotification={handleTestNotification}
