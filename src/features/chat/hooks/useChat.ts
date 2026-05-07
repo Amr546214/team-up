@@ -121,7 +121,7 @@ export function useChat(): UseChatState {
   // Use real conversations flag (dev-only, could be disabled for mock fallback)
   const USE_REAL_CONVERSATIONS = true;
 
-  const { isAuthReady } = useAuth();
+  const { session, isAuthReady } = useAuth();
 
   function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -644,12 +644,21 @@ export function useChat(): UseChatState {
   }, []);
 
   const loadCurrentUserProfile = useCallback(async () => {
-    if (!isAuthReady) {
-      console.log('[Chat] auth gate', { isAuthReady });
+    const currentAuthUserId = session?.id || session?.user?.id || null;
+
+    if (!isAuthReady || !currentAuthUserId) {
+      console.warn('[Chat] profile load skipped: auth not ready or missing user', {
+        isAuthReady,
+        currentAuthUserId,
+      });
+      setIsLoadingCurrentUser(false);
       return;
     }
 
-    console.log('[Chat] loading current user profile');
+    console.log('[Chat] loading current user profile after auth ready', {
+      isAuthReady,
+      currentAuthUserId,
+    });
     setIsLoadingCurrentUser(true);
 
     let attempt = 0;
@@ -667,8 +676,8 @@ export function useChat(): UseChatState {
       }
 
       const temporary = (result as any)?.temporary;
-      if (temporary && attempt === 0) {
-        console.warn('[Chat] current user profile temporary auth error, retrying after delay', result.error);
+      if ((temporary || result.error === 'Not authenticated') && attempt === 0) {
+        console.warn('[Chat] profile load failed but will not logout', result.error);
         await sleep(1000);
         attempt += 1;
         continue;
@@ -678,16 +687,31 @@ export function useChat(): UseChatState {
       setIsLoadingCurrentUser(false);
       return;
     }
-  }, [isAuthReady]);
+  }, [isAuthReady, session?.id, session?.user?.id]);
 
   useEffect(() => {
+    console.log('[Chat Auth Gate]', {
+      isAuthReady,
+      hasSession: !!session,
+      authUserId: session?.id || session?.user?.id,
+    });
+
     if (!isAuthReady) {
-      console.log('[Chat] auth gate', { isAuthReady });
+      console.log('[Chat] waiting for auth ready');
+      return;
+    }
+
+    const currentAuthUserId = session?.id || session?.user?.id;
+    if (!currentAuthUserId) {
+      console.warn('[Chat] auth ready but no user/session, skipping chat load', {
+        isAuthReady,
+        currentAuthUserId,
+      });
       return;
     }
 
     loadCurrentUserProfile();
-  }, [isAuthReady, loadCurrentUserProfile]);
+  }, [isAuthReady, session?.id, session?.user?.id, loadCurrentUserProfile]);
 
   useEffect(() => {
     if (!isLoadingCurrentUser && currentUserProfile) {

@@ -32,11 +32,12 @@ interface ChatDevRailProps {
   profilesError: string | null;
   startingChatFor: string | null;
   currentUserId?: string;
+  authUserId?: string;
+  isAuthReady: boolean;
   onBackHome: () => void;
   onTestNotification: () => void;
   onFetchAvailableUsers: () => void;
   onStartChat: (userId: string, name: string) => void;
-  isAuthReady: boolean;
   onCreateGroup?: (title: string, memberIds: string[]) => Promise<string | null>;
   onCopyId: (id: string) => void;
   onSelectConversation?: (conversationId: string, messageId?: string) => void;
@@ -51,6 +52,8 @@ export function ChatDevRail({
   profilesError,
   startingChatFor,
   currentUserId,
+  authUserId,
+  isAuthReady,
   onBackHome,
   onTestNotification,
   onFetchAvailableUsers,
@@ -59,7 +62,6 @@ export function ChatDevRail({
   onCopyId,
   onSelectConversation,
   copiedId,
-  isAuthReady,
 }: ChatDevRailProps) {
   const [usersPanelOpen, setUsersPanelOpen] = useState(false);
   const [starredPanelOpen, setStarredPanelOpen] = useState(false);
@@ -359,17 +361,20 @@ export function ChatDevRail({
             )}
 
             {/* Error */}
-            {profilesError && (
+            {profilesError && isAuthReady && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-700">
                 <span className="font-medium">Error:</span> {profilesError}
               </div>
             )}
 
-            {/* Empty or waiting for auth */}
+            {/* Empty */}
             {!profilesLoading && !profilesError && profiles.length === 0 && !isAuthReady && (
               <p className="text-xs text-gray-500 py-2">Loading session...</p>
             )}
-            {!profilesLoading && !profilesError && profiles.length === 0 && isAuthReady && (
+            {!profilesLoading && !profilesError && profiles.length === 0 && isAuthReady && !authUserId && (
+              <p className="text-xs text-gray-500 py-2">Please sign in to view users.</p>
+            )}
+            {!profilesLoading && !profilesError && profiles.length === 0 && isAuthReady && authUserId && (
               <p className="text-xs text-gray-500 py-2">No available users found.</p>
             )}
 
