@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useRef, useCallback } from 'react';
+import React, { useReducer, useEffect, useRef, useCallback, useState } from 'react';
 import { Phone, Video, Mic, MicOff, Video as VideoIcon, VideoOff, Volume2, X } from 'lucide-react';
 import type { Conversation } from '../types';
 import { getOtherParticipant } from '../data/mockChatData';
@@ -8,6 +8,7 @@ import {
   stopOutgoingCallWaitingSound,
   stopAllChatSounds,
 } from '../utils/chatSounds';
+import { useWebRTCCall } from '../hooks/useWebRTCAudioCall';
 
 interface CallModalProps {
   conversation: Conversation;
@@ -17,6 +18,25 @@ interface CallModalProps {
   callSession?: CallSession | null;
   callStatus?: 'ringing' | 'accepted' | 'rejected' | 'missed' | 'ended' | null;
   isIncoming?: boolean;
+  currentUserId: string | null;
+}
+
+function normalizeCall(row: any) {
+  if (!row) return null;
+
+  return {
+    ...row,
+    id: row.id,
+    conversationId: row.conversationId ?? row.conversation_id,
+    callerId: row.callerId ?? row.caller_id,
+    receiverId: row.receiverId ?? row.receiver_id,
+    type: row.type,
+    status: row.status,
+    startedAt: row.startedAt ?? row.started_at,
+    answeredAt: row.answeredAt ?? row.answered_at,
+    endedAt: row.endedAt ?? row.ended_at,
+    createdAt: row.createdAt ?? row.created_at,
+  };
 }
 
 type UICallStatus = 'calling' | 'connected' | 'not-answered' | 'rejected' | 'ended';
@@ -73,6 +93,7 @@ export function CallModal({
   callSession = null,
   callStatus: externalCallStatus = null,
   isIncoming = false,
+  currentUserId,
 }: CallModalProps) {
   const isGroup = conversation?.type === 'group';
   const otherUser = conversation ? getOtherParticipant(conversation) : null;
@@ -81,24 +102,94 @@ export function CallModal({
     ...initialState,
     callStatus: isIncoming && externalCallStatus === 'accepted' ? 'connected' : 'calling',
   });
-  const { callStatus, isMuted, isCameraOff, isSpeakerOn, elapsedSeconds } = state;
+  const { callStatus, elapsedSeconds } = state;
+  // WebRTC manages mute/speaker state separately
+  const [webRTCMute, setWebRTCMute] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const noAnswerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const closeAfterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const normalizedCall = normalizeCall(callSession);
+  const computedCurrentUserId = currentUserId;
+  const isCaller = normalizedCall?.callerId === computedCurrentUserId;
+  const isReceiver = normalizedCall?.receiverId === computedCurrentUserId;
+  const callRole: 'caller' | 'receiver' | null = isCaller ? 'caller' : isReceiver ? 'receiver' : null;
+  const peerUserId = isCaller
+    ? normalizedCall?.receiverId ?? null
+    : isReceiver
+      ? normalizedCall?.callerId ?? null
+      : null;
+
+  // WebRTC hook for audio/video calls
+  const isAccepted = externalCallStatus === 'accepted';
+
+  const {
+    webRTCStatus,
+    remoteStream,
+    isMuted,
+    isSpeakerOn,
+    isCameraOff,
+    connectionState,
+    iceConnectionState,
+    toggleMute,
+    toggleCamera,
+    toggleSpeaker,
+    endCall: endWebRTCCall,
+    retryMicrophone,
+    continueAudioOnly,
+    error: webRTCError,
+    remoteAudioRef,
+    localVideoRef,
+    remoteVideoRef,
+    isAudioOnlyFallback,
+  } = useWebRTCCall({
+    callId: normalizedCall?.id || null,
+    callType: normalizedCall?.type === 'video' ? 'video' : 'audio',
+    currentUserId: computedCurrentUserId,
+    peerUserId,
+    role: callRole,
+    currentCall: normalizedCall,
+    isAccepted,
+    onError: (err) => {
+      console.error('[CallModal] WebRTC error', err);
+    },
+  });
+
+  // Debug WebRTC state
+  useEffect(() => {
+    console.log('[CallModal] WebRTC state:', {
+      webRTCStatus,
+      connectionState,
+      iceConnectionState,
+      hasRemoteStream: !!remoteStream,
+      error: webRTCError?.message,
+    });
+  }, [webRTCStatus, connectionState, iceConnectionState, remoteStream, webRTCError]);
+
   // Debug logs
   console.log('[Calls UI] currentCall', callSession);
   console.log('[Calls UI] outgoing call state', {
-    callId: callSession?.id,
-    status: callSession?.status,
-    type: callSession?.type,
-    callerId: callSession?.caller_id,
-    receiverId: callSession?.receiver_id,
+    callId: normalizedCall?.id,
+    status: normalizedCall?.status,
+    type: normalizedCall?.type,
+    callerId: normalizedCall?.callerId,
+    receiverId: normalizedCall?.receiverId,
+    currentUserId: computedCurrentUserId,
+    isCaller,
+    isReceiver,
+    callRole,
+    peerUserId,
     externalCallStatus,
     internalCallStatus: callStatus,
     isIncoming,
     mode,
+  });
+  console.log('[Call UI State]', {
+    callStatus: normalizedCall?.status || externalCallStatus,
+    webrtcStatus: webRTCStatus,
+    isCaller,
+    isReceiver,
   });
 
   // Format time as MM:SS
@@ -136,7 +227,7 @@ export function CallModal({
   // Handle end call
   const handleEndCall = useCallback(async () => {
     console.log('[Calls] ending call');
-    
+
     // Stop sounds safely
     stopOutgoingCallWaitingSound();
 
@@ -144,6 +235,9 @@ export function CallModal({
     if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
     if (closeAfterTimeoutRef.current) clearTimeout(closeAfterTimeoutRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
+
+    // End WebRTC connection
+    endWebRTCCall();
 
     // End call in Supabase
     if (callSession?.id) {
@@ -157,24 +251,15 @@ export function CallModal({
 
     // Close modal
     onClose();
-  }, [callSession?.id, onClose]);
+  }, [callSession?.id, onClose, endWebRTCCall]);
 
-  // Start outgoing call - Phase 1: no WebRTC, just signaling
+  const effectiveCallStatus = externalCallStatus || normalizedCall?.status || null;
+
+  // Start outgoing call timeout only while ringing
   useEffect(() => {
     if (!isOpen) return;
 
-    // For incoming calls that are already accepted, just start timer
-    if (isIncoming && externalCallStatus === 'accepted') {
-      dispatch({ type: 'SET_STATUS', payload: 'connected' });
-      timerRef.current = setInterval(() => {
-        dispatch({ type: 'INCREMENT_TIMER' });
-      }, 1000);
-      return;
-    }
-
-    // For outgoing calls — sound is played from click handler (user gesture)
-    // Here we only set up the 30-second no-answer timeout
-    if (!isIncoming) {
+    if (!isIncoming && effectiveCallStatus === 'ringing') {
       noAnswerTimeoutRef.current = setTimeout(() => {
         handleNoAnswer();
       }, 30000);
@@ -185,29 +270,26 @@ export function CallModal({
       if (closeAfterTimeoutRef.current) clearTimeout(closeAfterTimeoutRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isOpen, isIncoming, externalCallStatus, handleNoAnswer]);
+  }, [isOpen, isIncoming, effectiveCallStatus, handleNoAnswer]);
 
   // Handle external call status changes
   useEffect(() => {
-    if (!externalCallStatus || !isOpen) return;
+    if (!effectiveCallStatus || !isOpen) return;
 
-    console.log('[Calls] external status changed', externalCallStatus);
+    console.log('[Calls] external status changed', effectiveCallStatus);
 
-    switch (externalCallStatus) {
+    switch (effectiveCallStatus) {
       case 'accepted':
         if (noAnswerTimeoutRef.current) {
           clearTimeout(noAnswerTimeoutRef.current);
           noAnswerTimeoutRef.current = null;
         }
         stopOutgoingCallWaitingSound();
-        dispatch({ type: 'SET_STATUS', payload: 'connected' });
-        timerRef.current = setInterval(() => {
-          dispatch({ type: 'INCREMENT_TIMER' });
-        }, 1000);
         break;
 
       case 'rejected':
         stopOutgoingCallWaitingSound();
+        endWebRTCCall();
         dispatch({ type: 'SET_STATUS', payload: 'rejected' });
         closeAfterTimeoutRef.current = setTimeout(() => {
           handleEndCall();
@@ -216,6 +298,7 @@ export function CallModal({
 
       case 'missed':
         stopOutgoingCallWaitingSound();
+        endWebRTCCall();
         dispatch({ type: 'SET_STATUS', payload: 'not-answered' });
         closeAfterTimeoutRef.current = setTimeout(() => {
           handleEndCall();
@@ -223,10 +306,33 @@ export function CallModal({
         break;
 
       case 'ended':
+        endWebRTCCall();
         handleEndCall();
         break;
     }
-  }, [externalCallStatus, isOpen, handleEndCall]);
+  }, [effectiveCallStatus, isOpen, handleEndCall, endWebRTCCall]);
+
+  useEffect(() => {
+    if (webRTCStatus !== 'connected') return;
+
+    stopOutgoingCallWaitingSound();
+    if (noAnswerTimeoutRef.current) {
+      clearTimeout(noAnswerTimeoutRef.current);
+      noAnswerTimeoutRef.current = null;
+    }
+    if (!timerRef.current) {
+      timerRef.current = setInterval(() => {
+        dispatch({ type: 'INCREMENT_TIMER' });
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [webRTCStatus]);
 
   // Handle simulate answer (dev-only) - kept for testing without real receiver
   const handleSimulateAnswer = useCallback(() => {
@@ -236,27 +342,28 @@ export function CallModal({
     }
 
     stopOutgoingCallWaitingSound();
-    dispatch({ type: 'SET_STATUS', payload: 'connected' });
+    // Don't set connected - WebRTC will do that when connected
 
     timerRef.current = setInterval(() => {
       dispatch({ type: 'INCREMENT_TIMER' });
     }, 1000);
   }, []);
 
-  // Handle mute toggle - Phase 1: UI only, no actual media
+  // Handle mute toggle - use WebRTC
   const handleToggleMute = useCallback(() => {
-    dispatch({ type: 'SET_MUTED', payload: !isMuted });
-  }, [isMuted]);
+    toggleMute();
+    setWebRTCMute(!webRTCMute);
+  }, [toggleMute, webRTCMute]);
 
-  // Handle camera toggle - Phase 1: UI only, no actual media
+  // Handle camera toggle
   const handleToggleCamera = useCallback(() => {
-    dispatch({ type: 'SET_CAMERA_OFF', payload: !isCameraOff });
-  }, [isCameraOff]);
+    toggleCamera();
+  }, [toggleCamera]);
 
-  // Handle speaker toggle (UI mock)
+  // Handle speaker toggle
   const handleToggleSpeaker = useCallback(() => {
-    dispatch({ type: 'SET_SPEAKER_ON', payload: !isSpeakerOn });
-  }, [isSpeakerOn]);
+    toggleSpeaker();
+  }, [toggleSpeaker]);
 
   // Handle Escape key
   useEffect(() => {
@@ -303,16 +410,53 @@ export function CallModal({
 
   // Controls visibility for active call states
   const showActiveControls =
-    callStatus === 'calling' ||
-    callStatus === 'connected';
+    !['rejected', 'missed', 'ended'].includes(effectiveCallStatus || '') &&
+    callStatus !== 'not-answered';
 
-  const isVoice = mode === 'voice';
+  const isVoice = mode === 'voice' || isAudioOnlyFallback;
   const displayName = isGroup ? conversation.name : otherUser?.name || 'Unknown';
   const avatarUrl = isGroup ? conversation.avatar : otherUser?.avatar;
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || '?';
 
   // Determine if this is a real Supabase call (hide Simulate Answer for real calls)
   const isRealCall = !!callSession?.id;
+
+  // Display status based on WebRTC and call state
+  const getDisplayStatus = () => {
+    if (effectiveCallStatus === 'ringing') {
+      return { text: 'Calling...', subtext: 'Ringing for up to 30 seconds' };
+    }
+    if (effectiveCallStatus === 'accepted' && webRTCStatus !== 'connected') {
+      return { text: 'Connecting...', subtext: 'Waiting for peer...' };
+    }
+    if (webRTCStatus === 'requesting-microphone') {
+      if (!isVoice) {
+        return { text: 'Requesting camera...', subtext: 'Please allow camera and microphone access' };
+      }
+      return { text: 'Requesting microphone...', subtext: 'Please allow access' };
+    }
+    if (webRTCStatus === 'connecting') {
+      if (!isVoice) {
+        return { text: 'Connecting video...', subtext: 'Waiting for peer...' };
+      }
+      return { text: 'Connecting...', subtext: 'Establishing audio connection' };
+    }
+    if (webRTCStatus === 'connected') {
+      return { text: 'Connected', subtext: isVoice ? 'Audio connected' : 'Video connected', isTimer: true };
+    }
+    if (webRTCStatus === 'failed') {
+      return { text: isVoice ? 'Connection failed' : 'Video connection failed', subtext: 'Please try again' };
+    }
+    if (callStatus === 'not-answered') {
+      return { text: 'No answer', subtext: `${displayName} did not answer` };
+    }
+    if (callStatus === 'rejected') {
+      return { text: 'Call rejected', subtext: `${displayName} declined the call` };
+    }
+    return { text: 'Calling...', subtext: null };
+  };
+
+  const statusDisplay = getDisplayStatus();
 
   return (
     <div
@@ -321,6 +465,14 @@ export function CallModal({
       aria-modal="true"
       aria-label={`${isVoice ? 'Voice' : 'Video'} call`}
     >
+      {/* Hidden audio element for remote stream */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        className="hidden"
+      />
+
       {isVoice ? (
         // Voice Call UI
         <div className="w-full max-w-[400px] mx-4">
@@ -346,7 +498,7 @@ export function CallModal({
 
             {/* Status */}
             <div className="text-center mb-8">
-              {callStatus === 'calling' && (
+              {effectiveCallStatus === 'ringing' && (
                 <>
                   <p className="text-gray-400">Calling...</p>
                   <p className="text-gray-500 text-xs mt-1">Ringing for up to 30 seconds</p>
@@ -361,8 +513,60 @@ export function CallModal({
                   )}
                 </>
               )}
-              {callStatus === 'connected' && (
-                <p className="text-teal-400 font-mono text-lg">{formatTime(elapsedSeconds)}</p>
+              {webRTCStatus === 'requesting-microphone' && (
+                <>
+                  <p className="text-amber-400">Requesting microphone...</p>
+                  <p className="text-gray-500 text-xs mt-1">Please allow microphone access</p>
+                  {webRTCError && (
+                    <p className="text-red-400 text-xs mt-2">{webRTCError.message}</p>
+                  )}
+                </>
+              )}
+              {webRTCStatus === 'connecting' && (
+                <>
+                  <p className="text-teal-400">Connecting...</p>
+                  <p className="text-gray-500 text-xs mt-1">
+                    {iceConnectionState === 'checking' ? 'Establishing connection...' :
+                     iceConnectionState === 'connected' ? 'ICE connected' :
+                     'Waiting for peer...'}
+                  </p>
+                </>
+              )}
+              {webRTCStatus === 'connected' && (
+                <>
+                  <p className="text-teal-400 font-mono text-lg">{formatTime(elapsedSeconds)}</p>
+                  <p className="text-gray-500 text-xs mt-1">Audio connected</p>
+                </>
+              )}
+              {webRTCStatus === 'failed' && (
+                <div className="text-red-400">
+                  <p className="text-lg font-medium">{isVoice ? 'Connection failed' : 'Video connection failed'}</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {webRTCError?.message || 'Could not establish audio connection'}
+                  </p>
+                  <div className="flex gap-2 justify-center mt-3">
+                    <button
+                      onClick={retryMicrophone}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-500 rounded text-sm text-white transition-colors"
+                    >
+                      Retry
+                    </button>
+                    {!isVoice && (
+                      <button
+                        onClick={continueAudioOnly}
+                        className="px-4 py-2 bg-teal-600 hover:bg-teal-500 rounded text-sm text-white transition-colors"
+                      >
+                        Continue audio only
+                      </button>
+                    )}
+                    <button
+                      onClick={handleEndCall}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm text-white transition-colors"
+                    >
+                      End Call
+                    </button>
+                  </div>
+                </div>
               )}
               {callStatus === 'not-answered' && (
                 <div className="text-amber-400">
@@ -417,86 +621,50 @@ export function CallModal({
           </div>
         </div>
       ) : (
-        // Video Call UI - Phase 1: no real video, avatar placeholder with controls
         <div className="absolute inset-0 bg-black">
-          {/* Placeholder Video Layer */}
-          <div className="absolute inset-0 z-0">
-            {callStatus !== 'not-answered' && callStatus !== 'rejected' ? (
-              // Phase 1: show avatar placeholder instead of video
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                <div className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl font-bold ${
-                  isGroup
-                    ? 'bg-linear-to-br from-indigo-500 to-indigo-600'
-                    : 'bg-linear-to-br from-teal-500 to-teal-600'
-                } text-white`}>
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
-                  ) : (
-                    avatarInitial
-                  )}
-                </div>
-              </div>
-            ) : (
-              // Not Answered / Rejected State
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center text-white">
-                  {callStatus === 'not-answered' ? (
-                    <>
-                      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center">
-                        <Phone className="w-10 h-10 text-amber-400" />
-                      </div>
-                      <p className="text-xl font-medium text-amber-400 mb-1">No answer</p>
-                      <p className="text-sm text-gray-400 mb-4">{displayName} did not answer</p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
-                        <VideoOff className="w-10 h-10 text-red-400" />
-                      </div>
-                      <p className="text-red-400 mb-1 text-lg font-medium">Call rejected</p>
-                      <p className="text-sm text-gray-400 mb-4">{displayName} declined the call</p>
-                    </>
-                  )}
-                  <button
-                    onClick={handleEndCall}
-                    className="px-6 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute right-4 top-4 z-20 h-36 w-28 rounded-xl border border-white/20 bg-black object-cover"
+          />
 
-          {/* Info Overlay - Top */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 text-center pointer-events-none">
             <h3 className="text-white font-semibold text-lg drop-shadow-lg">{displayName}</h3>
             <p className="text-white/80 text-sm drop-shadow-lg">
-              {callStatus === 'calling' && (
-                <span className="pointer-events-auto inline-block">
-                  Calling...
-                  <span className="block text-xs text-white/60 mt-0.5">Ringing for up to 30 seconds</span>
-                  {/* Dev-only Simulate Answer button - hidden for real calls */}
-                  {!isRealCall && process.env.NODE_ENV !== 'production' && (
-                    <button
-                      onClick={handleSimulateAnswer}
-                      className="mt-2 px-2 py-1 bg-teal-600/80 hover:bg-teal-500/80 rounded text-xs text-white transition-colors"
-                    >
-                      Simulate Answer
-                    </button>
-                  )}
-                </span>
-              )}
-              {callStatus === 'connected' && (
-                <span className="text-teal-400 font-mono">{formatTime(elapsedSeconds)}</span>
-              )}
-              {callStatus === 'not-answered' && (
-                <span className="text-amber-400">No answer</span>
-              )}
-              {callStatus === 'rejected' && (
-                <span className="text-red-400">Call rejected</span>
-              )}
+              {statusDisplay.text}
+              {isAudioOnlyFallback && <span className="block text-amber-300 text-xs mt-0.5">Audio only</span>}
+              {statusDisplay.subtext && <span className="block text-xs text-white/60 mt-0.5">{statusDisplay.subtext}</span>}
             </p>
+            {webRTCStatus === 'failed' && (
+              <div className="pointer-events-auto mt-3 flex items-center justify-center gap-2">
+                <button
+                  onClick={retryMicrophone}
+                  className="px-3 py-1.5 rounded bg-teal-600 hover:bg-teal-500 text-white text-xs"
+                >
+                  Retry
+                </button>
+                <button
+                  onClick={continueAudioOnly}
+                  className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
+                >
+                  Continue audio only
+                </button>
+                <button
+                  onClick={handleEndCall}
+                  className="px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs"
+                >
+                  End Call
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Controls - Fixed to viewport bottom */}

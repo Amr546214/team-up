@@ -20,6 +20,24 @@ import {
 } from '../services/supabaseCallService';
 import { playOutgoingCallWaitingSound } from '../utils/chatSounds';
 
+function normalizeCall(row: any): CallSession | null {
+  if (!row) return null;
+
+  return {
+    ...row,
+    id: row.id,
+    conversationId: row.conversationId ?? row.conversation_id,
+    callerId: row.callerId ?? row.caller_id,
+    receiverId: row.receiverId ?? row.receiver_id,
+    type: row.type,
+    status: row.status,
+    startedAt: row.startedAt ?? row.started_at,
+    answeredAt: row.answeredAt ?? row.answered_at,
+    endedAt: row.endedAt ?? row.ended_at,
+    createdAt: row.createdAt ?? row.created_at,
+  } as CallSession;
+}
+
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
@@ -141,9 +159,25 @@ export function ChatWindow({
   const [callModalMode, setCallModalMode] = useState<'voice' | 'video' | null>(null);
   const [activeCallSession, setActiveCallSession] = useState<CallSession | null>(null);
   const [callStatus, setCallStatus] = useState<CallSession['status'] | null>(null);
+  const [isIncomingActiveCall, setIsIncomingActiveCall] = useState(false);
 
   // Group call coming soon popup state
   const [showGroupCallPopup, setShowGroupCallPopup] = useState(false);
+
+  useEffect(() => {
+    if (!externalCallSession) return;
+    const normalizedExternalCall = normalizeCall(externalCallSession);
+    if (!normalizedExternalCall) return;
+
+    setActiveCallSession(normalizedExternalCall);
+    setCallStatus(externalCallStatus || normalizedExternalCall.status);
+    setCallModalMode(normalizedExternalCall.type === 'audio' ? 'voice' : 'video');
+
+    const isCaller =
+      currentUser.id === (normalizedExternalCall as any).callerId ||
+      currentUser.id === (normalizedExternalCall as any).caller_id;
+    setIsIncomingActiveCall(!isCaller);
+  }, [externalCallSession, externalCallStatus, currentUser.id]);
 
   // Error toast state for call failures
   const [callError, setCallError] = useState<string | null>(null);
@@ -203,13 +237,15 @@ export function ChatWindow({
       // Play ringing sound in user-gesture context (browser autoplay policy)
       playOutgoingCallWaitingSound();
 
-      setActiveCallSession(call);
+      const normalizedCall = normalizeCall(call);
+      setActiveCallSession(normalizedCall);
       setCallStatus('ringing');
       setCallModalMode('voice');
+      setIsIncomingActiveCall(false);
 
       // Notify parent
       onCallStateChange?.({
-        callSession: call,
+        callSession: normalizedCall,
         callStatus: 'ringing',
         isIncoming: false,
         mode: 'audio',
@@ -267,13 +303,15 @@ export function ChatWindow({
       // Play ringing sound in user-gesture context (browser autoplay policy)
       playOutgoingCallWaitingSound();
 
-      setActiveCallSession(call);
+      const normalizedCall = normalizeCall(call);
+      setActiveCallSession(normalizedCall);
       setCallStatus('ringing');
       setCallModalMode('video');
+      setIsIncomingActiveCall(false);
 
       // Notify parent
       onCallStateChange?.({
-        callSession: call,
+        callSession: normalizedCall,
         callStatus: 'ringing',
         isIncoming: false,
         mode: 'video',
@@ -299,6 +337,7 @@ export function ChatWindow({
     setCallModalMode(null);
     setActiveCallSession(null);
     setCallStatus(null);
+    setIsIncomingActiveCall(false);
 
     // Notify parent
     onCallStateChange?.({
@@ -761,7 +800,8 @@ export function ChatWindow({
           onClose={handleCloseCall}
           callSession={activeCallSession}
           callStatus={externalCallStatus || callStatus}
-          isIncoming={!!externalCallSession}
+          isIncoming={isIncomingActiveCall}
+          currentUserId={currentUser.id}
         />
       )}
 
