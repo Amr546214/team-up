@@ -19,7 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
  */
 function ChatTest() {
   const navigate = useNavigate();
-  const { session, isAuthReady } = useAuth();
+  const { session, isAuthReady, isProfileReady } = useAuth();
   // Access control: allow in dev, staging, netlify, or when explicitly enabled
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isDev = import.meta.env.DEV;
@@ -58,8 +58,8 @@ function ChatTest() {
 
   const fetchProfiles = useCallback(async () => {
     console.log('[Profiles Debug] fetchProfiles() called');
-    if (!isAuthReady) {
-      console.log('[Profiles Debug] auth not ready for profile fetch');
+    if (!isAuthReady || !isProfileReady) {
+      console.log('[Profiles Debug] auth or profile not ready', { isAuthReady, isProfileReady });
       setProfilesError(null);
       setProfilesLoading(false);
       return;
@@ -82,10 +82,10 @@ function ChatTest() {
       setProfiles(data || []);
     }
     setProfilesLoading(false);
-  }, [isAuthReady, session]);
+  }, [isAuthReady, isProfileReady, session]);
 
   useEffect(() => {
-    if (!isAuthReady) {
+    if (!isAuthReady || !isProfileReady) {
       return;
     }
 
@@ -97,7 +97,7 @@ function ChatTest() {
     }
 
     fetchProfiles();
-  }, [isAuthReady, session, fetchProfiles]);
+  }, [isAuthReady, isProfileReady, session, fetchProfiles]);
 
   const handleStartChat = async (targetUserId, targetName) => {
     console.log('[Chat] start chat clicked', targetUserId, targetName);
@@ -282,6 +282,7 @@ function ChatTest() {
             currentUserId={currentUserId}
             authUserId={session?.id}
             isAuthReady={isAuthReady}
+            isProfileReady={isProfileReady}
             onBackHome={() => navigate('/')}
             onTestNotification={handleTestNotification}
             onFetchAvailableUsers={fetchProfiles}

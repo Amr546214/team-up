@@ -1,5 +1,122 @@
 import { supabase } from "./supabase";
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTemporaryAuthError(error) {
+  if (!error) return false;
+  const message = String(error.message || error.msg || "").toLowerCase();
+  return (
+    error.status === 429 ||
+    /rate limit/i.test(message) ||
+    /timeout/i.test(message) ||
+    /network/i.test(message) ||
+    /fetch/i.test(message)
+  );
+}
+
+/**
+ * Ensure authenticated user has a profile row.
+ * Upserts profile from auth metadata with retry logic for temporary errors.
+ * @param {import("@supabase/supabase-js").User} authUser
+ * @param {number} maxRetries - Max retry attempts for 429s
+ * @returns {Promise<{ ok: boolean, profile: any, error: any, temporary: boolean }>}
+ */
+export async function ensureUserProfile(authUser, maxRetries = 2) {
+  if (!authUser?.id) {
+    console.warn("[ensureUserProfile] No auth user — skipping");
+    return { ok: false, profile: null, error: "no_user", temporary: false };
+  }
+
+  const user = authUser;
+  const meta = user.user_metadata || {};
+  const pendingRole = localStorage.getItem("pendingAuthRole");
+  const role = pendingRole || meta.role || "client";
+  const email = user.email || "";
+
+  const profile = {
+    id: user.id,
+    email,
+    full_name: meta.full_name || meta.name || email.split("@")[0] || "User",
+    avatar_url: meta.avatar_url || meta.picture || null,
+    provider: user.app_metadata?.provider || "unknown",
+    role,
+    updated_at: new Date().toISOString(),
+  };
+
+  console.log("[ensureUserProfile] profile data", {
+    userId: user.id,
+    email: profile.email,
+    fullName: profile.full_name,
+    role: profile.role,
+  });
+
+  let attempt = 0;
+  while (attempt <= maxRetries) {
+    try {
+      const { data: upsertedProfile, error } = await supabase
+        .from("profiles")
+        .upsert(profile, { onConflict: "id" })
+        .select()
+        .single();
+
+      if (!error) {
+        console.log("[ensureUserProfile] success", {
+          userId: user.id,
+          email: profile.email,
+        });
+        return { ok: true, profile: upsertedProfile, error: null, temporary: false };
+      }
+
+      const temporary = isTemporaryAuthError(error);
+      if (!temporary || attempt >= maxRetries) {
+        console.warn("[ensureUserProfile] failed", {
+          userId: user.id,
+          error: error.message,
+          temporary,
+        });
+        return { ok: false, profile: null, error, temporary };
+      }
+
+      console.warn("[ensureUserProfile] temporary error, retrying", {
+        userId: user.id,
+        attempt,
+        error: error.message,
+      });
+      const delay = attempt === 0 ? 1500 : 3000;
+      await sleep(delay);
+      attempt += 1;
+    } catch (err) {
+      const temporary = isTemporaryAuthError(err);
+      if (!temporary || attempt >= maxRetries) {
+        console.error("[ensureUserProfile] unexpected error", {
+          userId: user.id,
+          error: err.message,
+          temporary,
+        });
+        return { ok: false, profile: null, error: err, temporary };
+      }
+
+      console.warn("[ensureUserProfile] temporary error, retrying", {
+        userId: user.id,
+        attempt,
+        error: err.message,
+      });
+      const delay = attempt === 0 ? 1500 : 3000;
+      await sleep(delay);
+      attempt += 1;
+    }
+  }
+
+  return {
+    ok: false,
+    profile: null,
+    error: new Error("Max retries exceeded"),
+    temporary: false,
+  };
+}
+
 /**
  * Sign in with an OAuth provider via Supabase.
  * Stores the selected role in localStorage so the app can redirect correctly after OAuth callback.
