@@ -8,6 +8,7 @@ import { MessageSquare, ArrowRight } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import type { CallSession } from '../services/supabaseCallService';
 import { supabase } from '../../../lib/supabase';
+import { stopIncomingCallRingtone, stopOutgoingCallWaitingSound } from '../utils/chatSounds';
 
 import type { ReactNode } from 'react';
 
@@ -22,6 +23,24 @@ interface ChatLayoutProps {
     unreadChatsCount: number;
   }) => void;
   devRail?: ReactNode;
+}
+
+function normalizeCall(row: any): CallSession | null {
+  if (!row) return null;
+
+  return {
+    ...row,
+    id: row.id,
+    conversationId: row.conversationId ?? row.conversation_id,
+    callerId: row.callerId ?? row.caller_id,
+    receiverId: row.receiverId ?? row.receiver_id,
+    type: row.type,
+    status: row.status,
+    startedAt: row.startedAt ?? row.started_at,
+    answeredAt: row.answeredAt ?? row.answered_at,
+    endedAt: row.endedAt ?? row.ended_at,
+    createdAt: row.createdAt ?? row.created_at,
+  } as CallSession;
 }
 
 export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
@@ -70,6 +89,17 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
   const callSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
 
+  const getCallRole = useCallback((call: CallSession, currentUserId: string | null) => {
+    const isCaller =
+      currentUserId === (call as any).callerId ||
+      currentUserId === (call as any).caller_id;
+    const isReceiver =
+      currentUserId === (call as any).receiverId ||
+      currentUserId === (call as any).receiver_id;
+
+    return { isCaller, isReceiver, role: isCaller ? 'caller' : 'receiver' as 'caller' | 'receiver' };
+  }, []);
+
   const selectConversationAndHighlight = useCallback(
     (conversationId: string, messageId: string) => {
       selectConversation(conversationId);
@@ -116,11 +146,12 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
           table: 'call_sessions',
         },
         (payload) => {
-          const call = payload.new as CallSession;
+          const call = normalizeCall(payload.new as CallSession);
+          if (!call) return;
           console.log('[Calls] INSERT event received', call);
 
           // Check if this is an incoming call for current user
-          if (call.receiver_id === currentUserIdRef.current && call.status === 'ringing') {
+          if ((call as any).receiverId === currentUserIdRef.current && call.status === 'ringing') {
             console.log('[Calls] incoming call detected', call);
             setIncomingCall(call);
           }
@@ -134,22 +165,32 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
           table: 'call_sessions',
         },
         (payload) => {
-          const call = payload.new as CallSession;
+          const call = normalizeCall(payload.new as CallSession);
+          if (!call) return;
           console.log('[Calls] UPDATE event received', call);
 
           // Check if this call involves current user
           const userId = currentUserIdRef.current;
-          if (call.caller_id === userId || call.receiver_id === userId) {
+          if ((call as any).callerId === userId || (call as any).receiverId === userId) {
             console.log('[Calls] call update for current user', call.status);
+            const { isCaller, isReceiver } = getCallRole(call, userId);
 
             // Update active call status if this is the active call
             if (activeCallSession?.id === call.id) {
               setActiveCallStatus(call.status);
             }
 
-            // Handle accepted - close incoming modal
+            // Handle accepted - keep active call UI open
             if (call.status === 'accepted') {
+              console.log('[Calls] accepted update received', {
+                callId: call.id,
+                currentUserId: userId,
+                isCaller,
+                isReceiver,
+              });
               setIncomingCall(null);
+              stopIncomingCallRingtone();
+              stopOutgoingCallWaitingSound();
               setActiveCallSession(call);
               setActiveCallStatus('accepted');
               setActiveCallMode(call.type === 'audio' ? 'voice' : 'video');
@@ -182,9 +223,16 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
 
   // Handle incoming call acceptance
   const handleIncomingAccepted = useCallback(() => {
-    console.log('[Calls] incoming call accepted');
+    console.log('[Calls] accept clicked', {
+      incomingCall,
+      normalizedIncomingCall: normalizeCall(incomingCall),
+    });
     if (incomingCall) {
-      setActiveCallSession(incomingCall);
+      const normalizedCall = normalizeCall(incomingCall);
+      console.log('[Calls] setting currentCall after accept', normalizedCall);
+      setIncomingCall(null);
+      stopIncomingCallRingtone();
+      setActiveCallSession(normalizedCall);
       setActiveCallStatus('accepted');
       setActiveCallMode(incomingCall.type === 'audio' ? 'voice' : 'video');
     }

@@ -102,3 +102,20 @@ export {
   type CallSession,
   type CreateCallSessionParams,
 } from './services/supabaseCallService';
+
+// Call signals service (WebRTC signaling)
+export {
+  insertCallSignal,
+  getCallSignals,
+  subscribeToCallSignals,
+  unsubscribeFromCallSignals,
+  type CallSignal,
+  type InsertCallSignalParams,
+} from './services/supabaseCallSignals';
+
+// WebRTC hook
+export {
+  useWebRTCAudioCall,
+  useWebRTCCall,
+  type WebRTCStatus,
+} from './hooks/useWebRTCAudioCall';

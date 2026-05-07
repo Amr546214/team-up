@@ -40,7 +40,7 @@ export function IncomingCallModal({
   }, [call.id]);
 
   const handleAccept = async () => {
-    console.log('[Calls] accepting from modal', call.id);
+    console.log('[Calls] accept clicked', call.id);
     stopIncomingCallRingtone();
     
     const { error } = await acceptCall(call.id);
