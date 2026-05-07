@@ -5,7 +5,7 @@ import {
   getCurrentUser,
 } from "../services/fakeApi";
 import { supabase } from "../lib/supabase";
-import { upsertUserProfile } from "../lib/supabaseAuth";
+import { upsertUserProfile, ensureUserProfile } from "../lib/supabaseAuth";
 
 const AuthContext = createContext(null);
 
@@ -161,8 +161,10 @@ export function AuthProvider({ children }) {
   const [profileError, setProfileError] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isProfileReady, setIsProfileReady] = useState(false);
   const isAuthInitializingRef = useRef(false);
   const authInitStartedRef = useRef(false);
+  const profileRecoveryInProgressRef = useRef(false);
 
   // Listen for Supabase auth state changes (OAuth redirect callback)
   useEffect(() => {
@@ -172,6 +174,7 @@ export function AuthProvider({ children }) {
         setSupabaseSession(null);
         setSession((prev) => (prev?.supabase ? null : prev));
         setProfileError(null);
+        setIsProfileReady(false);
         return;
       }
 
@@ -243,6 +246,24 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        // Step 1: Ensure profile row exists (upsert from auth metadata)
+        if (!profileRecoveryInProgressRef.current) {
+          profileRecoveryInProgressRef.current = true;
+          try {
+            const ensureResult = await ensureUserProfile(sbSession.user, 2);
+            console.log("[Auth] ensureUserProfile completed", {
+              userId: sbSession.user.id,
+              ok: ensureResult.ok,
+              error: ensureResult.error?.message,
+            });
+          } catch (err) {
+            console.warn("[Auth] ensureUserProfile failed", err);
+          } finally {
+            profileRecoveryInProgressRef.current = false;
+          }
+        }
+
+        // Step 2: Fetch and validate profile
         const {
           profile,
           error: profileFetchError,
@@ -253,6 +274,7 @@ export function AuthProvider({ children }) {
           console.warn("[Auth] profile fetch failed but keeping session", profileFetchError);
           setProfileError(profileFetchError);
           setSupabaseSession(sbSession);
+          setIsProfileReady(true);
 
           const mapped = mapSupabaseUser(sbSession.user, null);
           setSession((prev) => {
@@ -266,6 +288,7 @@ export function AuthProvider({ children }) {
           console.warn("[Auth] Unable to resolve profile, keeping session with fallback user");
           setProfileError(profileFetchError || new Error("Profile missing"));
           setSupabaseSession(sbSession);
+          setIsProfileReady(true);
 
           const mapped = mapSupabaseUser(sbSession.user, null);
           setSession((prev) => {
@@ -278,6 +301,7 @@ export function AuthProvider({ children }) {
         console.log("[Auth] Profile validated:", profile.email);
         setSupabaseSession(sbSession);
         setProfileError(null);
+        setIsProfileReady(true);
 
         const mapped = mapSupabaseUser(sbSession.user, profile);
         setSession((prev) => {
@@ -316,8 +340,9 @@ export function AuthProvider({ children }) {
         console.warn('[Auth] init error', err);
       } finally {
         setIsAuthReady(true);
+        setIsProfileReady(true);
         setIsLoadingAuth(false);
-        console.log('[Auth] auth ready', { hasSession: !!initialSession, userId: initialSession?.user?.id });
+        console.log('[Auth] init complete', { hasSession: !!initialSession, userId: initialSession?.user?.id });
       }
     }
 
@@ -386,6 +411,7 @@ export function AuthProvider({ children }) {
       profileError,
       isAuthenticated: Boolean(session?.id && session?.email && session?.role),
       isAuthReady,
+      isProfileReady,
       isLoading: isLoadingAuth,
       isLoadingAuth,
       isProcessingJoinAuth,
@@ -393,7 +419,7 @@ export function AuthProvider({ children }) {
       logout,
       refreshSession,
     }),
-    [session, supabaseSession, profileError, isAuthReady, isLoadingAuth, isProcessingJoinAuth, login, logout, refreshSession]
+    [session, supabaseSession, profileError, isAuthReady, isProfileReady, isLoadingAuth, isProcessingJoinAuth, login, logout, refreshSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
