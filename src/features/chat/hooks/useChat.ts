@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { Conversation, Message, ChatUser } from '../types';
 import type { UploadModalState } from '../components/ChatUploadModal';
+import { useAuth } from '../../../hooks/useAuth';
 import {
   mockCurrentUser,
   mockConversations,
@@ -119,6 +120,12 @@ export function useChat(): UseChatState {
 
   // Use real conversations flag (dev-only, could be disabled for mock fallback)
   const USE_REAL_CONVERSATIONS = true;
+
+  const { isAuthReady } = useAuth();
+
+  function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   // Conversations state - starts empty, loads real conversations
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -637,26 +644,50 @@ export function useChat(): UseChatState {
   }, []);
 
   const loadCurrentUserProfile = useCallback(async () => {
-    console.log('[Chat] loading current user profile');
-    setIsLoadingCurrentUser(true);
-
-    const { user, error } = await getCurrentUserProfile();
-
-    if (error || !user) {
-      console.error('[Chat] failed to load current user profile', error);
-      setIsLoadingCurrentUser(false);
+    if (!isAuthReady) {
+      console.log('[Chat] auth gate', { isAuthReady });
       return;
     }
 
-    console.log('[Chat] current user profile loaded', user.id, user.name, user.avatar);
-    setCurrentUserProfile(user);
-    realUserIdRef.current = user.id;
-    setIsLoadingCurrentUser(false);
-  }, []);
+    console.log('[Chat] loading current user profile');
+    setIsLoadingCurrentUser(true);
+
+    let attempt = 0;
+    let result;
+
+    while (attempt < 2) {
+      result = await getCurrentUserProfile();
+
+      if (result.user) {
+        console.log('[Chat] current user profile loaded', result.user.id, result.user.name, result.user.avatar);
+        setCurrentUserProfile(result.user);
+        realUserIdRef.current = result.user.id;
+        setIsLoadingCurrentUser(false);
+        return;
+      }
+
+      const temporary = (result as any)?.temporary;
+      if (temporary && attempt === 0) {
+        console.warn('[Chat] current user profile temporary auth error, retrying after delay', result.error);
+        await sleep(1000);
+        attempt += 1;
+        continue;
+      }
+
+      console.error('[Chat] failed to load current user profile', result.error);
+      setIsLoadingCurrentUser(false);
+      return;
+    }
+  }, [isAuthReady]);
 
   useEffect(() => {
+    if (!isAuthReady) {
+      console.log('[Chat] auth gate', { isAuthReady });
+      return;
+    }
+
     loadCurrentUserProfile();
-  }, [loadCurrentUserProfile]);
+  }, [isAuthReady, loadCurrentUserProfile]);
 
   useEffect(() => {
     if (!isLoadingCurrentUser && currentUserProfile) {

@@ -19,7 +19,7 @@ import { useAuth } from '../../hooks/useAuth';
  */
 function ChatTest() {
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   // Access control: allow in dev, staging, netlify, or when explicitly enabled
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isDev = import.meta.env.DEV;
@@ -58,6 +58,12 @@ function ChatTest() {
 
   const fetchProfiles = async () => {
     console.log('[Profiles Debug] fetchProfiles() called');
+    if (!isAuthReady) {
+      console.log('[Profiles Debug] auth not ready for profile fetch');
+      setProfilesError('Waiting for auth session...');
+      setProfilesLoading(false);
+      return;
+    }
     if (!session) {
       console.log('[Profiles Debug] current user not ready yet');
       setProfilesError('Waiting for auth session...');
@@ -259,6 +265,7 @@ function ChatTest() {
             profilesError={profilesError}
             startingChatFor={startingChatFor}
             currentUserId={currentUserId}
+            isAuthReady={isAuthReady}
             onBackHome={() => navigate('/')}
             onTestNotification={handleTestNotification}
             onFetchAvailableUsers={fetchProfiles}

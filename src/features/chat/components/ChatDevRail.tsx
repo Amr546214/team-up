@@ -36,6 +36,7 @@ interface ChatDevRailProps {
   onTestNotification: () => void;
   onFetchAvailableUsers: () => void;
   onStartChat: (userId: string, name: string) => void;
+  isAuthReady: boolean;
   onCreateGroup?: (title: string, memberIds: string[]) => Promise<string | null>;
   onCopyId: (id: string) => void;
   onSelectConversation?: (conversationId: string, messageId?: string) => void;
@@ -58,6 +59,7 @@ export function ChatDevRail({
   onCopyId,
   onSelectConversation,
   copiedId,
+  isAuthReady,
 }: ChatDevRailProps) {
   const [usersPanelOpen, setUsersPanelOpen] = useState(false);
   const [starredPanelOpen, setStarredPanelOpen] = useState(false);
@@ -363,8 +365,11 @@ export function ChatDevRail({
               </div>
             )}
 
-            {/* Empty */}
-            {!profilesLoading && !profilesError && profiles.length === 0 && (
+            {/* Empty or waiting for auth */}
+            {!profilesLoading && !profilesError && profiles.length === 0 && !isAuthReady && (
+              <p className="text-xs text-gray-500 py-2">Loading session...</p>
+            )}
+            {!profilesLoading && !profilesError && profiles.length === 0 && isAuthReady && (
               <p className="text-xs text-gray-500 py-2">No available users found.</p>
             )}
 

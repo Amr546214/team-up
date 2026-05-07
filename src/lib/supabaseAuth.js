@@ -73,12 +73,13 @@ export async function upsertUserProfile(session) {
   const user = session.user;
   const meta = user.user_metadata || {};
   const pendingRole = localStorage.getItem("pendingAuthRole");
-  const role = pendingRole || "client";
+  const role = pendingRole || meta.role || "client";
+  const email = user.email || "";
 
   const profile = {
     id: user.id,
-    email: user.email,
-    full_name: meta.full_name || meta.name || "",
+    email,
+    full_name: meta.full_name || meta.name || email.split("@")[0] || "",
     avatar_url: meta.avatar_url || meta.picture || "",
     provider: user.app_metadata?.provider || "",
     role,
