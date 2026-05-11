@@ -6,12 +6,12 @@ import { hasCompletedQuiz } from "../services/fakeApi";
 export default function RoleRoute({ role }) {
   const { session } = useAuth();
 
-  // Also check for backend access token as fallback for client and developer roles
+  // Also check for backend access token as fallback for client, developer, and company roles
   const hasBackendToken = typeof window !== "undefined" &&
     !!localStorage.getItem("teamup_access_token");
 
-  // Allow client/developer routes if backend token exists (temporary until full auth context integration)
-  if ((role === "client" || role === "developer") && hasBackendToken) {
+  // Allow client/developer/company routes if backend token exists (temporary until full auth context integration)
+  if ((role === "client" || role === "developer" || role === "company") && hasBackendToken) {
     return <Outlet />;
   }
 

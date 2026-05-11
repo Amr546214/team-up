@@ -107,6 +107,7 @@ export async function signupDeveloper({
  * @param {string} params.companyName
  * @param {string} params.email
  * @param {string} params.password
+ * @param {string} params.confirmPassword
  * @param {string} params.companySize
  * @param {string} params.industry
  * @returns {Promise<any>} API response
@@ -115,6 +116,7 @@ export async function signupCompany({
   companyName,
   email,
   password,
+  confirmPassword,
   companySize,
   industry,
 }) {
@@ -124,6 +126,7 @@ export async function signupCompany({
       role: "company",
       email,
       password,
+      confirmPassword,
       companyName,
       companySize,
       industry,

@@ -8,7 +8,7 @@ import {
 } from "../../services/fakeApi";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
-import { signupClient, signupDeveloper } from "../../services/authService";
+import { signupClient, signupDeveloper, signupCompany } from "../../services/authService";
 
 // -------------- CONSTANTS -------------- //
 const roles = [
@@ -124,12 +124,6 @@ const RegisterForm = () => {
     }
     if (activeRole === "developer") {
       if (formData.devPassword !== formData.devConfirmPassword) {
-        window.alert("Passwords do not match.");
-        return;
-      }
-    }
-    if (activeRole === "company") {
-      if (formData.companyPassword !== formData.companyConfirmPassword) {
         window.alert("Passwords do not match.");
         return;
       }
@@ -252,8 +246,93 @@ const RegisterForm = () => {
       }
     }
 
-    // Client/Developer registration is handled above via backend API
-    // Only company and admin use the old fakeApi for now
+    // Company register uses real backend API
+    if (activeRole === "company") {
+      // Frontend validation
+      if (!String(formData.companyName || "").trim()) {
+        window.alert("Please enter your company name.");
+        return;
+      }
+      if (!String(formData.companyEmail || "").trim()) {
+        window.alert("Please enter your company email.");
+        return;
+      }
+      if (!String(formData.companyPassword || "").trim()) {
+        window.alert("Please enter your password.");
+        return;
+      }
+      if (!String(formData.companyConfirmPassword || "").trim()) {
+        window.alert("Please confirm your password.");
+        return;
+      }
+      if (formData.companyPassword !== formData.companyConfirmPassword) {
+        window.alert("Passwords do not match.");
+        return;
+      }
+      if (!String(formData.companySize || "").trim()) {
+        window.alert("Please select your company size.");
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        // Extract values to local variables for clean payload
+        const companyName = formData.companyName?.trim();
+        const email = formData.companyEmail?.trim().toLowerCase();
+        const password = formData.companyPassword;
+        const confirmPassword = formData.companyConfirmPassword;
+        const companySize = formData.companySize;
+        const industry = formData.companyIndustry?.trim() || "";
+
+        // Build clean payload - ONLY these fields, nothing else
+        const payload = {
+          companyName,
+          email,
+          password,
+          confirmPassword,
+          companySize,
+          industry,
+        };
+        console.log("COMPANY SIGNUP PAYLOAD:", payload);
+
+        const response = await signupCompany(payload);
+        console.log("COMPANY SIGNUP SUCCESS:", response);
+
+        // Success: show message and switch to login tab
+        window.alert("Company account created successfully. Please sign in.");
+
+        // Pre-fill login email
+        setFormData({
+          ...initialFormData,
+          companyEmail: formData.companyEmail,
+        });
+
+        // Switch to login tab and preserve company role
+        setAuthTab("login");
+        navigate("/login?email=" + encodeURIComponent(formData.companyEmail) + "&role=company");
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        console.log("COMPANY SIGNUP ERROR:", error);
+        console.log("COMPANY SIGNUP ERROR DATA:", error?.data);
+        // Map backend errors to user-friendly messages
+        let errorMessage = "Signup failed";
+        if (error.status === 409) {
+          errorMessage = "Email already exists";
+        } else if (error.status === 400) {
+          errorMessage = "Please check your information and try again";
+        } else if (error.status === 500) {
+          errorMessage = "Server error, please try again later";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        window.alert(errorMessage);
+        return;
+      }
+    }
+
+    // Client/Developer/Company registration is handled above via backend API
+    // Only admin uses the old fakeApi for now
 
     let email = "";
     let password = "";
@@ -265,14 +344,6 @@ const RegisterForm = () => {
       profile = {
         fullName: formData.devFullName,
         skills: [...selectedSkills],
-      };
-    } else if (activeRole === "company") {
-      email = formData.companyEmail;
-      password = formData.companyPassword;
-      profile = {
-        companyName: formData.companyName,
-        size: formData.companySize,
-        industry: formData.companyIndustry,
       };
     } else if (activeRole === "admin") {
       email = formData.adminEmail;
@@ -288,22 +359,8 @@ const RegisterForm = () => {
       window.alert("Please fill in all required fields.");
       return;
     }
-    if (activeRole === "developer") {
-      if (!String(formData.devFullName || "").trim()) {
-        window.alert("Please fill in all required fields.");
-        return;
-      }
-    }
-    if (activeRole === "company") {
-      if (
-        !String(formData.companyName || "").trim() ||
-        !String(formData.companySize || "").trim() ||
-        !String(formData.companyIndustry || "").trim()
-      ) {
-        window.alert("Please fill in all required fields.");
-        return;
-      }
-    }
+    // Note: Client/Developer/Company registration is handled above via backend API
+    // Only admin validation remains here
     if (activeRole === "admin") {
       if (!String(formData.adminCode || "").trim()) {
         window.alert("Please fill in all required fields.");

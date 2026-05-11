@@ -1,18 +1,28 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Lock } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
 import { login as backendLogin } from "../../services/authService";
 
+const validRoles = ["client", "developer", "company", "admin"];
+
 const LoginForm = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const { t } = useTranslation();
-  const [userType, setUserType] = useState("client");
+
+  // Initialize state from URL params to avoid setState in effect
+  const emailParam = searchParams.get("email");
+  const roleParam = searchParams.get("role");
+
+  const [userType, setUserType] = useState(
+    validRoles.includes(roleParam) ? roleParam : "client"
+  );
   const [authMode, setAuthMode] = useState("login");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailParam || "");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -67,47 +77,30 @@ const LoginForm = () => {
     const isValid = validateForm();
     if (!isValid) return;
 
-    // Client login uses real backend API
-    if (userType === "client") {
-      setIsLoading(true);
-      try {
-        const response = await backendLogin({ email, password });
-        // Tokens are already saved by authService.login()
-        console.log("LOGIN SUCCESS RESPONSE:", response);
-        console.log("ACCESS TOKEN IN STORAGE:", localStorage.getItem("teamup_access_token"));
-        console.log("ABOUT TO REDIRECT CLIENT");
-        resetForm();
-        navigate("/client/profile", { replace: true });
-        return;
-      } catch (error) {
-        setIsLoading(false);
-        // Map backend errors to user-friendly messages
-        let errorMessage = "Login failed";
-        if (error.status === 404) {
-          errorMessage = "Email not found";
-        } else if (error.status === 400) {
-          errorMessage = "Invalid email or password";
-        } else if (error.status === 500) {
-          errorMessage = "Server error, please try again later";
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        setErrors({ email: "", password: errorMessage });
-        return;
-      }
-    }
+    // Clear errors before login
+    setErrors({ email: "", password: "" });
 
-    // Developer login uses real backend API
-    if (userType === "developer") {
+    // Client/Developer/Company login use real backend API
+    if (userType === "client" || userType === "developer" || userType === "company") {
       setIsLoading(true);
       try {
         const response = await backendLogin({ email: email.trim().toLowerCase(), password });
         // Tokens are already saved by authService.login()
-        console.log("DEVELOPER LOGIN SUCCESS:", response);
-        console.log("DEVELOPER ACCESS TOKEN:", localStorage.getItem("teamup_access_token"));
-        console.log("Developer login success, redirecting");
+        console.log("LOGIN SUCCESS RESPONSE:", response);
+
+        // Role-based redirect
+        const roleRedirects = {
+          client: "/client/profile",
+          developer: "/developer/dashboard",
+          company: "/company/profile",
+        };
+        const redirectPath = roleRedirects[userType];
+
+        console.log("LOGIN ROLE:", userType);
+        console.log("REDIRECTING TO:", redirectPath);
+
         resetForm();
-        navigate("/developer/dashboard", { replace: true });
+        navigate(redirectPath, { replace: true });
         return;
       } catch (error) {
         setIsLoading(false);
