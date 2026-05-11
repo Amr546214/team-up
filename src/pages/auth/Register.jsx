@@ -5,29 +5,15 @@ import logo from "../../assets/logo/teamup-logo.png";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Navigate } from "react-router-dom";
-
-function getDashboardPathByRole(role) {
-  switch (role) {
-    case "client":
-      return "/client/profile";
-    case "developer":
-      return "/developer/dashboard";
-    case "company":
-      return "/company/profile";
-    case "admin":
-      return "/";
-    default:
-      return "/";
-  }
-}
+import { getDashboardPath } from "../../utils/authStorage";
 
 const Register = () => {
-  const { isAuthenticated, session } = useAuth();
+  const { isAuthenticated, userRole } = useAuth();
   const { t } = useTranslation();
 
   // Redirect if already logged in
-  if (isAuthenticated && session?.role) {
-    return <Navigate to={getDashboardPathByRole(session.role)} replace />;
+  if (isAuthenticated && userRole) {
+    return <Navigate to={getDashboardPath(userRole)} replace />;
   }
 
   return (

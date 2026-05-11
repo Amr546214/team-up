@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
 import { login as backendLogin } from "../../services/authService";
+import { saveUserRole, dispatchAuthChanged, saveUserProfile } from "../../utils/authStorage";
 
 const validRoles = ["client", "developer", "company", "admin"];
 
@@ -87,6 +88,21 @@ const LoginForm = () => {
         const response = await backendLogin({ email: email.trim().toLowerCase(), password });
         // Tokens are already saved by authService.login()
         console.log("LOGIN SUCCESS RESPONSE:", response);
+
+        // Save user role for global auth state
+        saveUserRole(userType);
+
+        // Save user profile for global avatar/name display
+        const userEmail = email.trim().toLowerCase();
+        saveUserProfile({
+          email: userEmail,
+          role: userType,
+          name: userEmail.split("@")[0],
+          avatarUrl: "",
+        });
+
+        // Notify all components that auth state has changed
+        dispatchAuthChanged();
 
         // Role-based redirect
         const roleRedirects = {

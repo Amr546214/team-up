@@ -9,31 +9,28 @@ import { useTranslation } from "react-i18next";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
 import Notification from "./Notification";
 import LanguageSwitcher from "./LanguageSwitcher";
-import Avatar from "./Avatar";
 import { useAuth } from "../../hooks/useAuth";
-import { getStoredUserAvatar } from "../../utils/avatar";
 import { useChatUnreadCount } from "../../features/chat";
-
-function getDashboardPathByRole(role) {
-  switch (role) {
-    case "client":
-      return "/client/profile";
-    case "developer":
-      return "/developer/dashboard";
-    case "company":
-      return "/company/profile";
-    case "admin":
-      return "/";
-    default:
-      return "/";
-  }
-}
+import { getDashboardPath } from "../../utils/authStorage";
 
 function Header({ profileImage }) {
   const navigate = useNavigate();
-  const { session, isAuthenticated, logout } = useAuth();
+  const { session, isAuthenticated, logout, userRole, userProfile } = useAuth();
   const { t } = useTranslation();
   const { totalUnreadCount } = useChatUnreadCount();
+
+  // Auth state comes from AuthContext (single source of truth)
+  // AuthContext listens for "teamup-auth-changed" events and updates automatically
+  const effectiveRole = userRole || "client";
+
+  // Get avatar display info from userProfile
+  const displayName = userProfile?.name || session?.name || userProfile?.email || "User";
+  const avatarUrl = profileImage || userProfile?.avatarUrl || session?.avatar || "";
+  const avatarInitial = displayName.charAt(0).toUpperCase();
+
+  console.log("Header auth state:", { isAuthenticated, userRole, effectiveRole });
+  console.log("NAVBAR AVATAR PROFILE:", userProfile);
+  console.log("GLOBAL USER PROFILE:", userProfile);
 
   const [open, setOpen] = useState(false);
   const menuRef = useRef();
@@ -52,7 +49,7 @@ function Header({ profileImage }) {
   const handleLogout = () => {
     logout();
     setOpen(false);
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -116,25 +113,31 @@ function Header({ profileImage }) {
                 className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-gray-500 transition hover:bg-teal-50 hover:text-[#0B6B63]"
                 type="button"
               >
-                <Avatar
-                  user={session}
-                  src={profileImage || getStoredUserAvatar(session)}
-                  alt={session?.name || "Profile"}
-                  size="md"
-                  fallbackClassName="bg-gray-200"
-                />
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-[#0B6B63] text-white flex items-center justify-center font-semibold text-lg">
+                    {avatarInitial}
+                  </div>
+                )}
               </button>
 
               {/* Dropdown Menu */}
               {open && (
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-md">
                   <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">{session?.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{session?.role}</p>
+                    <p className="text-sm font-medium text-gray-900">{displayName}</p>
+                    <p className="text-xs text-gray-500 capitalize">{effectiveRole}</p>
                   </div>
                   <button
                     onClick={() => {
-                      navigate(getDashboardPathByRole(session?.role));
+                      console.log("DASHBOARD CLICK ROLE:", effectiveRole);
+                      console.log("DASHBOARD CLICK PATH:", getDashboardPath(effectiveRole));
+                      navigate(getDashboardPath(effectiveRole));
                       setOpen(false);
                     }}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"

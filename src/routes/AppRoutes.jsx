@@ -7,6 +7,7 @@ import NotFound from "../pages/public/NotFound";
 import ChatTest from "../pages/dev/ChatTest";
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute";
+import PublicOnlyRoute from "./PublicOnlyRoute";
 
 import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 
@@ -60,8 +61,11 @@ function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+
+      {/* Public only routes - redirect authenticated users to their dashboard */}
+      <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+      <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+
       <Route path="/skill-quiz" element={<SkillQuiz />} />
       <Route path="/quiz" element={<SkillQuiz />} />
       <Route path="/quiz/:trackId" element={<SkillQuiz />} />

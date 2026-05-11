@@ -6,6 +6,7 @@ import {
 } from "../services/fakeApi";
 import { supabase } from "../lib/supabase";
 import { upsertUserProfile, ensureUserProfile } from "../lib/supabaseAuth";
+import { clearAuth, dispatchAuthChanged, getUserProfile } from "../utils/authStorage";
 
 const AuthContext = createContext(null);
 
@@ -162,6 +163,15 @@ export function AuthProvider({ children }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isProfileReady, setIsProfileReady] = useState(false);
+  // Backend auth state synced with localStorage
+  const [backendAuthState, setBackendAuthState] = useState(() => ({
+    hasToken: typeof window !== "undefined" && !!localStorage.getItem("teamup_access_token"),
+    role: typeof window !== "undefined" ? localStorage.getItem("teamup_user_role") : null,
+  }));
+  // User profile synced with localStorage
+  const [userProfile, setUserProfile] = useState(() =>
+    typeof window !== "undefined" ? getUserProfile() : null
+  );
   const isAuthInitializingRef = useRef(false);
   const authInitStartedRef = useRef(false);
   const profileRecoveryInProgressRef = useRef(false);
@@ -358,6 +368,49 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Listen for backend auth state changes (from localStorage)
+  useEffect(() => {
+    const syncAuthState = () => {
+      const hasToken = !!localStorage.getItem("teamup_access_token");
+      const role = localStorage.getItem("teamup_user_role");
+      const profile = getUserProfile();
+      setBackendAuthState({ hasToken, role });
+      setUserProfile(profile);
+      console.log("GLOBAL AUTH SYNC:", {
+        tokenExists: hasToken,
+        role: role,
+        profile: profile,
+      });
+    };
+
+    // Initial sync
+    syncAuthState();
+
+    // Listen for custom auth changed event
+    window.addEventListener("teamup-auth-changed", syncAuthState);
+    // Also listen for storage events (multi-tab sync)
+    window.addEventListener("storage", syncAuthState);
+
+    return () => {
+      window.removeEventListener("teamup-auth-changed", syncAuthState);
+      window.removeEventListener("storage", syncAuthState);
+    };
+  }, []);
+
+  // Function to manually sync auth state (can be called after login)
+  const loginStateSync = useCallback(() => {
+    const hasToken = !!localStorage.getItem("teamup_access_token");
+    const role = localStorage.getItem("teamup_user_role");
+    const profile = getUserProfile();
+    setBackendAuthState({ hasToken, role });
+    setUserProfile(profile);
+    console.log("GLOBAL AUTH SYNC (manual):", {
+      tokenExists: hasToken,
+      role: role,
+      profile: profile,
+    });
+  }, []);
+
   const login = useCallback((email, password, role, rememberMe) => {
     const result = loginUser(email, password);
     if (!result.success) {
@@ -394,6 +447,8 @@ export function AuthProvider({ children }) {
     // Sign out of Supabase too
     try { await supabase.auth.signOut(); } catch { /* ignore */ }
     clearAllAuthStorage();
+    clearAuth(); // Clear backend tokens and role
+    dispatchAuthChanged(); // Notify all components of logout
     setSupabaseSession(null);
     setSession(null);
   }, []);
@@ -402,6 +457,22 @@ export function AuthProvider({ children }) {
     setSession(getCurrentUser());
   }, []);
 
+  // Use backendAuthState for reactive backend auth state
+  const hasBackendToken = backendAuthState.hasToken;
+  const backendRole = backendAuthState.role;
+
+  // Combined authentication state: either Supabase/fakeApi session OR backend token
+  const isAuthenticated = Boolean(
+    (session?.id && session?.email && session?.role) || hasBackendToken
+  );
+
+  // Get effective role (from session or backend storage)
+  const effectiveRole = session?.role || backendRole || "client";
+
+  // Debug logs
+  console.log("AUTH TOKEN EXISTS:", hasBackendToken);
+  console.log("AUTH ROLE:", effectiveRole);
+
   const value = useMemo(
     () => ({
       user: session,
@@ -409,7 +480,7 @@ export function AuthProvider({ children }) {
       session,
       supabaseSession,
       profileError,
-      isAuthenticated: Boolean(session?.id && session?.email && session?.role),
+      isAuthenticated,
       isAuthReady,
       isProfileReady,
       isLoading: isLoadingAuth,
@@ -418,8 +489,12 @@ export function AuthProvider({ children }) {
       login,
       logout,
       refreshSession,
+      backendRole,
+      userRole: effectiveRole, // Exposed for easy access
+      userProfile, // Global user profile for avatar/name
+      loginStateSync, // Manual sync function
     }),
-    [session, supabaseSession, profileError, isAuthReady, isProfileReady, isLoadingAuth, isProcessingJoinAuth, login, logout, refreshSession]
+    [session, supabaseSession, profileError, isAuthReady, isProfileReady, isLoadingAuth, isProcessingJoinAuth, login, logout, refreshSession, backendRole, isAuthenticated, effectiveRole, userProfile, loginStateSync]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
