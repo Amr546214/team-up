@@ -8,7 +8,7 @@ import {
 } from "../../services/fakeApi";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
-import { signupClient } from "../../services/authService";
+import { signupClient, signupDeveloper } from "../../services/authService";
 
 // -------------- CONSTANTS -------------- //
 const roles = [
@@ -183,8 +183,77 @@ const RegisterForm = () => {
       }
     }
 
-    // Client registration is handled above via backend API
-    // Only developer, company, and admin use the old fakeApi for now
+    // Developer register uses real backend API
+    if (activeRole === "developer") {
+      // Frontend validation
+      if (!String(formData.devFullName || "").trim()) {
+        window.alert("Please enter your full name.");
+        return;
+      }
+      if (!String(formData.devEmail || "").trim()) {
+        window.alert("Please enter your email.");
+        return;
+      }
+      if (!String(formData.devPassword || "").trim()) {
+        window.alert("Please enter your password.");
+        return;
+      }
+      if (!String(formData.devConfirmPassword || "").trim()) {
+        window.alert("Please confirm your password.");
+        return;
+      }
+      if (formData.devPassword !== formData.devConfirmPassword) {
+        window.alert("Passwords do not match.");
+        return;
+      }
+      if (selectedSkills.length === 0) {
+        window.alert("Please select at least one skill.");
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        await signupDeveloper({
+          fullName: formData.devFullName,
+          email: formData.devEmail,
+          password: formData.devPassword,
+          confirmPassword: formData.devConfirmPassword,
+          skills: [...selectedSkills], // Send as array
+        });
+
+        // Success: show message and switch to login tab
+        window.alert("Developer account created successfully. Please sign in.");
+
+        // Pre-fill login email
+        setFormData({
+          ...initialFormData,
+          devEmail: formData.devEmail,
+        });
+
+        // Switch to login tab
+        setAuthTab("login");
+        navigate("/login?email=" + encodeURIComponent(formData.devEmail));
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        // Map backend errors to user-friendly messages
+        let errorMessage = "Signup failed";
+        if (error.status === 409) {
+          errorMessage = "Email already exists";
+        } else if (error.status === 400) {
+          errorMessage = "Please check your information and try again";
+        } else if (error.status === 500) {
+          errorMessage = "Server error, please try again later";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        window.alert(errorMessage);
+        return;
+      }
+    }
+
+    // Client/Developer registration is handled above via backend API
+    // Only company and admin use the old fakeApi for now
 
     let email = "";
     let password = "";

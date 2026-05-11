@@ -97,6 +97,36 @@ const LoginForm = () => {
       }
     }
 
+    // Developer login uses real backend API
+    if (userType === "developer") {
+      setIsLoading(true);
+      try {
+        const response = await backendLogin({ email: email.trim().toLowerCase(), password });
+        // Tokens are already saved by authService.login()
+        console.log("DEVELOPER LOGIN SUCCESS:", response);
+        console.log("DEVELOPER ACCESS TOKEN:", localStorage.getItem("teamup_access_token"));
+        console.log("Developer login success, redirecting");
+        resetForm();
+        navigate("/developer/dashboard", { replace: true });
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        // Map backend errors to user-friendly messages
+        let errorMessage = "Login failed";
+        if (error.status === 404) {
+          errorMessage = "Email not found";
+        } else if (error.status === 400) {
+          errorMessage = "Invalid email or password";
+        } else if (error.status === 500) {
+          errorMessage = "Server error, please try again later";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        setErrors({ email: "", password: errorMessage });
+        return;
+      }
+    }
+
     // Other roles still use existing auth logic for now
     const authResult = login(email, password, userType, rememberMe);
     if (!authResult.ok) {
