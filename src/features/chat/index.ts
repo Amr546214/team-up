@@ -22,9 +22,11 @@ export { ChatHeaderMenu } from './components/ChatHeaderMenu';
 export { ConfirmActionModal } from './components/ConfirmActionModal';
 export { CallModal } from './components/CallModal';
 export { IncomingCallModal } from './components/IncomingCallModal';
+export { PinnedMessagesBar } from './components/PinnedMessagesBar';
 
 // Types
-export type { ChatUser, Conversation, Message, ChatState, ChatFilter, MessageType, ChatProfile } from './types';
+export type { ChatUser, Conversation, Message, ChatState, ChatFilter, MessageType, ChatProfile, PinnedMessage } from './types';
+export type { PinnedMessageWithData } from './services/supabaseChatService';
 
 // Mock data for development
 export {

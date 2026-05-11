@@ -73,6 +73,16 @@ export interface ChatState {
   messages: Record<string, Message[]>;
 }
 
+export interface PinnedMessage {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  pinnedBy: string;
+  pinnedAt: string;
+  // Joined message data
+  message?: Message;
+}
+
 export type ChatProfile = {
   id: string;
   email: string | null;

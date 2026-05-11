@@ -26,6 +26,10 @@ import {
   deleteMessageForEveryone,
   markConversationAsRead,
   markConversationMessagesAsRead,
+  getPinnedMessages,
+  pinMessage,
+  unpinMessage,
+  type PinnedMessageWithData,
 } from '../services/supabaseChatService';
 import { supabase } from '../../../lib/supabase';
 
@@ -84,6 +88,14 @@ interface UseChatState {
   // Upload modal
   uploadModal: UploadModalState;
   setUploadModal: (state: UploadModalState) => void;
+
+  // Pinned messages
+  pinnedMessages: PinnedMessageWithData[];
+  isLoadingPinnedMessages: boolean;
+  pinMessageError: string | null;
+  onPinMessage: (messageId: string) => Promise<void>;
+  onUnpinMessage: (messageId: string) => Promise<void>;
+  loadPinnedMessages: (conversationId: string) => Promise<void>;
 }
 
 export function useChat(): UseChatState {
@@ -102,6 +114,11 @@ export function useChat(): UseChatState {
     open: false,
     status: 'uploading',
   });
+
+  // Pinned messages state
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageWithData[]>([]);
+  const [isLoadingPinnedMessages, setIsLoadingPinnedMessages] = useState(false);
+  const [pinMessageError, setPinMessageError] = useState<string | null>(null);
 
   // Track which conversation IDs are real Supabase conversations
   const realConversationIds = useRef<Set<string>>(new Set());
@@ -1306,6 +1323,122 @@ export function useChat(): UseChatState {
     }
   }, []);
 
+  // Load pinned messages for a conversation
+  const loadPinnedMessages = useCallback(async (conversationId: string) => {
+    console.log('[Pinned Messages] fetch CALLED', {
+      conversationId,
+      isRealConversation: realConversationIds.current.has(conversationId),
+    });
+
+    if (!realConversationIds.current.has(conversationId)) {
+      // Mock conversations don't support pinned messages
+      console.log('[Pinned Messages] skipping mock conversation');
+      setPinnedMessages([]);
+      return;
+    }
+
+    setIsLoadingPinnedMessages(true);
+    setPinMessageError(null);
+
+    const { pinnedMessages: loaded, error } = await getPinnedMessages(conversationId);
+
+    console.log('[Pinned Messages] fetch result', {
+      count: loaded?.length || 0,
+      data: loaded,
+      error,
+    });
+
+    if (error) {
+      console.error('[Pinned] load failed', error);
+      setPinMessageError(error);
+    } else {
+      console.log('[Pinned] loaded', loaded.length);
+      setPinnedMessages(loaded);
+    }
+
+    setIsLoadingPinnedMessages(false);
+  }, []);
+
+  // Pin a message
+  const onPinMessage = useCallback(async (messageId: string) => {
+    console.log('[Pinned Messages] pin CALLED', {
+      conversationId: activeConversationId,
+      messageId,
+      pinnedMessagesCount: pinnedMessages.length,
+    });
+
+    if (!activeConversationId) {
+      console.warn('[Pin] no active conversation');
+      return;
+    }
+
+    setPinMessageError(null);
+
+    const { success, error, errorCode } = await pinMessage(activeConversationId, messageId);
+
+    console.log('[Pinned Messages] pin RPC result', {
+      success,
+      error,
+      errorCode,
+    });
+
+    if (!success) {
+      console.error('[Pin] failed', error);
+      setPinMessageError(error);
+
+      // Show alert for max pinned messages
+      if (errorCode === 'MAX_PINNED') {
+        alert(error); // User-friendly error message from service
+      }
+      return;
+    }
+
+    console.log('[Pin] success', messageId);
+    // Reload pinned messages
+    await loadPinnedMessages(activeConversationId);
+  }, [activeConversationId, loadPinnedMessages, pinnedMessages.length]);
+
+  // Unpin a message
+  const onUnpinMessage = useCallback(async (messageId: string) => {
+    console.log('[Pinned Messages] unpin CALLED', {
+      conversationId: activeConversationId,
+      messageId,
+    });
+
+    if (!activeConversationId) {
+      console.warn('[Unpin] no active conversation');
+      return;
+    }
+
+    setPinMessageError(null);
+
+    const { success, error } = await unpinMessage(activeConversationId, messageId);
+
+    console.log('[Pinned Messages] unpin RPC result', {
+      success,
+      error,
+    });
+
+    if (!success) {
+      console.error('[Unpin] failed', error);
+      setPinMessageError(error);
+      return;
+    }
+
+    console.log('[Unpin] success', messageId);
+    // Update local state
+    setPinnedMessages((prev) => prev.filter((p) => p.messageId !== messageId));
+  }, [activeConversationId]);
+
+  // Load pinned messages when conversation changes
+  useEffect(() => {
+    if (activeConversationId) {
+      loadPinnedMessages(activeConversationId);
+    } else {
+      setPinnedMessages([]);
+    }
+  }, [activeConversationId, loadPinnedMessages]);
+
   return {
     activeConversationId,
     messages,
@@ -1347,5 +1480,13 @@ export function useChat(): UseChatState {
     setHighlightedMessageId,
     uploadModal,
     setUploadModal,
+
+    // Pinned messages
+    pinnedMessages,
+    isLoadingPinnedMessages,
+    pinMessageError,
+    onPinMessage,
+    onUnpinMessage,
+    loadPinnedMessages,
   };
 }

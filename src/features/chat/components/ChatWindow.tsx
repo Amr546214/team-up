@@ -12,7 +12,8 @@ import { CallModal } from './CallModal';
 import { ReportMessageModal } from './ReportMessageModal';
 import { ReportUserModal } from './ReportUserModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-import { reportUser, markConversationMessagesAsRead } from '../services/supabaseChatService';
+import { reportUser, markConversationMessagesAsRead, type PinnedMessageWithData } from '../services/supabaseChatService';
+import { PinnedMessagesBar } from './PinnedMessagesBar';
 import {
   createCallSession,
   endCall,
@@ -110,9 +111,14 @@ interface ChatWindowProps {
   // Message actions
   onToggleMessageStar?: (messageId: string, isStarred: boolean) => void;
   onHideMessageForMe?: (messageId: string) => void;
-  onReportMessage?: (messageId: string, reason: string) => void;
+  onReportMessage?: (messageId: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
+  onPinMessage?: (messageId: string) => void;
+  onUnpinMessage?: (messageId: string) => void;
   highlightedMessageId?: string | null;
+  setHighlightedMessageId?: (id: string | null) => void;
+  // Pinned messages
+  pinnedMessages?: PinnedMessageWithData[];
   // Call props
   onCallStateChange?: (state: {
     callSession: CallSession | null;
@@ -147,13 +153,27 @@ export function ChatWindow({
   onHideMessageForMe,
   onReportMessage,
   onDeleteForEveryone,
+  onPinMessage,
+  onUnpinMessage,
   highlightedMessageId = null,
+  setHighlightedMessageId,
+  pinnedMessages = [],
   onCallStateChange,
   externalCallSession = null,
   externalCallStatus = null,
   isUserOnline,
   getOnlineCount,
 }: ChatWindowProps) {
+  // Debug log for pin troubleshooting
+  console.log('[Pin Debug] ChatWindow pin state', {
+    conversationId: conversation?.id,
+    currentUserId: currentUser?.id,
+    pinnedMessagesCount: pinnedMessages?.length,
+    pinnedMessageIds: pinnedMessages?.map((item) => item.messageId || item.message_id),
+    hasOnPinMessage: typeof onPinMessage === 'function',
+    hasOnUnpinMessage: typeof onUnpinMessage === 'function',
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to highlighted message when it changes
@@ -742,6 +762,16 @@ export function ChatWindow({
         </div>
       </div>
 
+      {/* Pinned Messages Bar */}
+      {pinnedMessages.length > 0 && (
+        <PinnedMessagesBar
+          pinnedMessages={pinnedMessages}
+          currentUserId={currentUser.id}
+          onUnpinMessage={onUnpinMessage || (() => {})}
+          onNavigateToMessage={(messageId) => setHighlightedMessageId?.(messageId)}
+        />
+      )}
+
       {/* Messages - Using flex-col with justify-end to keep messages near bottom */}
       <div className="flex-1 overflow-y-auto bg-gradient-to-b from-teal-50/20 via-white to-white">
         <div className="min-h-full flex flex-col">
@@ -782,6 +812,18 @@ export function ChatWindow({
                     return otherUser;
                   };
 
+                  // Check if message is pinned
+                  const isMessagePinned = pinnedMessages.some((p) => p.messageId === message.id);
+
+                  console.log('[Pin Debug] ChatWindow rendering MessageBubble', {
+                    messageId: message.id,
+                    isMessagePinned,
+                    hasOnPinMessage: typeof onPinMessage === 'function',
+                    hasOnUnpinMessage: typeof onUnpinMessage === 'function',
+                    onPinMessageValue: onPinMessage,
+                    onUnpinMessageValue: onUnpinMessage,
+                  });
+
                   return (
                     <MessageBubble
                       key={message.id}
@@ -806,6 +848,8 @@ export function ChatWindow({
                       setSelectedMessageId(msgId);
                       setReportModalOpen(true);
                     }}
+                    onPinMessage={onPinMessage}
+                    isPinned={isMessagePinned}
                     activeAudioId={activeAudioId}
                     setActiveAudioId={setActiveAudioId}
                   />

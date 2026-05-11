@@ -1556,3 +1556,226 @@ export async function getMyStarredMessages(): Promise<{
     return { items: [], error: err?.message || 'Unexpected error' };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pinned Messages
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_PINNED_MESSAGES = 3;
+
+export interface PinnedMessageWithData {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  pinnedBy: string;
+  pinnedAt: string;
+  message: Message;
+}
+
+/**
+ * Get all pinned messages for a conversation.
+ * Returns pinned messages with full message data joined.
+ */
+export async function getPinnedMessages(
+  conversationId: string
+): Promise<{ pinnedMessages: PinnedMessageWithData[]; error: string | null }> {
+  try {
+    console.log('[Pinned Service] fetching for conversation', conversationId);
+
+    // First try with join
+    let data: any[] | null = null;
+    let error: any = null;
+
+    try {
+      const result = await supabase
+        .from('pinned_messages')
+        .select(`
+          id,
+          conversation_id,
+          message_id,
+          pinned_by,
+          pinned_at,
+          message:messages!inner(*)
+        `)
+        .eq('conversation_id', conversationId)
+        .order('pinned_at', { ascending: false });
+
+      data = result.data;
+      error = result.error;
+    } catch (joinErr) {
+      console.warn('[Pinned Service] join query failed, trying without join', joinErr);
+    }
+
+    // If join failed or returned no data with error, try simpler query
+    if (error || !data) {
+      console.log('[Pinned Service] trying simple query without join');
+      const simpleResult = await supabase
+        .from('pinned_messages')
+        .select('id, conversation_id, message_id, pinned_by, pinned_at')
+        .eq('conversation_id', conversationId)
+        .order('pinned_at', { ascending: false });
+
+      if (simpleResult.error) {
+        console.error('[Pinned Service] simple query failed', simpleResult.error);
+        return { pinnedMessages: [], error: simpleResult.error.message };
+      }
+
+      // Fetch messages separately
+      const pinnedData = simpleResult.data || [];
+      const messageIds = pinnedData.map((p: any) => p.message_id);
+
+      let messagesData: any[] = [];
+      if (messageIds.length > 0) {
+        const { data: msgs, error: msgsError } = await supabase
+          .from('messages')
+          .select('*')
+          .in('id', messageIds);
+
+        if (msgsError) {
+          console.error('[Pinned Service] fetch messages failed', msgsError);
+        } else {
+          messagesData = msgs || [];
+        }
+      }
+
+      // Merge data
+      const merged = pinnedData.map((pin: any) => ({
+        ...pin,
+        message: messagesData.find((m: any) => m.id === pin.message_id),
+      }));
+
+      data = merged;
+    }
+
+    // Map to our type format and filter out any without message data
+    const pinnedMessages = (data || [])
+      .map((row: any) => ({
+        id: row.id,
+        conversationId: row.conversation_id,
+        messageId: row.message_id,
+        pinnedBy: row.pinned_by,
+        pinnedAt: row.pinned_at,
+        message: row.message ? rowToMessage(row.message) : null,
+      }))
+      .filter((p): p is PinnedMessageWithData => p.message !== null);
+
+    console.log('[Pinned Service] loaded count', conversationId, pinnedMessages.length);
+    return { pinnedMessages, error: null };
+  } catch (err: any) {
+    console.error('[Pinned Service] get failed', err);
+    return { pinnedMessages: [], error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Pin a message to a conversation.
+ * Returns success or error with specific code for max pinned limit.
+ */
+export async function pinMessage(
+  conversationId: string,
+  messageId: string
+): Promise<{ success: boolean; error: string | null; errorCode?: 'MAX_PINNED' | 'ALREADY_PINNED' | 'NOT_FOUND' | string }> {
+  try {
+    // Check current pinned count
+    const { count, error: countError } = await supabase
+      .from('pinned_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId);
+
+    if (countError) {
+      console.error('[Pinned] count check failed', countError);
+      return { success: false, error: countError.message };
+    }
+
+    if (count && count >= MAX_PINNED_MESSAGES) {
+      console.warn('[Pinned] max pinned messages reached', conversationId, count);
+      return {
+        success: false,
+        error: `Maximum ${MAX_PINNED_MESSAGES} pinned messages allowed. Please unpin a message first.`,
+        errorCode: 'MAX_PINNED',
+      };
+    }
+
+    // Insert pinned message
+    const { error } = await supabase
+      .from('pinned_messages')
+      .insert({
+        conversation_id: conversationId,
+        message_id: messageId,
+      });
+
+    if (error) {
+      // Check for unique constraint violation (already pinned)
+      if (error.code === '23505') {
+        console.warn('[Pinned] message already pinned', messageId);
+        return {
+          success: false,
+          error: 'Message is already pinned.',
+          errorCode: 'ALREADY_PINNED',
+        };
+      }
+      console.error('[Pinned] pin failed', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[Pinned] pinned message', conversationId, messageId);
+    return { success: true, error: null };
+  } catch (err: any) {
+    console.error('[Pinned] pin failed', err);
+    return { success: false, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Unpin a message from a conversation.
+ */
+export async function unpinMessage(
+  conversationId: string,
+  messageId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const { error } = await supabase
+      .from('pinned_messages')
+      .delete()
+      .eq('conversation_id', conversationId)
+      .eq('message_id', messageId);
+
+    if (error) {
+      console.error('[Pinned] unpin failed', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[Pinned] unpinned message', conversationId, messageId);
+    return { success: true, error: null };
+  } catch (err: any) {
+    console.error('[Pinned] unpin failed', err);
+    return { success: false, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Check if a message is pinned in a conversation.
+ */
+export async function isMessagePinned(
+  conversationId: string,
+  messageId: string
+): Promise<{ isPinned: boolean; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('pinned_messages')
+      .select('id')
+      .eq('conversation_id', conversationId)
+      .eq('message_id', messageId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Pinned] check failed', error);
+      return { isPinned: false, error: error.message };
+    }
+
+    return { isPinned: !!data, error: null };
+  } catch (err: any) {
+    console.error('[Pinned] check failed', err);
+    return { isPinned: false, error: err?.message || 'Unexpected error' };
+  }
+}

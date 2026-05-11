@@ -15,6 +15,7 @@ import {
   Flag,
   Trash,
   Play,
+  Pin,
 } from 'lucide-react';
 import { VoiceMessageBubble } from './VoiceMessageBubble';
 import { VideoPreviewModal } from './VideoPreviewModal';
@@ -29,6 +30,8 @@ interface MessageBubbleProps {
   onHideForMe?: (messageId: string) => void;
   onReport?: (messageId: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
+  onPinMessage?: (messageId: string) => void;
+  isPinned?: boolean;
   isHighlighted?: boolean;
   // Audio coordination props
   activeAudioId?: string | null;
@@ -44,10 +47,20 @@ export function MessageBubble({
   onHideForMe,
   onReport,
   onDeleteForEveryone,
+  onPinMessage,
+  isPinned = false,
   isHighlighted = false,
   activeAudioId,
   setActiveAudioId,
 }: MessageBubbleProps) {
+  // Debug log for pin troubleshooting
+  console.log('[Pin Debug] MessageBubble props', {
+    messageId: message?.id,
+    isPinned,
+    hasOnPinMessage: typeof onPinMessage === 'function',
+    hasOnUnpinMessage: typeof onPinMessage === 'function', // using onPinMessage for both pin/unpin
+  });
+
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -84,6 +97,28 @@ export function MessageBubble({
     }
     console.log('[Star Debug] message', message.id, 'isStarred', message.isStarred);
     onToggleStar?.(message.id, !message.isStarred);
+    setMenuOpen(false);
+  };
+
+  const handlePin = () => {
+    console.log('[Pin Debug] handlePin CALLED', {
+      messageId: message?.id,
+      isPinned,
+      isDeletedForEveryone,
+    });
+
+    if (isDeletedForEveryone) {
+      console.warn('[Message Actions] blocked action on deleted message', { messageId: message.id, action: 'pin' });
+      return;
+    }
+
+    if (!message?.id) {
+      console.warn('[Pin Debug] cannot pin because message.id is missing', message);
+      return;
+    }
+
+    console.log('[Pin Debug] calling onPinMessage with', message.id);
+    onPinMessage?.(message.id);
     setMenuOpen(false);
   };
 
@@ -395,13 +430,22 @@ export function MessageBubble({
                 className="absolute right-full top-0 mr-2 w-44 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50"
               >
                 {!isDeletedForEveryone && (
-                  <button
-                    onClick={handleStar}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
-                    {message.isStarred ? 'Unstar message' : 'Star message'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handlePin}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Pin className={`w-4 h-4 ${isPinned ? 'fill-amber-600 text-amber-600' : ''}`} />
+                      {isPinned ? 'Unpin message' : 'Pin message'}
+                    </button>
+                    <button
+                      onClick={handleStar}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      {message.isStarred ? 'Unstar message' : 'Star message'}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={handleHide}
@@ -499,13 +543,22 @@ export function MessageBubble({
                 className="absolute right-full top-0 mr-2 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50"
               >
                 {!isDeletedForEveryone && (
-                  <button
-                    onClick={handleStar}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
-                    {message.isStarred ? 'Unstar message' : 'Star message'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handlePin}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Pin className={`w-4 h-4 ${isPinned ? 'fill-amber-600 text-amber-600' : ''}`} />
+                      {isPinned ? 'Unpin message' : 'Pin message'}
+                    </button>
+                    <button
+                      onClick={handleStar}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      {message.isStarred ? 'Unstar message' : 'Star message'}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={handleHide}
