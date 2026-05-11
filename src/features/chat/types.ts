@@ -33,6 +33,8 @@ export interface Message {
   hiddenAt?: string | null;
   reportedAt?: string | null;
   reportReason?: string | null;
+  // Read receipt timestamp (null = not read, date = read by recipient)
+  readAt?: string | null;
   // Sender profile (fetched alongside messages)
   senderProfile?: {
     id: string;
@@ -69,6 +71,16 @@ export interface ChatState {
   conversations: Conversation[];
   activeConversationId: string | null;
   messages: Record<string, Message[]>;
+}
+
+export interface PinnedMessage {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  pinnedBy: string;
+  pinnedAt: string;
+  // Joined message data
+  message?: Message;
 }
 
 export type ChatProfile = {

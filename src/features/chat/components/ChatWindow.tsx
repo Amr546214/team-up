@@ -12,7 +12,8 @@ import { CallModal } from './CallModal';
 import { ReportMessageModal } from './ReportMessageModal';
 import { ReportUserModal } from './ReportUserModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-import { reportUser } from '../services/supabaseChatService';
+import { reportUser, markConversationMessagesAsRead, type PinnedMessageWithData } from '../services/supabaseChatService';
+import { PinnedMessagesBar } from './PinnedMessagesBar';
 import {
   createCallSession,
   endCall,
@@ -110,9 +111,14 @@ interface ChatWindowProps {
   // Message actions
   onToggleMessageStar?: (messageId: string, isStarred: boolean) => void;
   onHideMessageForMe?: (messageId: string) => void;
-  onReportMessage?: (messageId: string, reason: string) => void;
+  onReportMessage?: (messageId: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
+  onPinMessage?: (messageId: string) => void;
+  onUnpinMessage?: (messageId: string) => void;
   highlightedMessageId?: string | null;
+  setHighlightedMessageId?: (id: string | null) => void;
+  // Pinned messages
+  pinnedMessages?: PinnedMessageWithData[];
   // Call props
   onCallStateChange?: (state: {
     callSession: CallSession | null;
@@ -147,13 +153,27 @@ export function ChatWindow({
   onHideMessageForMe,
   onReportMessage,
   onDeleteForEveryone,
+  onPinMessage,
+  onUnpinMessage,
   highlightedMessageId = null,
+  setHighlightedMessageId,
+  pinnedMessages = [],
   onCallStateChange,
   externalCallSession = null,
   externalCallStatus = null,
   isUserOnline,
   getOnlineCount,
 }: ChatWindowProps) {
+  // Debug log for pin troubleshooting
+  console.log('[Pin Debug] ChatWindow pin state', {
+    conversationId: conversation?.id,
+    currentUserId: currentUser?.id,
+    pinnedMessagesCount: pinnedMessages?.length,
+    pinnedMessageIds: pinnedMessages?.map((item) => item.messageId || item.message_id),
+    hasOnPinMessage: typeof onPinMessage === 'function',
+    hasOnUnpinMessage: typeof onUnpinMessage === 'function',
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to highlighted message when it changes
@@ -173,7 +193,60 @@ export function ChatWindow({
     };
     setTimeout(() => attempt(5), 200);
   }, [highlightedMessageId]);
-  
+
+  // Mark incoming messages as read when conversation opens
+  useEffect(() => {
+    if (!conversation?.id || !currentUser?.id) return;
+
+    const conversationId = conversation.id;
+    const userId = currentUser.id;
+
+    console.log('[Read Receipts ChatWindow] marking messages as read', {
+      conversationId,
+      conversationIdType: typeof conversationId,
+      conversationIdLength: conversationId.length,
+      currentUserId: userId,
+      currentUserIdType: typeof userId,
+      currentUserIdLength: userId.length,
+      fullCurrentUser: {
+        id: userId,
+        name: currentUser.name,
+        role: currentUser.role,
+      },
+      fullConversation: {
+        id: conversationId,
+        type: conversation.type,
+        participantIds: conversation.participants?.map(p => p.id),
+      },
+    });
+
+    markConversationMessagesAsRead(conversationId, userId).then((result) => {
+      console.log('[Read Receipts ChatWindow] result', result);
+    }).catch((err) => {
+      console.error('[Read Receipts ChatWindow] failed', err);
+    });
+  }, [conversation?.id, currentUser?.id, conversation, currentUser]);
+
+  // Also mark messages as read when new messages arrive while chat is open
+  useEffect(() => {
+    if (!conversation?.id || !currentUser?.id) return;
+
+    const conversationId = conversation.id;
+    const userId = currentUser.id;
+
+    // Check if there are any unread messages from others
+    const hasUnreadFromOthers = messages.some(
+      (m) => m.senderId !== userId && !m.readAt
+    );
+
+    if (hasUnreadFromOthers) {
+      console.log('[Read Receipts ChatWindow] new unread messages detected, marking as read');
+      markConversationMessagesAsRead(conversationId, userId).catch((err) => {
+        console.error('[Read Receipts ChatWindow] failed to mark new messages', err);
+      });
+    }
+  }, [messages.length, conversation?.id, currentUser?.id, conversation, currentUser, messages]);
+
   // Image preview modal state
   const [previewImage, setPreviewImage] = useState<{
     url: string;
@@ -213,6 +286,9 @@ export function ChatWindow({
 
   // Group call coming soon popup state
   const [showGroupCallPopup, setShowGroupCallPopup] = useState(false);
+
+  // Active audio state - only one audio can play at a time
+  const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!externalCallSession) return;
@@ -686,6 +762,16 @@ export function ChatWindow({
         </div>
       </div>
 
+      {/* Pinned Messages Bar */}
+      {pinnedMessages.length > 0 && (
+        <PinnedMessagesBar
+          pinnedMessages={pinnedMessages}
+          currentUserId={currentUser.id}
+          onUnpinMessage={onUnpinMessage || (() => {})}
+          onNavigateToMessage={(messageId) => setHighlightedMessageId?.(messageId)}
+        />
+      )}
+
       {/* Messages - Using flex-col with justify-end to keep messages near bottom */}
       <div className="flex-1 overflow-y-auto bg-gradient-to-b from-teal-50/20 via-white to-white">
         <div className="min-h-full flex flex-col">
@@ -726,6 +812,18 @@ export function ChatWindow({
                     return otherUser;
                   };
 
+                  // Check if message is pinned
+                  const isMessagePinned = pinnedMessages.some((p) => p.messageId === message.id);
+
+                  console.log('[Pin Debug] ChatWindow rendering MessageBubble', {
+                    messageId: message.id,
+                    isMessagePinned,
+                    hasOnPinMessage: typeof onPinMessage === 'function',
+                    hasOnUnpinMessage: typeof onUnpinMessage === 'function',
+                    onPinMessageValue: onPinMessage,
+                    onUnpinMessageValue: onUnpinMessage,
+                  });
+
                   return (
                     <MessageBubble
                       key={message.id}
@@ -750,6 +848,10 @@ export function ChatWindow({
                       setSelectedMessageId(msgId);
                       setReportModalOpen(true);
                     }}
+                    onPinMessage={onPinMessage}
+                    isPinned={isMessagePinned}
+                    activeAudioId={activeAudioId}
+                    setActiveAudioId={setActiveAudioId}
                   />
                   );
                 })}

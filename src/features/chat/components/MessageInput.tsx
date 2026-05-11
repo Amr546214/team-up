@@ -38,6 +38,9 @@ export function MessageInput({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Ref to track if recording should be discarded (cancelled)
+  const shouldDiscardRecordingRef = useRef(false);
+
   // Typing indicator refs
   const isTypingRef = useRef<boolean>(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -202,6 +205,27 @@ export function MessageInput({
       };
 
       mediaRecorder.onstop = () => {
+        // Check if recording should be discarded (cancelled)
+        if (shouldDiscardRecordingRef.current) {
+          console.log('[Voice] recording discarded (cancelled)');
+          shouldDiscardRecordingRef.current = false;
+
+          // Stop all tracks
+          stream.getTracks().forEach(track => track.stop());
+
+          // Clear recording state
+          setIsRecording(false);
+          setRecordingTime(0);
+          if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+          }
+
+          // Clear audio chunks
+          audioChunksRef.current = [];
+          return;
+        }
+
+        // Normal stop - send the recording
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const duration = recordingTime;
 
@@ -216,7 +240,7 @@ export function MessageInput({
 
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
-        
+
         // Clear recording state
         setIsRecording(false);
         setRecordingTime(0);
@@ -247,14 +271,19 @@ export function MessageInput({
   };
 
   const cancelRecording = () => {
+    console.log('[Voice] cancel recording clicked');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      // Set flag to discard recording instead of sending
+      shouldDiscardRecordingRef.current = true;
       mediaRecorderRef.current.stop();
-      // Don't send - just clear
+    } else {
+      // If not recording, just reset state
       setIsRecording(false);
       setRecordingTime(0);
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
       }
+      audioChunksRef.current = [];
     }
   };
 

@@ -80,6 +80,11 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
     setHighlightedMessageId,
     uploadModal,
     setUploadModal,
+    // Pinned messages
+    pinnedMessages,
+    onPinMessage,
+    onUnpinMessage,
+    loadPinnedMessages,
   } = useChat();
 
   // Presence - track online users
@@ -366,7 +371,11 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
                 onHideMessageForMe={onHideMessageForMe}
                 onReportMessage={onReportMessage}
                 onDeleteForEveryone={onDeleteForEveryone}
+                onPinMessage={onPinMessage}
+                onUnpinMessage={onUnpinMessage}
+                pinnedMessages={pinnedMessages}
                 highlightedMessageId={highlightedMessageId}
+                setHighlightedMessageId={setHighlightedMessageId}
                 onCallStateChange={handleCallStateChange}
                 externalCallSession={activeCallSession}
                 externalCallStatus={activeCallStatus}
