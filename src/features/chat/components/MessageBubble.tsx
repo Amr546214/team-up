@@ -441,12 +441,17 @@ export function MessageBubble({
             {renderMessageContent()}
             <div className="flex items-center justify-end gap-1.5 mt-1 text-teal-200">
               <span className="text-[11px]">{formatMessageTime(message.timestamp)}</span>
-              {message.type === 'text' && (
-                <span className="text-[11px] opacity-80">
-                  {message.status === 'read' && <span className="text-teal-200">✓✓</span>}
-                  {message.status === 'delivered' && '✓✓'}
-                  {message.status === 'sent' && '✓'}
-                  {message.status === 'unread' && '✓'}
+              {/* Read receipts: show check marks only for current user's messages */}
+              {isCurrentUser && (
+                <span
+                  className="text-[11px] opacity-80"
+                  title={message.readAt ? 'Seen' : 'Sent'}
+                >
+                  {message.readAt ? (
+                    <span className="text-teal-200">✓✓</span>  // Two checks = read
+                  ) : (
+                    <span>✓</span>  // One check = sent but not read
+                  )}
                 </span>
               )}
             </div>

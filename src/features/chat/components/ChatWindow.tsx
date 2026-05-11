@@ -12,7 +12,7 @@ import { CallModal } from './CallModal';
 import { ReportMessageModal } from './ReportMessageModal';
 import { ReportUserModal } from './ReportUserModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
-import { reportUser } from '../services/supabaseChatService';
+import { reportUser, markConversationMessagesAsRead } from '../services/supabaseChatService';
 import {
   createCallSession,
   endCall,
@@ -173,7 +173,60 @@ export function ChatWindow({
     };
     setTimeout(() => attempt(5), 200);
   }, [highlightedMessageId]);
-  
+
+  // Mark incoming messages as read when conversation opens
+  useEffect(() => {
+    if (!conversation?.id || !currentUser?.id) return;
+
+    const conversationId = conversation.id;
+    const userId = currentUser.id;
+
+    console.log('[Read Receipts ChatWindow] marking messages as read', {
+      conversationId,
+      conversationIdType: typeof conversationId,
+      conversationIdLength: conversationId.length,
+      currentUserId: userId,
+      currentUserIdType: typeof userId,
+      currentUserIdLength: userId.length,
+      fullCurrentUser: {
+        id: userId,
+        name: currentUser.name,
+        role: currentUser.role,
+      },
+      fullConversation: {
+        id: conversationId,
+        type: conversation.type,
+        participantIds: conversation.participants?.map(p => p.id),
+      },
+    });
+
+    markConversationMessagesAsRead(conversationId, userId).then((result) => {
+      console.log('[Read Receipts ChatWindow] result', result);
+    }).catch((err) => {
+      console.error('[Read Receipts ChatWindow] failed', err);
+    });
+  }, [conversation?.id, currentUser?.id, conversation, currentUser]);
+
+  // Also mark messages as read when new messages arrive while chat is open
+  useEffect(() => {
+    if (!conversation?.id || !currentUser?.id) return;
+
+    const conversationId = conversation.id;
+    const userId = currentUser.id;
+
+    // Check if there are any unread messages from others
+    const hasUnreadFromOthers = messages.some(
+      (m) => m.senderId !== userId && !m.readAt
+    );
+
+    if (hasUnreadFromOthers) {
+      console.log('[Read Receipts ChatWindow] new unread messages detected, marking as read');
+      markConversationMessagesAsRead(conversationId, userId).catch((err) => {
+        console.error('[Read Receipts ChatWindow] failed to mark new messages', err);
+      });
+    }
+  }, [messages.length, conversation?.id, currentUser?.id, conversation, currentUser, messages]);
+
   // Image preview modal state
   const [previewImage, setPreviewImage] = useState<{
     url: string;

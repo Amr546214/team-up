@@ -33,6 +33,8 @@ export interface Message {
   hiddenAt?: string | null;
   reportedAt?: string | null;
   reportReason?: string | null;
+  // Read receipt timestamp (null = not read, date = read by recipient)
+  readAt?: string | null;
   // Sender profile (fetched alongside messages)
   senderProfile?: {
     id: string;

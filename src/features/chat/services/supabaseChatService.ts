@@ -191,6 +191,22 @@ export async function getCurrentUserProfile(): Promise<{
       };
     }
 
+    // Profile not found - use auth metadata fallback
+    if (!profile) {
+      console.warn('[Chat] Profile not found for user', user.id, '- using auth metadata fallback');
+      const userMetadata = user.user_metadata;
+      return {
+        user: {
+          id: user.id,
+          name: userMetadata?.full_name || user.email || 'You',
+          role: toValidRole(userMetadata?.role),
+          avatar: userMetadata?.avatar_url || undefined,
+          status: 'online',
+        },
+        error: null,
+      };
+    }
+
     // 4. Return profile data
     const chatUser: ChatUser = {
       id: profile.id,
@@ -227,6 +243,7 @@ function rowToMessage(row: any): Message {
     deletedBy: row.deleted_by ?? null,
     deleteScope: row.delete_scope ?? null,
     deleteReason: row.delete_reason ?? null,
+    readAt: row.read_at ?? null,
   };
 }
 
@@ -409,7 +426,7 @@ export async function getConversationMessages(
           console.error('[Media URL] batch signed URL creation failed', signedUrlsError);
         } else if (signedUrlsData) {
           signedUrlsData.forEach((item) => {
-            if (item.signedUrl) {
+            if (item.signedUrl && item.path) {
               signedUrlsMap.set(item.path, item.signedUrl);
             }
           });
@@ -930,6 +947,117 @@ export async function markConversationAsRead(
   } catch (err: any) {
     console.error('[Unread] mark read failed', err);
     return { success: false, error: err?.message || 'Unexpected error' };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Read Receipts
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Mark all incoming messages in a conversation as read using RPC.
+ * The RPC function handles sender_id filtering and RLS bypass server-side.
+ * currentUserId parameter kept for API compatibility and debug logging.
+ */
+export async function markConversationMessagesAsRead(
+  conversationId: string,
+  currentUserId: string
+): Promise<{ success: boolean; data: any[] | null; error: string | null }> {
+  try {
+    console.log('[Read Receipts Debug] marking messages as read', {
+      conversationId,
+      currentUserId,
+      currentUserIdType: typeof currentUserId,
+    });
+
+    // Step 1: Debug - fetch all messages in conversation to understand the data
+    const { data: debugMessages, error: debugError } = await supabase
+      .from('messages')
+      .select('id, conversation_id, sender_id, content, read_at, created_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    console.log('[Read Receipts Debug] all messages in conversation', {
+      conversationId,
+      currentUserId,
+      debugError: debugError?.message,
+      messageCount: debugMessages?.length || 0,
+      debugMessages: debugMessages?.map(m => ({
+        id: m.id,
+        sender_id: m.sender_id,
+        sender_id_type: typeof m.sender_id,
+        read_at: m.read_at,
+        content_preview: m.content?.substring(0, 30),
+      })),
+    });
+
+    if (debugError) {
+      console.error('[Read Receipts Debug] failed to fetch debug messages', debugError);
+    }
+
+    // Step 2: Calculate unread incoming in JS for debugging
+    const unreadIncomingDebug = (debugMessages || []).filter((message) => {
+      const isFromOther = message.sender_id !== currentUserId;
+      const isUnread = !message.read_at;
+      return isFromOther && isUnread;
+    });
+
+    console.log('[Read Receipts Debug] unread incoming calculated in JS', {
+      currentUserId,
+      unreadCount: unreadIncomingDebug.length,
+      unreadMessages: unreadIncomingDebug.map(m => ({
+        id: m.id,
+        sender_id: m.sender_id,
+        content_preview: m.content?.substring(0, 30),
+      })),
+      allSenderIds: debugMessages?.map(m => m.sender_id),
+    });
+
+    // Step 3: Use RPC to bypass RLS and mark messages as read
+    // The RPC function handles the update logic server-side with proper permissions
+    console.log('[Read Receipts Debug] calling RPC mark_conversation_messages_read', {
+      conversationId,
+    });
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'mark_conversation_messages_read',
+      {
+        p_conversation_id: conversationId,
+      }
+    );
+
+    console.log('[Read Receipts Debug] RPC result', {
+      rpcData,
+      rpcError: rpcError?.message,
+    });
+
+    if (rpcError) {
+      console.error('[Read Receipts Debug] RPC failed', rpcError);
+      return { success: false, data: null, error: rpcError.message };
+    }
+
+    // RPC returns the updated message IDs, fetch their full data
+    if (rpcData && rpcData.length > 0) {
+      const { data: updatedMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('id, conversation_id, sender_id, read_at')
+        .in('id', rpcData);
+
+      console.log('[Read Receipts Debug] fetched updated messages', {
+        count: updatedMessages?.length || 0,
+        updatedMessages,
+        fetchError: fetchError?.message,
+      });
+
+      return { success: true, data: updatedMessages || [], error: null };
+    }
+
+    // No unread messages to update
+    console.log('[Read Receipts Debug] no unread incoming messages found');
+    return { success: true, data: [], error: null };
+  } catch (err: any) {
+    console.error('[Read Receipts] failed to mark as read', err);
+    return { success: false, data: null, error: err?.message || 'Unexpected error' };
   }
 }
 

@@ -25,6 +25,7 @@ import {
   reportMessage,
   deleteMessageForEveryone,
   markConversationAsRead,
+  markConversationMessagesAsRead,
 } from '../services/supabaseChatService';
 import { supabase } from '../../../lib/supabase';
 
@@ -270,6 +271,8 @@ export function useChat(): UseChatState {
   // Actions
   const selectConversation = useCallback(async (id: string) => {
     console.log('[Messages] selectConversation called', id);
+    console.log('[Read Receipts Debug] selectConversation currentUserIdRef:', currentUserIdRef.current);
+    console.log('[Read Receipts Debug] selectConversation currentUserProfile?.id:', currentUserProfile?.id);
     setActiveConversationId(id);
     setIsMobileChatOpen(true);
 
@@ -303,6 +306,40 @@ export function useChat(): UseChatState {
         [id]: loadedMessages,
       }));
       setIsLoadingMessages(false);
+
+      // Mark incoming messages as read for read receipts (don't block)
+      // Use realUserIdRef which has the actual Supabase auth user ID
+      const currentUserIdForRead = realUserIdRef.current || currentUserIdRef.current;
+      console.log('[Read Receipts Debug] realUserIdRef.current:', realUserIdRef.current);
+      console.log('[Read Receipts Debug] currentUserIdRef.current:', currentUserIdRef.current);
+      console.log('[Read Receipts Debug] using currentUserIdForRead:', currentUserIdForRead);
+      if (currentUserIdForRead) {
+        const userIdForRead = currentUserIdForRead; // narrow type
+        console.log('[Read Receipts] marking messages as read for conversation', id);
+        markConversationMessagesAsRead(id, userIdForRead).then((result) => {
+          if (result.success && result.data && result.data.length > 0) {
+            console.log('[Read Receipts] updating local state with read messages', result.data);
+            // Update local messages state immediately
+            setMessages((prev) => {
+              const conversationMessages = prev[id] || [];
+              const updatedMessages = conversationMessages.map((msg) => {
+                const updated = result.data?.find((item) => item.id === msg.id);
+                if (!updated) return msg;
+                return {
+                  ...msg,
+                  readAt: updated.read_at,
+                };
+              });
+              return {
+                ...prev,
+                [id]: updatedMessages,
+              };
+            });
+          }
+        }).catch((err) => {
+          console.error('[Read Receipts] mark messages as read failed', err);
+        });
+      }
     } else {
       // Mock fallback: use localStorage
       addReadConversationId(id);
@@ -644,7 +681,9 @@ export function useChat(): UseChatState {
   }, []);
 
   const loadCurrentUserProfile = useCallback(async () => {
-    const currentAuthUserId = session?.id || session?.user?.id || null;
+    // Safely access session properties (session comes from JS context)
+    const sessionAny = session as any;
+    const currentAuthUserId = sessionAny?.id || sessionAny?.user?.id || null;
 
     if (!isAuthReady || !isProfileReady) {
       console.warn('[Chat] profile load skipped: auth/profile not ready', {
@@ -699,14 +738,18 @@ export function useChat(): UseChatState {
       setIsLoadingCurrentUser(false);
       return;
     }
-  }, [isAuthReady, isProfileReady, session?.id, session?.user?.id]);
+  }, [isAuthReady, isProfileReady, session]);
 
   useEffect(() => {
+    // Safely access session properties (session comes from JS context)
+    const sessionAny = session as any;
+    const currentAuthUserId = sessionAny?.id || sessionAny?.user?.id;
+
     console.log('[Chat Auth Gate]', {
       isAuthReady,
       isProfileReady,
       hasSession: !!session,
-      authUserId: session?.id || session?.user?.id,
+      authUserId: currentAuthUserId,
     });
 
     if (!isAuthReady || !isProfileReady) {
@@ -714,7 +757,6 @@ export function useChat(): UseChatState {
       return;
     }
 
-    const currentAuthUserId = session?.id || session?.user?.id;
     if (!currentAuthUserId) {
       console.warn('[Chat] auth/profile ready but no user/session, skipping chat load', {
         isAuthReady,
@@ -725,7 +767,7 @@ export function useChat(): UseChatState {
     }
 
     loadCurrentUserProfile();
-  }, [isAuthReady, isProfileReady, session?.id, session?.user?.id, loadCurrentUserProfile]);
+  }, [isAuthReady, isProfileReady, session, loadCurrentUserProfile]);
 
   useEffect(() => {
     if (!isLoadingCurrentUser && currentUserProfile) {
@@ -754,6 +796,34 @@ export function useChat(): UseChatState {
           markConversationAsRead(savedId).catch((err) => {
             console.error('[Unread] mark read failed', err);
           });
+
+          // Also mark messages as read for read receipts
+          const currentUserIdForRead = realUserIdRef.current || currentUserIdRef.current;
+          if (currentUserIdForRead) {
+            const userIdForRead = currentUserIdForRead; // narrow type
+            markConversationMessagesAsRead(savedId, userIdForRead).then((result) => {
+              if (result.success && result.data && result.data.length > 0) {
+                console.log('[Read Receipts Restore] updating local state', result.data);
+                setMessages((prev) => {
+                  const conversationMessages = prev[savedId] || [];
+                  const updatedMessages = conversationMessages.map((msg) => {
+                    const updated = result.data?.find((item) => item.id === msg.id);
+                    if (!updated) return msg;
+                    return {
+                      ...msg,
+                      readAt: updated.read_at,
+                    };
+                  });
+                  return {
+                    ...prev,
+                    [savedId]: updatedMessages,
+                  };
+                });
+              }
+            }).catch((err) => {
+              console.error('[Read Receipts Restore] mark failed', err);
+            });
+          }
         }
 
         setMessages((prevMessages) => {
@@ -773,6 +843,34 @@ export function useChat(): UseChatState {
                 [savedId]: loadedMessages,
               }));
               setIsLoadingMessages(false);
+
+              // After loading messages, mark incoming as read for read receipts
+              const currentUserIdForRead = realUserIdRef.current || currentUserIdRef.current;
+              if (currentUserIdForRead) {
+                const userIdForRead = currentUserIdForRead; // narrow type
+                markConversationMessagesAsRead(savedId, userIdForRead).then((result) => {
+                  if (result.success && result.data && result.data.length > 0) {
+                    console.log('[Read Receipts Restore Load] updating local state', result.data);
+                    setMessages((prev) => {
+                      const conversationMessages = prev[savedId] || [];
+                      const updatedMessages = conversationMessages.map((msg) => {
+                        const updated = result.data?.find((item) => item.id === msg.id);
+                        if (!updated) return msg;
+                        return {
+                          ...msg,
+                          readAt: updated.read_at,
+                        };
+                      });
+                      return {
+                        ...prev,
+                        [savedId]: updatedMessages,
+                      };
+                    });
+                  }
+                }).catch((err) => {
+                  console.error('[Read Receipts Restore Load] mark failed', err);
+                });
+              }
             });
           }
           return prevMessages;
@@ -816,7 +914,7 @@ export function useChat(): UseChatState {
 
           // Check if this is for the active conversation
           const isActiveConversation = convId === activeConversationIdRef.current;
-          const currentUserId = currentUserIdRef.current;
+          const currentUserId = realUserIdRef.current || currentUserIdRef.current;
           const isFromOtherUser = row.sender_id !== currentUserId;
 
           if (isActiveConversation) {
@@ -861,9 +959,38 @@ export function useChat(): UseChatState {
 
             // Mark as read if message is from another user
             if (isFromOtherUser) {
+              // Mark conversation as read for unread count
               markConversationAsRead(convId).catch((err) => {
                 console.error('[Unread] mark read failed', err);
               });
+
+              // Also mark individual messages as read for read receipts
+              const currentUserIdForRead = realUserIdRef.current || currentUserIdRef.current;
+              if (currentUserIdForRead) {
+                const userIdForRead = currentUserIdForRead; // narrow type
+                markConversationMessagesAsRead(convId, userIdForRead).then((result) => {
+                  if (result.success && result.data && result.data.length > 0) {
+                    console.log('[Read Receipts Realtime] updating local state', result.data);
+                    setMessages((prev) => {
+                      const conversationMessages = prev[convId] || [];
+                      const updatedMessages = conversationMessages.map((msg) => {
+                        const updated = result.data?.find((item) => item.id === msg.id);
+                        if (!updated) return msg;
+                        return {
+                          ...msg,
+                          readAt: updated.read_at,
+                        };
+                      });
+                      return {
+                        ...prev,
+                        [convId]: updatedMessages,
+                      };
+                    });
+                  }
+                }).catch((err) => {
+                  console.error('[Read Receipts Realtime] mark failed', err);
+                });
+              }
             }
           } else {
             // Inactive conversation - update sidebar preview and increment unread
@@ -904,6 +1031,64 @@ export function useChat(): UseChatState {
 
     return () => {
       console.log('[Realtime Insert] cleanup chat-messages-insert channel');
+      supabase.removeChannel(channel);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations.length]);
+
+  // Realtime: listen to UPDATE messages for read receipts
+  useEffect(() => {
+    // Only subscribe once we have loaded some real conversations
+    if (realConversationIds.current.size === 0) return;
+
+    console.log('[Read Receipts Realtime] subscribed');
+
+    const channel = supabase
+      .channel('chat-messages-update')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const row = payload.new as any;
+          const convId = row.conversation_id;
+
+          console.log('[Read Receipts] message updated realtime', row);
+
+          // Ignore messages for conversations we haven't loaded
+          if (!realConversationIds.current.has(convId)) {
+            console.log('[Read Receipts] ignored unknown conversation', convId);
+            return;
+          }
+
+          // Update the message in state
+          setMessages((prev) => {
+            const conversationMessages = prev[convId] || [];
+            const updatedMessages = conversationMessages.map((msg) =>
+              msg.id === row.id
+                ? {
+                    ...msg,
+                    readAt: row.read_at ?? null,
+                  }
+                : msg
+            );
+
+            return {
+              ...prev,
+              [convId]: updatedMessages,
+            };
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Read Receipts Realtime] status', status);
+      });
+
+    return () => {
+      console.log('[Read Receipts Realtime] cleanup chat-messages-update channel');
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
