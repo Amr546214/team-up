@@ -30,6 +30,9 @@ interface MessageBubbleProps {
   onReport?: (messageId: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
   isHighlighted?: boolean;
+  // Audio coordination props
+  activeAudioId?: string | null;
+  setActiveAudioId?: (id: string | null) => void;
 }
 
 export function MessageBubble({
@@ -42,6 +45,8 @@ export function MessageBubble({
   onReport,
   onDeleteForEveryone,
   isHighlighted = false,
+  activeAudioId,
+  setActiveAudioId,
 }: MessageBubbleProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -304,16 +309,22 @@ export function MessageBubble({
       }
 
       case 'voice':
+        console.log('[MessageBubble] voice message', { id: message.id, mediaUrl: message.mediaUrl, type: message.type });
         return (
           <VoiceMessageBubble
             mediaUrl={message.mediaUrl || ''}
             duration={message.duration}
             isOwnMessage={isCurrentUser}
             variant="voice"
+            messageId={message.id}
+            activeAudioId={activeAudioId || null}
+            setActiveAudioId={setActiveAudioId || (() => {})}
+            message={message}
           />
         );
 
       case 'audio':
+        console.log('[MessageBubble] audio message', { id: message.id, mediaUrl: message.mediaUrl, type: message.type });
         return (
           <VoiceMessageBubble
             mediaUrl={message.mediaUrl || ''}
@@ -321,6 +332,10 @@ export function MessageBubble({
             isOwnMessage={isCurrentUser}
             fileName={message.fileName}
             variant="audio"
+            messageId={message.id}
+            activeAudioId={activeAudioId || null}
+            setActiveAudioId={setActiveAudioId || (() => {})}
+            message={message}
           />
         );
 

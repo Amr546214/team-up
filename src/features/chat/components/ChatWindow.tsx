@@ -214,6 +214,9 @@ export function ChatWindow({
   // Group call coming soon popup state
   const [showGroupCallPopup, setShowGroupCallPopup] = useState(false);
 
+  // Active audio state - only one audio can play at a time
+  const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!externalCallSession) return;
     const normalizedExternalCall = normalizeCall(externalCallSession);
@@ -750,6 +753,8 @@ export function ChatWindow({
                       setSelectedMessageId(msgId);
                       setReportModalOpen(true);
                     }}
+                    activeAudioId={activeAudioId}
+                    setActiveAudioId={setActiveAudioId}
                   />
                   );
                 })}
