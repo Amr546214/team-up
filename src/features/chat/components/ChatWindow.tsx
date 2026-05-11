@@ -77,6 +77,9 @@ interface ChatWindowProps {
   }) => void;
   externalCallSession?: CallSession | null;
   externalCallStatus?: CallSession['status'] | null;
+  // Presence props
+  isUserOnline?: (userId: string) => boolean;
+  getOnlineCount?: (userIds: string[]) => number;
 }
 
 export function ChatWindow({
@@ -103,6 +106,8 @@ export function ChatWindow({
   onCallStateChange,
   externalCallSession = null,
   externalCallStatus = null,
+  isUserOnline,
+  getOnlineCount,
 }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -478,17 +483,33 @@ export function ChatWindow({
   }
 
   const isGroup = conversation.type === 'group';
-  const otherUser = getOtherParticipant(conversation);
+
+  // Get the OTHER participant (not the current user)
+  const otherUser = getOtherParticipant(conversation, currentUser?.id);
+  const otherUserId = otherUser?.id;
   const displayName = isGroup ? conversation.name : otherUser?.name;
+
+  // Real-time online status
+  const isOtherUserOnline = !isGroup && otherUserId && isUserOnline ? isUserOnline(otherUserId) : false;
+  const onlineCount = isGroup && getOnlineCount
+    ? getOnlineCount(conversation.participants.map(p => p.id))
+    : 0;
+
+  // Debug logging for presence
+  if (!isGroup && otherUserId) {
+    console.log('[Presence UI] header', {
+      conversationId: conversation.id,
+      currentUserId: currentUser?.id,
+      otherUserId,
+      isOtherUserOnline,
+    });
+  }
+
   const statusText = isGroup
-    ? `${conversation.membersCount || conversation.participants.length} members`
-    : otherUser?.status === 'online'
+    ? `${onlineCount > 0 ? `${onlineCount} online • ` : ''}${conversation.membersCount || conversation.participants.length} members`
+    : isOtherUserOnline
       ? 'Online'
-      : otherUser?.status === 'busy'
-        ? 'Busy'
-        : otherUser?.status === 'away'
-          ? 'Away'
-          : 'Offline';
+      : 'Offline';
 
   return (
     <div className="flex flex-col h-full bg-white w-full">
@@ -533,13 +554,9 @@ export function ChatWindow({
               {!isGroup && otherUser && (
                 <span
                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    otherUser.status === 'online'
+                    isOtherUserOnline
                       ? 'bg-green-500'
-                      : otherUser.status === 'busy'
-                        ? 'bg-red-500'
-                        : otherUser.status === 'away'
-                          ? 'bg-yellow-500'
-                          : 'bg-gray-400'
+                      : 'bg-gray-400'
                   }`}
                 />
               )}
