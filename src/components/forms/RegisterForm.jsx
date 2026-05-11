@@ -8,6 +8,7 @@ import {
 } from "../../services/fakeApi";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
+import { signupClient } from "../../services/authService";
 
 // -------------- CONSTANTS -------------- //
 const roles = [
@@ -76,6 +77,7 @@ const RegisterForm = () => {
   const [formData, setFormData] = useState(initialFormData);
   const [showPassword, setShowPassword] = useState(initialShowPassword);
   const [selectedSkills, setSelectedSkills] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // -------------- HANDLERS -------------- //
   const toggleShowPassword = (field) => {
@@ -111,7 +113,7 @@ const RegisterForm = () => {
     setSelectedSkills((prev) => prev.filter((s) => s !== skill));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (activeRole === "client") {
@@ -133,18 +135,62 @@ const RegisterForm = () => {
       }
     }
 
+    // Client register uses real backend API
+    if (activeRole === "client") {
+      setIsLoading(true);
+      try {
+        // Build servicesWanted array only if user selected a service
+        const servicesWanted = formData.clientServices
+          ? [formData.clientServices]
+          : undefined;
+
+        await signupClient({
+          fullName: formData.clientFullName,
+          email: formData.clientEmail,
+          password: formData.clientPassword,
+          confirmPassword: formData.clientConfirmPassword,
+          servicesWanted,
+        });
+
+        // Success: show message and switch to login tab
+        window.alert("Account created successfully. Please sign in.");
+
+        // Pre-fill login email by storing in formData
+        setFormData({
+          ...initialFormData,
+          clientEmail: formData.clientEmail, // Keep email for reference
+        });
+
+        // Switch to login tab
+        setAuthTab("login");
+        navigate("/login?email=" + encodeURIComponent(formData.clientEmail));
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        // Map backend errors to user-friendly messages
+        let errorMessage = "Signup failed";
+        if (error.status === 409) {
+          errorMessage = "Email already exists";
+        } else if (error.status === 400) {
+          errorMessage = "Please check your information and try again";
+        } else if (error.status === 500) {
+          errorMessage = "Server error, please try again later";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        window.alert(errorMessage);
+        return;
+      }
+    }
+
+    // Client registration is handled above via backend API
+    // Only developer, company, and admin use the old fakeApi for now
+
     let email = "";
     let password = "";
     let profile = {};
 
-    if (activeRole === "client") {
-      email = formData.clientEmail;
-      password = formData.clientPassword;
-      profile = {
-        fullName: formData.clientFullName,
-        services: formData.clientServices,
-      };
-    } else if (activeRole === "developer") {
+    if (activeRole === "developer") {
       email = formData.devEmail;
       password = formData.devPassword;
       profile = {
@@ -168,15 +214,10 @@ const RegisterForm = () => {
     }
 
     // Required-field guard (extra safety beyond HTML "required")
+    // Note: Client registration is handled above via backend API
     if (!String(email || "").trim() || !String(password || "").trim()) {
       window.alert("Please fill in all required fields.");
       return;
-    }
-    if (activeRole === "client") {
-      if (!String(formData.clientFullName || "").trim() || !String(formData.clientServices || "").trim()) {
-        window.alert("Please fill in all required fields.");
-        return;
-      }
     }
     if (activeRole === "developer") {
       if (!String(formData.devFullName || "").trim()) {
@@ -810,9 +851,10 @@ const RegisterForm = () => {
         <div className="pt-2 space-y-3 flex flex-col items-center">
           <button
             type="submit"
-            className="w-full sm:w-3/4 max-w-sm h-11 rounded-lg text-sm sm:text-base font-semibold bg-[#0B6F6C] text-white hover:bg-[#0a5a59] transition"
+            disabled={isLoading}
+            className="w-full sm:w-3/4 max-w-sm h-11 rounded-lg text-sm sm:text-base font-semibold bg-[#0B6F6C] text-white hover:bg-[#0a5a59] transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t("auth.createAccount")}
+            {isLoading ? "Creating account..." : t("auth.createAccount")}
           </button>
 
           <button

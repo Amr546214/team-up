@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
+import { login as backendLogin } from "../../services/authService";
 
 const LoginForm = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const LoginForm = () => {
     email: "",
     password: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   const isAdmin = userType === "admin";
 
@@ -59,12 +61,43 @@ const LoginForm = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const isValid = validateForm();
     if (!isValid) return;
 
+    // Client login uses real backend API
+    if (userType === "client") {
+      setIsLoading(true);
+      try {
+        const response = await backendLogin({ email, password });
+        // Tokens are already saved by authService.login()
+        console.log("LOGIN SUCCESS RESPONSE:", response);
+        console.log("ACCESS TOKEN IN STORAGE:", localStorage.getItem("teamup_access_token"));
+        console.log("ABOUT TO REDIRECT CLIENT");
+        resetForm();
+        navigate("/client/profile", { replace: true });
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        // Map backend errors to user-friendly messages
+        let errorMessage = "Login failed";
+        if (error.status === 404) {
+          errorMessage = "Email not found";
+        } else if (error.status === 400) {
+          errorMessage = "Invalid email or password";
+        } else if (error.status === 500) {
+          errorMessage = "Server error, please try again later";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        setErrors({ email: "", password: errorMessage });
+        return;
+      }
+    }
+
+    // Other roles still use existing auth logic for now
     const authResult = login(email, password, userType, rememberMe);
     if (!authResult.ok) {
       if (authResult.reason === "invalid_credentials") {
@@ -376,13 +409,14 @@ const LoginForm = () => {
             </div>
 
             {/* LOGIN AS LINK */}
-            <a
-              href="#"
+            <button
+              type="button"
               onClick={handleLoginClick}
-              className="w-[340px] h-[40px] mx-auto bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer"
+              disabled={isLoading}
+              className="w-[340px] h-[40px] mx-auto bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t("auth.loginButton")}
-            </a>
+              {isLoading ? "Logging in..." : t("auth.loginButton")}
+            </button>
 
             {/* Admin secure message only */}
             {isAdmin && authMode === "login" && (
