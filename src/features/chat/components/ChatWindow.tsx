@@ -19,6 +19,51 @@ import {
   type CallSession,
 } from '../services/supabaseCallService';
 import { playOutgoingCallWaitingSound } from '../utils/chatSounds';
+import { useTypingIndicator } from '../hooks/useTypingIndicator';
+
+// Typing Indicator Component
+interface TypingIndicatorProps {
+  typingUsers: { userId: string; name: string }[];
+  isGroup: boolean;
+  currentUserId: string;
+}
+
+function TypingIndicator({ typingUsers, isGroup, currentUserId }: TypingIndicatorProps) {
+  // Filter out current user (shouldn't happen but safety check)
+  const otherTypingUsers = typingUsers.filter(u => u.userId !== currentUserId);
+
+  if (otherTypingUsers.length === 0) {
+    return null;
+  }
+
+  let text: string;
+
+  if (isGroup) {
+    if (otherTypingUsers.length === 1) {
+      text = `${otherTypingUsers[0].name} is typing...`;
+    } else if (otherTypingUsers.length === 2) {
+      text = `${otherTypingUsers[0].name}, ${otherTypingUsers[1].name} are typing...`;
+    } else {
+      text = 'Several people are typing...';
+    }
+  } else {
+    // Direct chat - show the single other user's name
+    text = `${otherTypingUsers[0].name} is typing...`;
+  }
+
+  return (
+    <div className="shrink-0 px-4 py-1.5 bg-gray-50/80">
+      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+        <span className="flex gap-0.5">
+          <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </span>
+        <span>{text}</span>
+      </div>
+    </div>
+  );
+}
 
 function normalizeCall(row: any): CallSession | null {
   if (!row) return null;
@@ -77,6 +122,9 @@ interface ChatWindowProps {
   }) => void;
   externalCallSession?: CallSession | null;
   externalCallStatus?: CallSession['status'] | null;
+  // Presence props
+  isUserOnline?: (userId: string) => boolean;
+  getOnlineCount?: (userIds: string[]) => number;
 }
 
 export function ChatWindow({
@@ -103,6 +151,8 @@ export function ChatWindow({
   onCallStateChange,
   externalCallSession = null,
   externalCallStatus = null,
+  isUserOnline,
+  getOnlineCount,
 }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -188,6 +238,13 @@ export function ChatWindow({
     const timer = setTimeout(() => setCallError(null), 3000);
     return () => clearTimeout(timer);
   }, [callError]);
+
+  // Typing indicator
+  const { typingUsers, sendTypingStart, sendTypingStop } = useTypingIndicator(
+    conversation?.id || null,
+    currentUser.id,
+    currentUser.name
+  );
 
   // Call handlers
   const handleVoiceCall = useCallback(async () => {
@@ -478,17 +535,33 @@ export function ChatWindow({
   }
 
   const isGroup = conversation.type === 'group';
-  const otherUser = getOtherParticipant(conversation);
+
+  // Get the OTHER participant (not the current user)
+  const otherUser = getOtherParticipant(conversation, currentUser?.id);
+  const otherUserId = otherUser?.id;
   const displayName = isGroup ? conversation.name : otherUser?.name;
+
+  // Real-time online status
+  const isOtherUserOnline = !isGroup && otherUserId && isUserOnline ? isUserOnline(otherUserId) : false;
+  const onlineCount = isGroup && getOnlineCount
+    ? getOnlineCount(conversation.participants.map(p => p.id))
+    : 0;
+
+  // Debug logging for presence
+  if (!isGroup && otherUserId) {
+    console.log('[Presence UI] header', {
+      conversationId: conversation.id,
+      currentUserId: currentUser?.id,
+      otherUserId,
+      isOtherUserOnline,
+    });
+  }
+
   const statusText = isGroup
-    ? `${conversation.membersCount || conversation.participants.length} members`
-    : otherUser?.status === 'online'
+    ? `${onlineCount > 0 ? `${onlineCount} online • ` : ''}${conversation.membersCount || conversation.participants.length} members`
+    : isOtherUserOnline
       ? 'Online'
-      : otherUser?.status === 'busy'
-        ? 'Busy'
-        : otherUser?.status === 'away'
-          ? 'Away'
-          : 'Offline';
+      : 'Offline';
 
   return (
     <div className="flex flex-col h-full bg-white w-full">
@@ -533,13 +606,9 @@ export function ChatWindow({
               {!isGroup && otherUser && (
                 <span
                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                    otherUser.status === 'online'
+                    isOtherUserOnline
                       ? 'bg-green-500'
-                      : otherUser.status === 'busy'
-                        ? 'bg-red-500'
-                        : otherUser.status === 'away'
-                          ? 'bg-yellow-500'
-                          : 'bg-gray-400'
+                      : 'bg-gray-400'
                   }`}
                 />
               )}
@@ -698,9 +767,23 @@ export function ChatWindow({
         </div>
       )}
 
+      {/* Typing Indicator */}
+      <TypingIndicator
+        typingUsers={typingUsers}
+        isGroup={isGroup}
+        currentUserId={currentUser.id}
+      />
+
       {/* Input */}
       <div className="shrink-0 bg-white border-t border-gray-100">
-        <MessageInput onSendMessage={onSendMessage} onSendAttachment={onSendAttachment} disabled={isSendingMessage} />
+        <MessageInput
+          onSendMessage={onSendMessage}
+          onSendAttachment={onSendAttachment}
+          disabled={isSendingMessage}
+          onTypingStart={sendTypingStart}
+          onTypingStop={sendTypingStop}
+          conversationId={conversation?.id}
+        />
       </div>
 
       {/* Image Preview Modal */}

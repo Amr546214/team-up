@@ -12,6 +12,7 @@ interface ChatSidebarProps {
   messages?: Record<string, Message[]>;
   totalUnreadCount: number;
   unreadChatsCount: number;
+  isUserOnline?: (userId: string) => boolean;
 }
 
 export function ChatSidebar({
@@ -22,6 +23,7 @@ export function ChatSidebar({
   messages,
   totalUnreadCount,
   unreadChatsCount,
+  isUserOnline,
 }: ChatSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('all');
@@ -140,6 +142,7 @@ export function ChatSidebar({
                 onClick={() => onSelectConversation(conversation.id)}
                 currentUser={currentUser}
                 messages={messages}
+                isUserOnline={isUserOnline}
               />
             ))}
           </div>

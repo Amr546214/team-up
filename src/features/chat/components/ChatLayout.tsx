@@ -4,6 +4,7 @@ import { ChatWindow } from './ChatWindow';
 import { ChatUploadModal } from './ChatUploadModal';
 import { IncomingCallModal } from './IncomingCallModal';
 import { useChat } from '../hooks/useChat';
+import { useChatPresence } from '../hooks/useChatPresence';
 import { MessageSquare, ArrowRight } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import type { CallSession } from '../services/supabaseCallService';
@@ -80,6 +81,9 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
     uploadModal,
     setUploadModal,
   } = useChat();
+
+  // Presence - track online users
+  const { onlineUserIds, isUserOnline, getOnlineCount } = useChatPresence(currentUser?.id || null);
 
   // Call state
   const [incomingCall, setIncomingCall] = useState<CallSession | null>(null);
@@ -331,6 +335,7 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
               messages={messages}
               totalUnreadCount={totalUnreadCount}
               unreadChatsCount={unreadChatsCount}
+              isUserOnline={isUserOnline}
             />
           </div>
 
@@ -365,6 +370,8 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
                 onCallStateChange={handleCallStateChange}
                 externalCallSession={activeCallSession}
                 externalCallStatus={activeCallStatus}
+                isUserOnline={isUserOnline}
+                getOnlineCount={getOnlineCount}
               />
             ) : (
               /* Empty state when no conversation is selected */

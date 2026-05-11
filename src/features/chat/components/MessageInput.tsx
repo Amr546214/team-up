@@ -1,11 +1,11 @@
-import { useState, useRef, FormEvent, KeyboardEvent, useCallback } from 'react';
+import { useState, useRef, FormEvent, KeyboardEvent, useCallback, useEffect } from 'react';
 import { Send, Image, Paperclip, Mic, Square, X, File } from 'lucide-react';
 import { formatFileSize, formatDuration, isMediaRecorderSupported } from '../utils/fileFormat';
 
 interface MessageInputProps {
   onSendMessage: (content: string) => void;
   onSendAttachment: (data: {
-    type: 'image' | 'file' | 'voice';
+    type: 'image' | 'file' | 'voice' | 'audio';
     fileOrBlob: File | Blob;
     fileName: string;
     fileSize: number;
@@ -13,9 +13,20 @@ interface MessageInputProps {
     duration?: number;
   }) => void;
   disabled?: boolean;
+  conversationId?: string | null;
+  // Typing indicator handlers
+  onTypingStart?: () => void;
+  onTypingStop?: () => void;
 }
 
-export function MessageInput({ onSendMessage, onSendAttachment, disabled = false }: MessageInputProps) {
+export function MessageInput({
+  onSendMessage,
+  onSendAttachment,
+  disabled = false,
+  conversationId,
+  onTypingStart,
+  onTypingStop,
+}: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -27,10 +38,72 @@ export function MessageInput({ onSendMessage, onSendAttachment, disabled = false
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Typing indicator refs
+  const isTypingRef = useRef<boolean>(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Typing indicator helpers
+  const triggerTypingStart = useCallback(() => {
+    if (!isTypingRef.current && onTypingStart) {
+      isTypingRef.current = true;
+      onTypingStart();
+    }
+  }, [onTypingStart]);
+
+  const triggerTypingStop = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (isTypingRef.current && onTypingStop) {
+      isTypingRef.current = false;
+      onTypingStop();
+    }
+  }, [onTypingStop]);
+
+  // Cleanup on conversation change or unmount
+  useEffect(() => {
+    // Reset typing state when conversation changes
+    if (isTypingRef.current) {
+      triggerTypingStop();
+    }
+
+    return () => {
+      if (isTypingRef.current) {
+        triggerTypingStop();
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [conversationId, triggerTypingStop]);
+
+  const handleMessageChange = useCallback((value: string) => {
+    setMessage(value);
+
+    if (value.trim()) {
+      // User is typing - send start
+      triggerTypingStart();
+
+      // Debounce stop - clear any existing timeout and set new one
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      typingTimeoutRef.current = setTimeout(() => {
+        triggerTypingStop();
+      }, 1500);
+    } else {
+      // Input is empty - stop typing immediately
+      triggerTypingStop();
+    }
+  }, [triggerTypingStart, triggerTypingStop]);
+
   // Text message handlers
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (message.trim() && !disabled && !isRecording) {
+      // Stop typing when sending
+      triggerTypingStop();
       onSendMessage(message.trim());
       setMessage('');
     }
@@ -40,6 +113,8 @@ export function MessageInput({ onSendMessage, onSendAttachment, disabled = false
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (message.trim() && !disabled && !isRecording) {
+        // Stop typing when sending
+        triggerTypingStop();
         onSendMessage(message.trim());
         setMessage('');
       }
@@ -271,7 +346,7 @@ export function MessageInput({ onSendMessage, onSendAttachment, disabled = false
             {/* Text Input */}
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => handleMessageChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               disabled={disabled}

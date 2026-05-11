@@ -13,11 +13,28 @@ interface ConversationItemProps {
   onClick: () => void;
   currentUser: ChatUser;
   messages?: Record<string, Message[]>;
+  isUserOnline?: (userId: string) => boolean;
 }
 
-export function ConversationItem({ conversation, isSelected, onClick, currentUser, messages }: ConversationItemProps) {
-  const otherUser = getOtherParticipant(conversation);
+export function ConversationItem({ conversation, isSelected, onClick, currentUser, messages, isUserOnline }: ConversationItemProps) {
   const isGroup = conversation.type === 'group';
+
+  // Get the OTHER participant (not the current user)
+  const otherUser = getOtherParticipant(conversation, currentUser?.id);
+
+  // Check real-time online status for direct conversations
+  const otherUserId = otherUser?.id;
+  const isOtherUserOnline = !isGroup && otherUserId && isUserOnline ? isUserOnline(otherUserId) : false;
+
+  // Debug logging for presence
+  if (!isGroup && otherUserId) {
+    console.log('[Presence UI] sidebar item', {
+      conversationId: conversation.id,
+      currentUserId: currentUser?.id,
+      otherUserId,
+      isOtherUserOnline,
+    });
+  }
   
   // Get the actual last message from messages state if available, fallback to conversation.lastMessage
   const lastMessage = messages 
@@ -75,8 +92,8 @@ export function ConversationItem({ conversation, isSelected, onClick, currentUse
         }`}>
           {avatarContent}
         </div>
-        {/* Online status indicator for direct conversations */}
-        {!isGroup && otherUser?.status === 'online' && (
+        {/* Online status indicator for direct conversations - using real-time presence */}
+        {!isGroup && isOtherUserOnline && (
           <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
         )}
         {/* Group indicator */}

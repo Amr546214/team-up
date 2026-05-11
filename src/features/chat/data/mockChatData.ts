@@ -222,8 +222,13 @@ export const getConversationMessages = (conversationId: string): Message[] => {
   return mockMessages[conversationId] || [];
 };
 
-export const getOtherParticipant = (conversation: Conversation): ChatUser => {
-  return conversation.participants[0];
+export const getOtherParticipant = (conversation: Conversation, currentUserId?: string): ChatUser | undefined => {
+  if (!currentUserId) {
+    return conversation.participants[0];
+  }
+  // Find the participant who is NOT the current user
+  const other = conversation.participants.find(p => p.id !== currentUserId);
+  return other || conversation.participants[0];
 };
 
 export const formatMessageTime = (date: Date): string => {
