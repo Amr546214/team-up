@@ -19,6 +19,51 @@ import {
   type CallSession,
 } from '../services/supabaseCallService';
 import { playOutgoingCallWaitingSound } from '../utils/chatSounds';
+import { useTypingIndicator } from '../hooks/useTypingIndicator';
+
+// Typing Indicator Component
+interface TypingIndicatorProps {
+  typingUsers: { userId: string; name: string }[];
+  isGroup: boolean;
+  currentUserId: string;
+}
+
+function TypingIndicator({ typingUsers, isGroup, currentUserId }: TypingIndicatorProps) {
+  // Filter out current user (shouldn't happen but safety check)
+  const otherTypingUsers = typingUsers.filter(u => u.userId !== currentUserId);
+
+  if (otherTypingUsers.length === 0) {
+    return null;
+  }
+
+  let text: string;
+
+  if (isGroup) {
+    if (otherTypingUsers.length === 1) {
+      text = `${otherTypingUsers[0].name} is typing...`;
+    } else if (otherTypingUsers.length === 2) {
+      text = `${otherTypingUsers[0].name}, ${otherTypingUsers[1].name} are typing...`;
+    } else {
+      text = 'Several people are typing...';
+    }
+  } else {
+    // Direct chat - show the single other user's name
+    text = `${otherTypingUsers[0].name} is typing...`;
+  }
+
+  return (
+    <div className="shrink-0 px-4 py-1.5 bg-gray-50/80">
+      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+        <span className="flex gap-0.5">
+          <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </span>
+        <span>{text}</span>
+      </div>
+    </div>
+  );
+}
 
 function normalizeCall(row: any): CallSession | null {
   if (!row) return null;
@@ -193,6 +238,13 @@ export function ChatWindow({
     const timer = setTimeout(() => setCallError(null), 3000);
     return () => clearTimeout(timer);
   }, [callError]);
+
+  // Typing indicator
+  const { typingUsers, sendTypingStart, sendTypingStop } = useTypingIndicator(
+    conversation?.id || null,
+    currentUser.id,
+    currentUser.name
+  );
 
   // Call handlers
   const handleVoiceCall = useCallback(async () => {
@@ -715,9 +767,23 @@ export function ChatWindow({
         </div>
       )}
 
+      {/* Typing Indicator */}
+      <TypingIndicator
+        typingUsers={typingUsers}
+        isGroup={isGroup}
+        currentUserId={currentUser.id}
+      />
+
       {/* Input */}
       <div className="shrink-0 bg-white border-t border-gray-100">
-        <MessageInput onSendMessage={onSendMessage} onSendAttachment={onSendAttachment} disabled={isSendingMessage} />
+        <MessageInput
+          onSendMessage={onSendMessage}
+          onSendAttachment={onSendAttachment}
+          disabled={isSendingMessage}
+          onTypingStart={sendTypingStart}
+          onTypingStop={sendTypingStop}
+          conversationId={conversation?.id}
+        />
       </div>
 
       {/* Image Preview Modal */}
