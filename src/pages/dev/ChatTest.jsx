@@ -280,6 +280,8 @@ function ChatTest() {
             profilesError={profilesError}
             startingChatFor={startingChatFor}
             currentUserId={currentUserId}
+            currentUserAvatar={session?.avatar}
+            currentUserName={session?.name}
             authUserId={session?.id}
             isAuthReady={isAuthReady}
             isProfileReady={isProfileReady}

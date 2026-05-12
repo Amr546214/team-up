@@ -111,7 +111,7 @@ interface ChatWindowProps {
   // Message actions
   onToggleMessageStar?: (messageId: string, isStarred: boolean) => void;
   onHideMessageForMe?: (messageId: string) => void;
-  onReportMessage?: (messageId: string) => void;
+  onReportMessage?: (messageId: string, reason: string) => Promise<void>;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
   onPinMessage?: (messageId: string) => void;
   onUnpinMessage?: (messageId: string) => void;
@@ -169,30 +169,44 @@ export function ChatWindow({
     conversationId: conversation?.id,
     currentUserId: currentUser?.id,
     pinnedMessagesCount: pinnedMessages?.length,
-    pinnedMessageIds: pinnedMessages?.map((item) => item.messageId || item.message_id),
+    pinnedMessageIds: pinnedMessages?.map((item) => item.messageId),
     hasOnPinMessage: typeof onPinMessage === 'function',
     hasOnUnpinMessage: typeof onUnpinMessage === 'function',
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Scroll to highlighted message when it changes
-  useEffect(() => {
-    if (!highlightedMessageId) return;
-    const attempt = (retriesLeft: number) => {
-      const el = document.getElementById(`message-${highlightedMessageId}`);
+  // Handle navigation to a message (from pinned messages bar)
+  const handleNavigateToMessage = useCallback((messageId: string) => {
+    console.log('[ChatWindow] navigate to message', messageId);
+
+    // Set highlighted state for animation
+    setHighlightedMessageId?.(messageId);
+
+    // Find and scroll to the message
+    const attemptScroll = (retriesLeft: number) => {
+      const el = messageRefs.current[messageId] || document.getElementById(`message-${messageId}`);
+
       if (el) {
-        console.log('[Starred] scrolling to message', highlightedMessageId);
+        console.log('[ChatWindow] scrolling to message', messageId);
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (retriesLeft > 0) {
-        // Messages may not be rendered yet — retry
-        setTimeout(() => attempt(retriesLeft - 1), 150);
+        // Message may not be rendered yet — retry
+        setTimeout(() => attemptScroll(retriesLeft - 1), 150);
       } else {
-        console.warn('[Starred] target message not found', highlightedMessageId);
+        console.warn('[ChatWindow] target message not found', messageId);
       }
     };
-    setTimeout(() => attempt(5), 200);
-  }, [highlightedMessageId]);
+
+    // Start scrolling attempt
+    setTimeout(() => attemptScroll(10), 100);
+
+    // Clear highlight after animation duration (2 seconds)
+    setTimeout(() => {
+      setHighlightedMessageId?.(null);
+    }, 2000);
+  }, [setHighlightedMessageId]);
 
   // Mark incoming messages as read when conversation opens
   useEffect(() => {
@@ -289,6 +303,45 @@ export function ChatWindow({
 
   // Active audio state - only one audio can play at a time
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+  const audioRefsMap = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+  // Register audio element for management
+  const registerAudioRef = useCallback(
+    (audioId: string, audioElement: HTMLAudioElement | null) => {
+      if (!audioId) return;
+
+      if (!audioElement) {
+        audioRefsMap.current.delete(audioId);
+        return;
+      }
+
+      audioRefsMap.current.set(audioId, audioElement);
+
+      console.log('[Audio Manager] registered audio', {
+        audioId,
+        total: audioRefsMap.current.size,
+      });
+    },
+    []
+  );
+
+  // Stop all other audios except the current one
+  const stopOtherAudios = useCallback((currentAudioId: string) => {
+    console.log('[Audio Manager] stop other audios', {
+      currentAudioId,
+      total: audioRefsMap.current.size,
+    });
+
+    audioRefsMap.current.forEach((audio, audioId) => {
+      if (audioId === currentAudioId) return;
+
+      if (!audio.paused) {
+        console.log('[Audio Manager] pausing other audio', audioId);
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!externalCallSession) return;
@@ -603,7 +656,7 @@ export function ChatWindow({
         <h3 className="text-lg font-medium text-gray-900 mb-2">
           Select a conversation
         </h3>
-        <p className="text-gray-500 text-sm max-w-[240px]">
+        <p className="text-gray-500 text-sm max-w-60">
           Choose a conversation from the sidebar to start chatting
         </p>
       </div>
@@ -639,10 +692,35 @@ export function ChatWindow({
       ? 'Online'
       : 'Offline';
 
+  // Debug log for user actions overlay
+  console.log("[User Actions Overlay Fix]", {
+    isOpen: Boolean(isUserPopoverOpen),
+    isUserPopoverOpen,
+  });
+
   return (
-    <div className="flex flex-col h-full bg-white w-full">
+    <div className="relative flex flex-col h-full bg-white w-full overflow-hidden">
+
+      {/* User Action Card Overlay - Above messages, below header */}
+      {isUserPopoverOpen && (
+        <div className="pointer-events-none absolute inset-x-0 top-[72px] z-200 flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-sm">
+            <ChatUserPopover
+              conversation={conversation}
+              currentUser={currentUser}
+              isOpen={isUserPopoverOpen}
+              onClose={() => setIsUserPopoverOpen(false)}
+              onVoiceCall={handleVoiceCall}
+              onVideoCall={handleVideoCall}
+              onViewProfile={handleViewProfile}
+              isUserOnline={isUserOnline}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm shrink-0">
+      <div className="relative z-10 flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           {isMobile && onBack && (
             <button
@@ -701,17 +779,6 @@ export function ChatWindow({
               </div>
             </div>
 
-            {/* User Popover */}
-            {isUserPopoverOpen && (
-              <ChatUserPopover
-                conversation={conversation}
-                isOpen={isUserPopoverOpen}
-                onClose={() => setIsUserPopoverOpen(false)}
-                onVoiceCall={handleVoiceCall}
-                onVideoCall={handleVideoCall}
-                onViewProfile={handleViewProfile}
-              />
-            )}
           </button>
         </div>
 
@@ -768,12 +835,12 @@ export function ChatWindow({
           pinnedMessages={pinnedMessages}
           currentUserId={currentUser.id}
           onUnpinMessage={onUnpinMessage || (() => {})}
-          onNavigateToMessage={(messageId) => setHighlightedMessageId?.(messageId)}
+          onNavigateToMessage={handleNavigateToMessage}
         />
       )}
 
       {/* Messages - Using flex-col with justify-end to keep messages near bottom */}
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-teal-50/20 via-white to-white">
+      <div className="relative z-0 flex-1 overflow-y-auto bg-linear-to-b from-teal-50/20 via-white to-white">
         <div className="min-h-full flex flex-col">
           {isLoadingMessages ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
@@ -831,6 +898,7 @@ export function ChatWindow({
                       isCurrentUser={message.senderId === currentUser.id}
                       sender={getSender()}
                       isHighlighted={message.id === highlightedMessageId}
+                      messageRef={(el) => { messageRefs.current[message.id] = el; }}
                     onImageClick={message.type === 'image' && message.mediaUrl ? () => {
                       setPreviewImage({
                         url: message.mediaUrl!,
@@ -852,6 +920,8 @@ export function ChatWindow({
                     isPinned={isMessagePinned}
                     activeAudioId={activeAudioId}
                     setActiveAudioId={setActiveAudioId}
+                    registerAudioRef={registerAudioRef}
+                    stopOtherAudios={stopOtherAudios}
                   />
                   );
                 })}
@@ -992,7 +1062,7 @@ export function ChatWindow({
 
       {/* Call Error Toast */}
       {callError && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] animate-in fade-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-200 animate-in fade-in slide-in-from-bottom-4 duration-200">
           <div className="bg-red-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium">
             {callError}
           </div>

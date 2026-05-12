@@ -3,6 +3,8 @@ import { ChatSidebar } from './ChatSidebar';
 import { ChatWindow } from './ChatWindow';
 import { ChatUploadModal } from './ChatUploadModal';
 import { IncomingCallModal } from './IncomingCallModal';
+import { MobileChatNav } from './MobileChatNav';
+import { MobileUsersPanel } from './MobileUsersPanel';
 import { useChat } from '../hooks/useChat';
 import { useChatPresence } from '../hooks/useChatPresence';
 import { MessageSquare, ArrowRight } from 'lucide-react';
@@ -86,6 +88,24 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
     onUnpinMessage,
     loadPinnedMessages,
   } = useChat();
+
+  // Mobile screen navigation state
+  const [mobileScreen, setMobileScreen] = useState<'conversations' | 'chat' | 'users'>('conversations');
+
+  // Update mobile screen when conversation is selected
+  useEffect(() => {
+    if (activeConversationId && isMobileChatOpen) {
+      setMobileScreen('chat');
+    }
+  }, [activeConversationId, isMobileChatOpen]);
+
+  // Handle mobile screen changes
+  const handleMobileScreenChange = useCallback((screen: 'conversations' | 'chat' | 'users') => {
+    setMobileScreen(screen);
+    if (screen === 'conversations') {
+      backToList();
+    }
+  }, [backToList]);
 
   // Presence - track online users
   const { onlineUserIds, isUserOnline, getOnlineCount } = useChatPresence(currentUser?.id || null);
@@ -436,6 +456,37 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
           onRejected={handleIncomingRejected}
         />
       )}
+
+      {/* Mobile Navigation Bar */}
+      <MobileChatNav
+        currentScreen={mobileScreen}
+        onScreenChange={handleMobileScreenChange}
+        currentUser={currentUser}
+        totalUnreadCount={totalUnreadCount}
+        onBackHome={() => window.location.href = '/'}
+      />
+
+      {/* Mobile Users Panel */}
+      <MobileUsersPanel
+        isOpen={mobileScreen === 'users'}
+        onClose={() => setMobileScreen('conversations')}
+        currentUser={currentUser}
+        onStartChat={(userId, name) => {
+          // Find if conversation exists
+          const existingConvo = sortedConversations.find(c =>
+            c.type === 'direct' &&
+            c.participants.some(p => p.id === userId)
+          );
+          if (existingConvo) {
+            selectConversation(existingConvo.id);
+          } else {
+            // Start new chat - will need to be handled by parent
+            console.log('[Mobile] Start chat with', userId, name);
+          }
+          setMobileScreen('conversations');
+        }}
+        startingChatFor={null}
+      />
     </div>
   );
 }

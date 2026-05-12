@@ -2,6 +2,8 @@
 export { ChatLayout } from './components/ChatLayout';
 export { ChatSidebar } from './components/ChatSidebar';
 export { ChatDevRail } from './components/ChatDevRail';
+export { MobileChatNav } from './components/MobileChatNav';
+export { MobileUsersPanel } from './components/MobileUsersPanel';
 export { ReportMessageModal } from './components/ReportMessageModal';
 export { DeleteConfirmModal } from './components/DeleteConfirmModal';
 

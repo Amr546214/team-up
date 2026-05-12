@@ -1696,17 +1696,15 @@ export async function pinMessage(
       };
     }
 
-    // Insert pinned message
-    const { error } = await supabase
-      .from('pinned_messages')
-      .insert({
-        conversation_id: conversationId,
-        message_id: messageId,
-      });
+    // Use RPC to pin message (bypasses RLS)
+    const { data: pinData, error: pinError } = await supabase.rpc('pin_message', {
+      p_conversation_id: conversationId,
+      p_message_id: messageId,
+    });
 
-    if (error) {
-      // Check for unique constraint violation (already pinned)
-      if (error.code === '23505') {
+    if (pinError) {
+      // Check for specific error codes from the RPC function
+      if (pinError.message?.includes('already pinned')) {
         console.warn('[Pinned] message already pinned', messageId);
         return {
           success: false,
@@ -1714,11 +1712,19 @@ export async function pinMessage(
           errorCode: 'ALREADY_PINNED',
         };
       }
-      console.error('[Pinned] pin failed', error);
-      return { success: false, error: error.message };
+      if (pinError.message?.includes('Maximum') || pinError.message?.includes('max')) {
+        console.warn('[Pinned] max pinned messages reached', conversationId);
+        return {
+          success: false,
+          error: `Maximum ${MAX_PINNED_MESSAGES} pinned messages allowed. Please unpin a message first.`,
+          errorCode: 'MAX_PINNED',
+        };
+      }
+      console.error('[Pinned] pin failed', pinError);
+      return { success: false, error: pinError.message };
     }
 
-    console.log('[Pinned] pinned message', conversationId, messageId);
+    console.log('[Pinned] pinned message', conversationId, messageId, pinData);
     return { success: true, error: null };
   } catch (err: any) {
     console.error('[Pinned] pin failed', err);
@@ -1734,18 +1740,18 @@ export async function unpinMessage(
   messageId: string
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const { error } = await supabase
-      .from('pinned_messages')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('message_id', messageId);
+    // Use RPC to unpin message (bypasses RLS)
+    const { data: unpinData, error: unpinError } = await supabase.rpc('unpin_message', {
+      p_conversation_id: conversationId,
+      p_message_id: messageId,
+    });
 
-    if (error) {
-      console.error('[Pinned] unpin failed', error);
-      return { success: false, error: error.message };
+    if (unpinError) {
+      console.error('[Pinned] unpin failed', unpinError);
+      return { success: false, error: unpinError.message };
     }
 
-    console.log('[Pinned] unpinned message', conversationId, messageId);
+    console.log('[Pinned] unpinned message', conversationId, messageId, unpinData);
     return { success: true, error: null };
   } catch (err: any) {
     console.error('[Pinned] unpin failed', err);
