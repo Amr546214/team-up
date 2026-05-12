@@ -36,6 +36,8 @@ interface MessageBubbleProps {
   // Audio coordination props
   activeAudioId?: string | null;
   setActiveAudioId?: (id: string | null) => void;
+  registerAudioRef?: (audioId: string, audioElement: HTMLAudioElement | null) => void;
+  stopOtherAudios?: (audioId: string) => void;
 }
 
 export function MessageBubble({
@@ -52,6 +54,8 @@ export function MessageBubble({
   isHighlighted = false,
   activeAudioId,
   setActiveAudioId,
+  registerAudioRef,
+  stopOtherAudios,
 }: MessageBubbleProps) {
   // Debug log for pin troubleshooting
   console.log('[Pin Debug] MessageBubble props', {
@@ -354,6 +358,8 @@ export function MessageBubble({
             messageId={message.id}
             activeAudioId={activeAudioId || null}
             setActiveAudioId={setActiveAudioId || (() => {})}
+            registerAudioRef={registerAudioRef || (() => {})}
+            stopOtherAudios={stopOtherAudios || (() => {})}
             message={message}
           />
         );
@@ -370,6 +376,8 @@ export function MessageBubble({
             messageId={message.id}
             activeAudioId={activeAudioId || null}
             setActiveAudioId={setActiveAudioId || (() => {})}
+            registerAudioRef={registerAudioRef || (() => {})}
+            stopOtherAudios={stopOtherAudios || (() => {})}
             message={message}
           />
         );

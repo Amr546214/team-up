@@ -289,6 +289,45 @@ export function ChatWindow({
 
   // Active audio state - only one audio can play at a time
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+  const audioRefsMap = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+  // Register audio element for management
+  const registerAudioRef = useCallback(
+    (audioId: string, audioElement: HTMLAudioElement | null) => {
+      if (!audioId) return;
+
+      if (!audioElement) {
+        audioRefsMap.current.delete(audioId);
+        return;
+      }
+
+      audioRefsMap.current.set(audioId, audioElement);
+
+      console.log('[Audio Manager] registered audio', {
+        audioId,
+        total: audioRefsMap.current.size,
+      });
+    },
+    []
+  );
+
+  // Stop all other audios except the current one
+  const stopOtherAudios = useCallback((currentAudioId: string) => {
+    console.log('[Audio Manager] stop other audios', {
+      currentAudioId,
+      total: audioRefsMap.current.size,
+    });
+
+    audioRefsMap.current.forEach((audio, audioId) => {
+      if (audioId === currentAudioId) return;
+
+      if (!audio.paused) {
+        console.log('[Audio Manager] pausing other audio', audioId);
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!externalCallSession) return;
@@ -852,6 +891,8 @@ export function ChatWindow({
                     isPinned={isMessagePinned}
                     activeAudioId={activeAudioId}
                     setActiveAudioId={setActiveAudioId}
+                    registerAudioRef={registerAudioRef}
+                    stopOtherAudios={stopOtherAudios}
                   />
                   );
                 })}
