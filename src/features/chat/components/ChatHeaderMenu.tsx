@@ -9,6 +9,9 @@ import {
   Trash2,
   MessageSquareOff,
   Flag,
+  Settings,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 
 interface ChatHeaderMenuProps {
@@ -18,6 +21,7 @@ interface ChatHeaderMenuProps {
   isMuted: boolean;
   isDirectConversation?: boolean;
   isUserReported?: boolean;
+  isGroupConversation?: boolean;
   onPinToggle: () => void;
   onMuteToggle: () => void;
   onViewProfile: () => void;
@@ -25,6 +29,9 @@ interface ChatHeaderMenuProps {
   onClearChat: () => void;
   onDeleteChat: () => void;
   onReportUser?: () => void;
+  onGroupSettings?: () => void;
+  onAddUsers?: () => void;
+  onViewMembers?: () => void;
 }
 
 export function ChatHeaderMenu({
@@ -34,6 +41,7 @@ export function ChatHeaderMenu({
   isMuted,
   isDirectConversation = false,
   isUserReported = false,
+  isGroupConversation = false,
   onPinToggle,
   onMuteToggle,
   onViewProfile,
@@ -41,6 +49,9 @@ export function ChatHeaderMenu({
   onClearChat,
   onDeleteChat,
   onReportUser,
+  onGroupSettings,
+  onAddUsers,
+  onViewMembers,
 }: ChatHeaderMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +103,36 @@ export function ChatHeaderMenu({
         <User className="w-4 h-4 text-gray-500" />
         View profile
       </button>
+
+      {/* Group Options - only for group conversations */}
+      {isGroupConversation && (
+        <>
+          <button
+            onClick={() => onGroupSettings && handleAction(onGroupSettings)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            role="menuitem"
+          >
+            <Settings className="w-4 h-4 text-gray-500" />
+            Group Settings
+          </button>
+          <button
+            onClick={() => onAddUsers && handleAction(onAddUsers)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            role="menuitem"
+          >
+            <UserPlus className="w-4 h-4 text-gray-500" />
+            Add Users
+          </button>
+          <button
+            onClick={() => onViewMembers && handleAction(onViewMembers)}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            role="menuitem"
+          >
+            <Users className="w-4 h-4 text-gray-500" />
+            View Members
+          </button>
+        </>
+      )}
 
       {/* Pin / Unpin */}
       <button

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { Phone, Video, User, Users, X } from 'lucide-react';
+import { Phone, Video, User, Users, X, Settings } from 'lucide-react';
 import type { Conversation, ChatUser } from '../types';
 import { getOtherParticipant } from '../data/mockChatData';
 
@@ -11,6 +11,7 @@ interface ChatUserPopoverProps {
   onVoiceCall?: () => void;
   onVideoCall?: () => void;
   onViewProfile?: () => void;
+  onGroupSettings?: () => void;
   isUserOnline?: (userId: string) => boolean;
 }
 
@@ -22,6 +23,7 @@ export function ChatUserPopover({
   onVoiceCall,
   onVideoCall,
   onViewProfile,
+  onGroupSettings,
   isUserOnline,
 }: ChatUserPopoverProps) {
   const isGroup = conversation.type === 'group';
@@ -141,37 +143,42 @@ export function ChatUserPopover({
             <span className="text-xs font-medium text-gray-700">Video</span>
           </button>
 
-          {/* View Profile */}
-          <button
-            onClick={() => {
-              onViewProfile?.();
-            }}
-            disabled={isGroup}
-            className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent relative"
-            aria-label="View profile"
-            title={isGroup ? 'Coming soon' : undefined}
-          >
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              isGroup ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600'
-            }`}>
-              {isGroup ? <Users className="w-5 h-5" /> : <User className="w-5 h-5" />}
-            </div>
-            <span className="text-xs font-medium text-gray-700">
-              {isGroup ? 'Group' : 'Profile'}
-            </span>
-            {isGroup && (
-              <span className="absolute -top-1 -right-1 text-[9px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">
-                Soon
-              </span>
-            )}
-          </button>
+          {/* View Profile / Group Settings */}
+          {isGroup ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[GROUP INFO] Settings clicked');
+                console.log('[GROUP SETTINGS] opening modal');
+                console.log('[GROUP SETTINGS] activeConversation', conversation);
+                onGroupSettings?.();
+                onClose();
+              }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+              aria-label="Group settings"
+            >
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-teal-50 text-teal-600">
+                <Settings className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium text-gray-700">Settings</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                onViewProfile?.();
+              }}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50 transition-colors"
+              aria-label="View profile"
+            >
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-50 text-blue-600">
+                <User className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium text-gray-700">Profile</span>
+            </button>
+          )}
         </div>
-
-        {isGroup && (
-          <p className="text-center text-xs text-gray-400 mt-3">
-            Group calls coming soon
-          </p>
-        )}
       </div>
     </div>
   );

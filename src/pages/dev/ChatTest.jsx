@@ -90,12 +90,12 @@ function ChatTest() {
     }
 
     if (!session) {
-      setProfiles([]);
-      setProfilesError(null);
-      setProfilesLoading(false);
+      // Profiles already defaults to empty array, no need to reset
       return;
     }
 
+    // Intentional: fetchProfiles is a wrapped async function that updates state after API call
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchProfiles();
   }, [isAuthReady, isProfileReady, session, fetchProfiles]);
 
@@ -271,6 +271,7 @@ function ChatTest() {
       {/* Chat Layout with Dev Rail inside the shell */}
       <ChatLayout
         onReady={handleChatLayoutReady}
+        allUsers={profiles}
         devRail={
           <ChatDevRail
             totalUnreadCount={totalUnreadCount}

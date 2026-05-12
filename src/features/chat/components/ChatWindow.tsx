@@ -13,6 +13,7 @@ import { CallErrorBoundary } from './CallErrorBoundary';
 import { ReportMessageModal } from './ReportMessageModal';
 import { ReportUserModal } from './ReportUserModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { GroupSettingsModal } from './GroupSettingsModal';
 import { reportUser, markConversationMessagesAsRead, type PinnedMessageWithData } from '../services/supabaseChatService';
 import { PinnedMessagesBar } from './PinnedMessagesBar';
 import {
@@ -132,6 +133,10 @@ interface ChatWindowProps {
   // Presence props
   isUserOnline?: (userId: string) => boolean;
   getOnlineCount?: (userIds: string[]) => number;
+  // Conversation update
+  onConversationUpdate?: (conversation: Conversation) => void;
+  // All registered users from parent
+  allUsers?: ChatUser[];
 }
 
 export function ChatWindow({
@@ -164,6 +169,8 @@ export function ChatWindow({
   externalCallStatus = null,
   isUserOnline,
   getOnlineCount,
+  onConversationUpdate,
+  allUsers,
 }: ChatWindowProps) {
   // Debug log for pin troubleshooting
   console.log('[Pin Debug] ChatWindow pin state', {
@@ -278,6 +285,10 @@ export function ChatWindow({
   // Report user modal state
   const [reportUserModalOpen, setReportUserModalOpen] = useState(false);
   const [isUserReported, setIsUserReported] = useState(false);
+
+  // Group settings modal state
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [groupSettingsSection, setGroupSettingsSection] = useState<'settings' | 'add-users' | 'members'>('settings');
 
   // User popover state
   const [isUserPopoverOpen, setIsUserPopoverOpen] = useState(false);
@@ -714,6 +725,12 @@ export function ChatWindow({
               onVoiceCall={handleVoiceCall}
               onVideoCall={handleVideoCall}
               onViewProfile={handleViewProfile}
+              onGroupSettings={() => {
+                console.log('[GROUP SETTINGS] opening modal from popover', { conversation: conversation?.id, type: conversation?.type });
+                setGroupSettingsSection('settings');
+                setGroupSettingsOpen(true);
+                console.log('[GROUP SETTINGS] isOpen: true');
+              }}
               isUserOnline={isUserOnline}
             />
           </div>
@@ -817,6 +834,7 @@ export function ChatWindow({
                 isMuted={conversation.isMuted || false}
                 isDirectConversation={conversation.type === 'direct'}
                 isUserReported={isUserReported}
+                isGroupConversation={conversation.type === 'group'}
                 onPinToggle={handlePinToggle}
                 onMuteToggle={handleMuteToggle}
                 onViewProfile={handleViewProfile}
@@ -824,6 +842,19 @@ export function ChatWindow({
                 onClearChat={handleClearChat}
                 onDeleteChat={handleDeleteChat}
                 onReportUser={() => setReportUserModalOpen(true)}
+                onGroupSettings={() => {
+                  console.log('[GROUP SETTINGS] opening modal from menu');
+                  setGroupSettingsSection('settings');
+                  setGroupSettingsOpen(true);
+                }}
+                onAddUsers={() => {
+                  setGroupSettingsSection('add-users');
+                  setGroupSettingsOpen(true);
+                }}
+                onViewMembers={() => {
+                  setGroupSettingsSection('members');
+                  setGroupSettingsOpen(true);
+                }}
               />
             )}
           </div>
@@ -957,7 +988,7 @@ export function ChatWindow({
         z-50 md:z-auto
         shadow-lg shadow-gray-200/50 md:shadow-none
         shrink-0 md:shrink-0
-        [padding-bottom:env(safe-area-inset-bottom)] md:pb-0
+        pb-[env(safe-area-inset-bottom)] md:pb-0
       ">
         <MessageInput
           onSendMessage={onSendMessage}
@@ -1081,6 +1112,22 @@ export function ChatWindow({
           </div>
         </div>
       )}
+
+      {/* Group Settings Modal */}
+      <GroupSettingsModal
+        conversation={conversation}
+        isOpen={groupSettingsOpen}
+        onClose={() => setGroupSettingsOpen(false)}
+        currentUser={currentUser}
+        initialSection={groupSettingsSection}
+        allUsers={allUsers}
+        onUpdateConversation={(updated) => {
+          // Update the conversation in parent
+          if (onConversationUpdate) {
+            onConversationUpdate(updated);
+          }
+        }}
+      />
     </div>
   );
 }

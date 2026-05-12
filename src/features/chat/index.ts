@@ -25,6 +25,7 @@ export { ConfirmActionModal } from './components/ConfirmActionModal';
 export { CallModal } from './components/CallModal';
 export { IncomingCallModal } from './components/IncomingCallModal';
 export { PinnedMessagesBar } from './components/PinnedMessagesBar';
+export { GroupSettingsModal } from './components/GroupSettingsModal';
 
 // Types
 export type { ChatUser, Conversation, Message, ChatState, ChatFilter, MessageType, ChatProfile, PinnedMessage } from './types';
@@ -118,6 +119,16 @@ export {
   type CallSignal,
   type InsertCallSignalParams,
 } from './services/supabaseCallSignals';
+
+// Group services
+export {
+  fetchGroupMembers,
+  fetchAvailableUsers,
+  searchAvailableUsers,
+  addUsersToGroup,
+  fetchFullGroupMembers,
+  isUserInGroup,
+} from './services/groupService';
 
 // WebRTC hook
 export {
