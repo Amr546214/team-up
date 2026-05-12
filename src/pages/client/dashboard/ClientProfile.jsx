@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../../components/common/Header";
 import { getCurrentUser } from "../../../services/fakeApi";
+import { saveUserProfile, dispatchAuthChanged, getUserProfile } from "../../../utils/authStorage";
 
 import {
   ChevronDown,
@@ -140,6 +141,18 @@ function ClientProfile() {
     const profileToSave = { ...formData, phoneCode };
     setSavedProfile(profileToSave);
     setIsEditing(false);
+
+    // Sync photo to global user profile for Navbar avatar
+    if (formData.photo) {
+      const existingProfile = getUserProfile() || {};
+      saveUserProfile({
+        ...existingProfile,
+        avatarUrl: formData.photo,
+        name: formData.fullName || existingProfile.name,
+      });
+      dispatchAuthChanged();
+      console.log("PROFILE PHOTO SYNCED TO GLOBAL STORAGE");
+    }
 
     // Persist to localStorage
     try {

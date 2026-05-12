@@ -1,17 +1,29 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Lock } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
+import { login as backendLogin } from "../../services/authService";
+import { saveUserRole, dispatchAuthChanged, saveUserProfile } from "../../utils/authStorage";
+
+const validRoles = ["client", "developer", "company", "admin"];
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const { t } = useTranslation();
-  const [userType, setUserType] = useState("client");
+
+  // Initialize state from URL params to avoid setState in effect
+  const emailParam = searchParams.get("email");
+  const roleParam = searchParams.get("role");
+
+  const [userType, setUserType] = useState(
+    validRoles.includes(roleParam) ? roleParam : "client"
+  );
   const [authMode, setAuthMode] = useState("login");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailParam || "");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +32,7 @@ const LoginForm = () => {
     email: "",
     password: "",
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   const isAdmin = userType === "admin";
 
@@ -59,12 +72,71 @@ const LoginForm = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const isValid = validateForm();
     if (!isValid) return;
 
+    // Clear errors before login
+    setErrors({ email: "", password: "" });
+
+    // Client/Developer/Company login use real backend API
+    if (userType === "client" || userType === "developer" || userType === "company") {
+      setIsLoading(true);
+      try {
+        const response = await backendLogin({ email: email.trim().toLowerCase(), password });
+        // Tokens are already saved by authService.login()
+        console.log("LOGIN SUCCESS RESPONSE:", response);
+
+        // Save user role for global auth state
+        saveUserRole(userType);
+
+        // Save user profile for global avatar/name display
+        const userEmail = email.trim().toLowerCase();
+        saveUserProfile({
+          email: userEmail,
+          role: userType,
+          name: userEmail.split("@")[0],
+          avatarUrl: "",
+        });
+
+        // Notify all components that auth state has changed
+        dispatchAuthChanged();
+
+        // Role-based redirect
+        const roleRedirects = {
+          client: "/client/profile",
+          developer: "/developer/dashboard",
+          company: "/company/profile",
+        };
+        const redirectPath = roleRedirects[userType];
+
+        console.log("LOGIN ROLE:", userType);
+        console.log("REDIRECTING TO:", redirectPath);
+
+        resetForm();
+        navigate(redirectPath, { replace: true });
+        return;
+      } catch (error) {
+        setIsLoading(false);
+        // Map backend errors to user-friendly messages
+        let errorMessage = "Login failed";
+        if (error.status === 404) {
+          errorMessage = "Email not found";
+        } else if (error.status === 400) {
+          errorMessage = "Invalid email or password";
+        } else if (error.status === 500) {
+          errorMessage = "Server error, please try again later";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        setErrors({ email: "", password: errorMessage });
+        return;
+      }
+    }
+
+    // Other roles still use existing auth logic for now
     const authResult = login(email, password, userType, rememberMe);
     if (!authResult.ok) {
       if (authResult.reason === "invalid_credentials") {
@@ -376,13 +448,14 @@ const LoginForm = () => {
             </div>
 
             {/* LOGIN AS LINK */}
-            <a
-              href="#"
+            <button
+              type="button"
               onClick={handleLoginClick}
-              className="w-[340px] h-[40px] mx-auto bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer"
+              disabled={isLoading}
+              className="w-[340px] h-[40px] mx-auto bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t("auth.loginButton")}
-            </a>
+              {isLoading ? "Logging in..." : t("auth.loginButton")}
+            </button>
 
             {/* Admin secure message only */}
             {isAdmin && authMode === "login" && (

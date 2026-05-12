@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import footerLogo from "../../assets/logo/teamup-logo.png";
 import { useAuth } from "../../hooks/useAuth";
+import { getDashboardPath } from "../../utils/authStorage";
 
 import {
   UserPlus,
@@ -18,41 +19,30 @@ import {
   CheckCircle, User2,
   BriefcaseBusiness, CodeXml, Building2, Check,
   Github, Linkedin, Mail
-} 
-from "lucide-react";
-
-function getDashboardPathByRole(role) {
-  switch (role) {
-    case "client":
-      return "/client/profile";
-    case "developer":
-      return "/developer/dashboard";
-    case "company":
-      return "/company/profile";
-    case "admin":
-      return "/";
-    default:
-      return "/";
-  }
 }
+from "lucide-react";
 
 const Home = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, session } = useAuth();
+  const { isAuthenticated, userRole } = useAuth();
   const { t } = useTranslation();
 
   const handleGetStarted = () => {
-    if (isAuthenticated && session?.role) {
-      navigate(getDashboardPathByRole(session.role));
+    console.log("DASHBOARD CLICK ROLE:", userRole);
+    console.log("DASHBOARD CLICK PATH:", getDashboardPath(userRole));
+    if (isAuthenticated && userRole) {
+      navigate(getDashboardPath(userRole));
     } else {
-      navigate("/register");
+      navigate("/login");
     }
   };
 
   const handleSignUp = (role) => {
-    if (isAuthenticated && session?.role) {
+    if (isAuthenticated && userRole) {
       // Already logged in, go to dashboard
-      navigate(getDashboardPathByRole(session.role));
+      console.log("DASHBOARD CLICK ROLE:", userRole);
+      console.log("DASHBOARD CLICK PATH:", getDashboardPath(userRole));
+      navigate(getDashboardPath(userRole));
     } else {
       navigate(`/register?role=${role}`);
     }

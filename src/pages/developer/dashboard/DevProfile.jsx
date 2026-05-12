@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Camera, Plus, X, Save, Loader2 } from "lucide-react";
 import Header from "../../../components/common/Header";
 import { getCurrentUser } from "../../../services/fakeApi";
+import { saveUserProfile, dispatchAuthChanged, getUserProfile } from "../../../utils/authStorage";
 
 const TRACK_OPTIONS = [
   "Frontend Developer",
@@ -232,6 +233,18 @@ const DevProfile = () => {
 
       const { password: _password, ...safeUser } = updatedUser;
       window.localStorage.setItem("teamup_current_user", JSON.stringify(safeUser));
+
+      // Sync photo to global user profile for Navbar avatar
+      if (formData.image) {
+        const existingProfile = getUserProfile() || {};
+        saveUserProfile({
+          ...existingProfile,
+          avatarUrl: formData.image,
+          name: formData.name.trim() || existingProfile.name,
+        });
+        dispatchAuthChanged();
+        console.log("DEV PROFILE PHOTO SYNCED TO GLOBAL STORAGE");
+      }
 
       setSuccessMessage("Profile saved successfully");
       setTimeout(() => setSuccessMessage(""), 3000);

@@ -3,28 +3,14 @@ import HeroSection from "../../components/common/HeroSection";
 import LoginForm from "../../components/forms/LoginForm";
 import { useAuth } from "../../hooks/useAuth";
 import { Navigate } from "react-router-dom";
-
-function getDashboardPathByRole(role) {
-  switch (role) {
-    case "client":
-      return "/client/profile";
-    case "developer":
-      return "/developer/dashboard";
-    case "company":
-      return "/company/profile";
-    case "admin":
-      return "/";
-    default:
-      return "/";
-  }
-}
+import { getDashboardPath } from "../../utils/authStorage";
 
 function Login() {
-  const { isAuthenticated, session } = useAuth();
+  const { isAuthenticated, userRole } = useAuth();
 
   // Redirect if already logged in
-  if (isAuthenticated && session?.role) {
-    return <Navigate to={getDashboardPathByRole(session.role)} replace />;
+  if (isAuthenticated && userRole) {
+    return <Navigate to={getDashboardPath(userRole)} replace />;
   }
 
   return (

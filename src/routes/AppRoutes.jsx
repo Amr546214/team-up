@@ -4,8 +4,10 @@ import Register from "../pages/auth/Register";
 import Home from "../pages/public/Home";
 import DeploymentPage from "../pages/public/DeploymentPage";
 import NotFound from "../pages/public/NotFound";
+import ChatTest from "../pages/dev/ChatTest";
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute";
+import PublicOnlyRoute from "./PublicOnlyRoute";
 
 import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 
@@ -36,14 +38,34 @@ import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
 function AppRoutes() {
-  const isProd = import.meta.env.PROD;
+  // Environment variable override to show deployment page
+  const showDeploymentPage =
+    import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE === "true";
+
+  // Debug log for routing environment
+  console.log("[Routing]", {
+    mode: import.meta.env.MODE,
+    appEnv: import.meta.env.VITE_APP_ENV,
+    showDeploymentPage: import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE,
+    hostname: window.location.hostname,
+  });
+
+  // Show DeploymentPage only when explicitly enabled via env var
+  if (showDeploymentPage) {
+    return <DeploymentPage />;
+  }
 
   return (
     <Routes>
-      {/* Public routes - Show DeploymentPage in production, Home in development */}
-      <Route path="/" element={isProd ? <DeploymentPage /> : <Home />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      {/* Public routes - Real app for Netlify and localhost */}
+      <Route path="/" element={<Home />} />
+      <Route path="/deployment" element={<DeploymentPage />} />
+      <Route path="/under-deployment" element={<DeploymentPage />} />
+
+      {/* Public only routes - redirect authenticated users to their dashboard */}
+      <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+      <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+
       <Route path="/skill-quiz" element={<SkillQuiz />} />
       <Route path="/quiz" element={<SkillQuiz />} />
       <Route path="/quiz/:trackId" element={<SkillQuiz />} />
@@ -90,6 +112,9 @@ function AppRoutes() {
           <Route path="/team-leader/reports" element={<Reports />} />
         </Route>
       </Route>
+
+      {/* Dev-only routes - NOT available in production */}
+      <Route path="/dev/chat-test" element={<ChatTest />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>
