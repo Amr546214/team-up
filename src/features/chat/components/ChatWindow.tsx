@@ -389,6 +389,10 @@ export function ChatWindow({
 
   // Call handlers
   const handleVoiceCall = useCallback(async () => {
+    console.log('[MOBILE CALL] handleVoiceCall invoked');
+    console.log('[MOBILE CALL] currentUser', currentUser);
+    console.log('[MOBILE CALL] activeConversation', conversation);
+
     if (conversation?.type === 'group') {
       setShowGroupCallPopup(true);
       return;
@@ -402,6 +406,8 @@ export function ChatWindow({
 
       // Get receiver (other participant)
       const otherUser = getOtherParticipant(conversation);
+      console.log('[MOBILE CALL] receiverId', otherUser?.id);
+
       if (!otherUser) {
         console.error('[Calls] cannot start call - no other user');
         setCallError('Cannot start call - no participant found');
@@ -418,6 +424,7 @@ export function ChatWindow({
       console.log('[Calls] starting voice call', {
         conversationId: conversation.id,
         receiverId: otherUser.id,
+        callType: 'audio',
       });
 
       const { call, error } = await createCallSession({
@@ -455,6 +462,11 @@ export function ChatWindow({
   }, [conversation, currentUser.id, onCallStateChange]);
 
   const handleVideoCall = useCallback(async () => {
+    console.log('[MOBILE CALL] handleVideoCall invoked');
+    console.log('[MOBILE CALL] currentUser', currentUser);
+    console.log('[MOBILE CALL] activeConversation', conversation);
+    console.log('[MOBILE CALL] call type', 'video');
+
     if (conversation?.type === 'group') {
       setShowGroupCallPopup(true);
       return;
@@ -468,6 +480,8 @@ export function ChatWindow({
 
       // Get receiver (other participant)
       const otherUser = getOtherParticipant(conversation);
+      console.log('[MOBILE CALL] receiverId', otherUser?.id);
+
       if (!otherUser) {
         console.error('[Calls] cannot start call - no other user');
         setCallError('Cannot start call - no participant found');
@@ -484,6 +498,7 @@ export function ChatWindow({
       console.log('[Calls] starting video call', {
         conversationId: conversation.id,
         receiverId: otherUser.id,
+        callType: 'video',
       });
 
       const { call, error } = await createCallSession({
@@ -801,16 +816,30 @@ export function ChatWindow({
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Voice Call Button - visible on all screen sizes */}
           <button
-            onClick={handleVoiceCall}
-            className="p-2.5 hover:bg-gray-100 rounded-full transition-colors hidden sm:flex"
+            onClick={() => {
+              console.log('[MOBILE CALL] voice call button clicked');
+              console.log('[MOBILE CALL] isSecureContext', window.isSecureContext);
+              console.log('[MOBILE CALL] mediaDevices available', !!navigator.mediaDevices);
+              console.log('[MOBILE CALL] getUserMedia available', !!navigator.mediaDevices?.getUserMedia);
+              handleVoiceCall();
+            }}
+            className="p-2.5 hover:bg-gray-100 rounded-full transition-colors flex"
             aria-label="Voice call"
           >
             <Phone className="w-5 h-5 text-gray-500" />
           </button>
+          {/* Video Call Button - visible on all screen sizes */}
           <button
-            onClick={handleVideoCall}
-            className="p-2.5 hover:bg-gray-100 rounded-full transition-colors hidden sm:flex"
+            onClick={() => {
+              console.log('[MOBILE CALL] video call button clicked');
+              console.log('[MOBILE CALL] isSecureContext', window.isSecureContext);
+              console.log('[MOBILE CALL] mediaDevices available', !!navigator.mediaDevices);
+              console.log('[MOBILE CALL] getUserMedia available', !!navigator.mediaDevices?.getUserMedia);
+              handleVideoCall();
+            }}
+            className="p-2.5 hover:bg-gray-100 rounded-full transition-colors flex"
             aria-label="Video call"
           >
             <Video className="w-5 h-5 text-gray-500" />

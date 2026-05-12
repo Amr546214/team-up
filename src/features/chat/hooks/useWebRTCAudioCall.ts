@@ -42,11 +42,13 @@ interface UseWebRTCAudioCallReturn {
   endCall: () => void;
   retryMicrophone: () => void;
   continueAudioOnly: () => void;
+  retryCamera: () => Promise<void>;
   error: Error | null;
   remoteAudioRef: React.RefObject<HTMLAudioElement | null>;
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
   remoteVideoRef: React.RefObject<HTMLVideoElement | null>;
   isCameraOff: boolean;
+  isCameraUnavailable: boolean;
   isAudioOnlyFallback: boolean;
 }
 
@@ -115,6 +117,7 @@ export function useWebRTCAudioCall(
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  const [isCameraUnavailable, setIsCameraUnavailable] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -438,6 +441,12 @@ export function useWebRTCAudioCall(
         throw new Error('Microphone is not supported in this browser');
       }
 
+      // Check if camera is already marked as unavailable (from previous attempt)
+      if (optionsRef.current.callType === 'video' && isCameraUnavailable) {
+        console.log('[MEDIA] camera was previously marked unavailable, using audio-only');
+        forceAudioOnlyRef.current = true;
+      }
+
       setWebRTCStatus('requesting-microphone');
       setError(null);
 
@@ -468,41 +477,74 @@ export function useWebRTCAudioCall(
         // Request new stream if we don't have one
         if (!stream) {
           if (optionsRef.current.callType === 'video' && !forceAudioOnlyRef.current) {
-            console.log('[MEDIA] requesting user media (video + audio)');
+            // Mobile-specific video constraints with facingMode
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const videoConstraints = { 
+              audio: true, 
+              video: isMobile ? { facingMode: 'user' } : true 
+            };
+            
+            console.log('[MOBILE CALL] isSecureContext', window.isSecureContext);
+            console.log('[MOBILE CALL] isMobile device', isMobile);
+            console.log('[MOBILE CALL] requesting video call media', { constraints: videoConstraints });
+            
             try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: true,
+              stream = await navigator.mediaDevices.getUserMedia(videoConstraints);
+              console.log('[MOBILE CALL] getUserMedia success', { 
+                tracks: stream.getTracks().map(t => ({ kind: t.kind, id: t.id, enabled: t.enabled, readyState: t.readyState, label: t.label }))
               });
-              console.log('[MEDIA] getUserMedia success (video + audio)');
             } catch (videoError) {
-              console.error('[MEDIA] getUserMedia failed for video', videoError);
               const errName = videoError instanceof DOMException ? videoError.name : '';
-              const isNotReadable = errName === 'NotReadableError' || 
-                /Could not start video source/i.test(String(videoError));
+              const errMessage = videoError instanceof Error ? videoError.message : String(videoError);
+              console.error('[MOBILE CALL] getUserMedia failed', errName, errMessage);
               
-              // Auto-fallback to audio-only if camera is busy/not available
+              // Mobile permission errors
+              if (!window.isSecureContext) {
+                console.warn('[MOBILE CALL] Not in secure context - HTTPS required for camera/microphone');
+              }
+              
+              const isNotReadable = errName === 'NotReadableError' || 
+                /Could not start video source/i.test(errMessage) ||
+                /Camera or microphone is already in use/i.test(errMessage);
+              
+              const isNotAllowed = errName === 'NotAllowedError' ||
+                /Permission denied/i.test(errMessage);
+              
+              // Handle camera unavailable - mark state but don't auto-fallback
               if (isNotReadable && optionsRef.current.callType === 'video') {
-                console.log('[MEDIA] camera not available, auto-fallback to audio-only');
+                console.warn('[MOBILE CALL] Camera unavailable - NotReadableError. Camera may be in use by another app/tab.');
+                setIsCameraUnavailable(true);
+                // Still allow the call to proceed with audio-only fallback
+                console.log('[MEDIA] Falling back to audio-only due to camera unavailability');
                 forceAudioOnlyRef.current = true;
                 setIsAudioOnlyFallback(true);
-                console.log('[MEDIA] requesting user media (audio-only fallback)');
+                
+                // Request audio-only fallback
+                console.log('[MEDIA] requesting audio-only fallback');
                 stream = await navigator.mediaDevices.getUserMedia({
                   audio: true,
                   video: false,
                 });
                 console.log('[MEDIA] getUserMedia success (audio-only fallback)');
+              } else if (isNotAllowed) {
+                console.error('[MOBILE CALL] Camera/microphone permission denied by user');
+                throw new Error('Camera and microphone access denied. Please allow access in your browser settings and try again.');
               } else {
                 throw videoError;
               }
             }
           } else {
-            console.log('[MEDIA] requesting user media (audio only)');
-            stream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
-              video: false,
-            });
-            console.log('[MEDIA] getUserMedia success (audio only)');
+            const audioConstraints = { audio: true, video: false };
+            console.log('[MOBILE CALL] requesting user media (audio only)', { constraints: audioConstraints });
+            try {
+              stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+              console.log('[MOBILE CALL] getUserMedia success (audio only)');
+            } catch (audioError) {
+              const errName = audioError instanceof DOMException ? audioError.name : '';
+              const errMessage = audioError instanceof Error ? audioError.message : String(audioError);
+              console.error('[MOBILE CALL] getUserMedia failed for audio', errName, errMessage);
+              throw audioError;
+            }
           }
         }
         
@@ -552,12 +594,33 @@ export function useWebRTCAudioCall(
       // Log local tracks as requested
       const localVideoTracks = stream.getVideoTracks();
       const localAudioTracks = stream.getAudioTracks();
-      console.log('[LOCAL VIDEO TRACKS]', localVideoTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+      
+      // Detailed logging for media acquisition
+      console.log('[MEDIA] local video tracks', localVideoTracks.map(t => ({ 
+        kind: t.kind, 
+        enabled: t.enabled, 
+        readyState: t.readyState, 
+        id: t.id,
+        label: t.label 
+      })));
+      console.log('[MEDIA] local audio tracks', localAudioTracks.map(t => ({ 
+        kind: t.kind, 
+        enabled: t.enabled, 
+        readyState: t.readyState, 
+        id: t.id,
+        label: t.label 
+      })));
+      
+      // Log final media mode
+      const hasLocalVideo = localVideoTracks.length > 0 && localVideoTracks.some(t => t.readyState === 'live');
+      console.log('[CALL] final media mode', hasLocalVideo ? 'video' : 'audio-only');
       
       if (optionsRef.current.callType === 'video') {
         console.log('[MEDIA] local stream acquired', { 
           videoTracks: localVideoTracks.length,
-          audioTracks: localAudioTracks.length 
+          audioTracks: localAudioTracks.length,
+          hasLocalVideo,
+          isCameraUnavailable 
         });
       } else {
         console.log('[MEDIA] microphone GRANTED', { audioTracks: localAudioTracks.length });
@@ -638,12 +701,22 @@ export function useWebRTCAudioCall(
           videoTracks.some(t => t.readyState === 'live' && t.enabled);
         setRemoteHasVideo(hasActiveVideo);
         
+        // Log remote video tracks status
+        console.log('[MEDIA] remote video tracks', videoTracks.map(t => ({ 
+          kind: t.kind, 
+          enabled: t.enabled, 
+          readyState: t.readyState, 
+          id: t.id,
+          label: t.label 
+        })));
+        
         if (optionsRef.current.callType === 'video') {
           console.log(`[${rolePrefix}] remote stream received`, {
             hasVideo: videoTracks.length > 0,
             hasActiveVideo,
             hasAudio: audioTracks.length > 0
           });
+          console.log('[CALL] final media mode', hasActiveVideo ? 'video' : 'audio-only');
         }
         setWebRTCStatus('connected');
         stopOutgoingCallWaitingSound();
@@ -1060,6 +1133,40 @@ export function useWebRTCAudioCall(
     cleanupWebRTC('call-ended');
   }, [cleanupWebRTC]);
 
+  // Retry camera access - useful when camera was previously unavailable
+  const retryCamera = useCallback(async () => {
+    console.log('[MEDIA] retrying camera access');
+    setIsCameraUnavailable(false);
+    forceAudioOnlyRef.current = false;
+    setIsAudioOnlyFallback(false);
+    
+    // Release current media before retrying
+    if (localStreamRef.current) {
+      console.log('[MEDIA] stopping existing tracks before retry');
+      localStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('[MEDIA] stopped track', { kind: track.kind, id: track.id });
+      });
+      localStreamRef.current = null;
+      setLocalStream(null);
+    }
+    
+    // Clear video element
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    
+    // Re-initialize WebRTC with camera
+    const opts = optionsRef.current;
+    if (!opts.callId || !opts.role) {
+      console.warn('[MEDIA] cannot retry camera - missing callId or role');
+      return;
+    }
+    
+    console.log('[MEDIA] reinitializing WebRTC with camera enabled');
+    await initWebRTC(opts.callId, opts.role);
+  }, [initWebRTC]);
+
   // ============================================================================
   // EFFECT: Re-attach streams when video refs become available
   // This handles cases where track arrives before video element is rendered
@@ -1115,11 +1222,13 @@ export function useWebRTCAudioCall(
     endCall,
     retryMicrophone,
     continueAudioOnly,
+    retryCamera,
     error,
     remoteAudioRef,
     localVideoRef,
     remoteVideoRef,
     isCameraOff,
+    isCameraUnavailable,
     isAudioOnlyFallback,
   };
 }
