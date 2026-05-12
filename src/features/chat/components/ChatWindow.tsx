@@ -700,11 +700,7 @@ export function ChatWindow({
   });
 
   return (
-    <div className={`
-      relative flex flex-col bg-white w-full overflow-hidden
-      h-full md:h-full
-      ${isMobile ? 'h-dvh' : ''}
-    `}>
+    <div className="relative flex flex-col bg-white w-full overflow-hidden h-dvh md:h-full">
 
       {/* User Action Card Overlay - Above messages, below header */}
       {isUserPopoverOpen && (
@@ -845,10 +841,7 @@ export function ChatWindow({
       )}
 
       {/* Messages - Using flex-col with justify-end to keep messages near bottom */}
-      <div className={`
-        relative z-0 flex-1 overflow-y-auto bg-linear-to-b from-teal-50/20 via-white to-white
-        ${isMobile ? 'pb-[140px]' : ''}
-      `}>
+      <div className="relative z-0 flex-1 overflow-y-auto bg-linear-to-b from-teal-50/20 via-white to-white pb-[140px] md:pb-0">
         <div className="min-h-full flex flex-col">
           {isLoadingMessages ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
@@ -947,8 +940,8 @@ export function ChatWindow({
         </div>
       )}
 
-      {/* Typing Indicator - Fixed on mobile above input */}
-      <div className={isMobile ? 'fixed left-0 right-0 bottom-[130px] z-50' : ''}>
+      {/* Typing Indicator - Fixed on mobile above input, normal on desktop */}
+      <div className="fixed md:static left-0 right-0 bottom-[130px] md:bottom-auto z-50 md:z-auto">
         <TypingIndicator
           typingUsers={typingUsers}
           isGroup={isGroup}
@@ -957,15 +950,15 @@ export function ChatWindow({
       </div>
 
       {/* Input - Fixed on mobile above bottom nav, normal on desktop */}
-      <div className={`
+      <div className="
         bg-white border-t border-gray-100
-        ${isMobile 
-          ? 'fixed left-0 right-0 bottom-[64px] z-50 shadow-lg shadow-gray-200/50' 
-          : 'shrink-0'
-        }
-      `}
-      style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
-      >
+        fixed md:static left-0 right-0 md:left-auto md:right-auto
+        bottom-[64px] md:bottom-auto
+        z-50 md:z-auto
+        shadow-lg shadow-gray-200/50 md:shadow-none
+        shrink-0 md:shrink-0
+        [padding-bottom:env(safe-area-inset-bottom)] md:pb-0
+      ">
         <MessageInput
           onSendMessage={onSendMessage}
           onSendAttachment={onSendAttachment}
