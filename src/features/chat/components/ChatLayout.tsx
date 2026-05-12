@@ -8,7 +8,7 @@ import { MobileUsersPanel } from './MobileUsersPanel';
 import { useChat } from '../hooks/useChat';
 import { useChatPresence } from '../hooks/useChatPresence';
 import { MessageSquare, ArrowRight } from 'lucide-react';
-import type { Conversation, Message } from '../types';
+import type { Conversation, Message, ChatUser } from '../types';
 import type { CallSession } from '../services/supabaseCallService';
 import { supabase } from '../../../lib/supabase';
 import { stopIncomingCallRingtone, stopOutgoingCallWaitingSound } from '../utils/chatSounds';
@@ -26,6 +26,7 @@ interface ChatLayoutProps {
     unreadChatsCount: number;
   }) => void;
   devRail?: ReactNode;
+  allUsers?: ChatUser[]; // All registered users from parent
 }
 
 function normalizeCall(row: any): CallSession | null {
@@ -46,7 +47,7 @@ function normalizeCall(row: any): CallSession | null {
   } as CallSession;
 }
 
-export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
+export function ChatLayout({ onReady, devRail, allUsers }: ChatLayoutProps = {}) {
   const {
     activeConversationId,
     messages,
@@ -401,6 +402,7 @@ export function ChatLayout({ onReady, devRail }: ChatLayoutProps = {}) {
                 externalCallStatus={activeCallStatus}
                 isUserOnline={isUserOnline}
                 getOnlineCount={getOnlineCount}
+                allUsers={allUsers}
               />
             ) : (
               /* Empty state when no conversation is selected */
