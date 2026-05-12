@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { CallSignal } from '../services/supabaseCallSignals';
-import { insertCallSignal, subscribeToCallSignals, unsubscribeFromCallSignals } from '../services/supabaseCallSignals';
+import { insertCallSignal, subscribeToCallSignals, unsubscribeFromCallSignals, getCallSignals } from '../services/supabaseCallSignals';
 import { stopOutgoingCallWaitingSound } from '../utils/chatSounds';
 
 export type WebRTCStatus =
@@ -31,6 +31,7 @@ interface UseWebRTCAudioCallReturn {
   webRTCStatus: WebRTCStatus;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  remoteHasVideo: boolean;
   isMuted: boolean;
   isSpeakerOn: boolean;
   connectionState: RTCPeerConnectionState | null;
@@ -117,6 +118,7 @@ export function useWebRTCAudioCall(
   const [error, setError] = useState<Error | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
   const [isAudioOnlyFallback, setIsAudioOnlyFallback] = useState(false);
 
   // ============================================================================
@@ -124,19 +126,17 @@ export function useWebRTCAudioCall(
   // ============================================================================
 
   const cleanupWebRTC = useCallback((reason: string) => {
-    console.log('[WebRTC] cleanup STARTED', { reason, callId: currentCallIdRef.current });
+    console.log('[CALL] cleanup started', { reason, callId: currentCallIdRef.current });
 
     // Clear all timeouts
     if (micTimeoutRef.current) {
       clearTimeout(micTimeoutRef.current);
       micTimeoutRef.current = null;
-      console.log('[WebRTC] cleanup: microphone timeout cleared');
     }
 
     if (connectionTimeoutRef.current) {
       clearTimeout(connectionTimeoutRef.current);
       connectionTimeoutRef.current = null;
-      console.log('[WebRTC] cleanup: connection timeout cleared');
     }
 
     if (connectingDebugTimeoutRef.current) {
@@ -147,24 +147,25 @@ export function useWebRTCAudioCall(
     // Stop local tracks
     if (localStreamRef.current) {
       const tracks = localStreamRef.current.getTracks();
-      console.log('[WebRTC] cleanup: stopping local tracks', { trackCount: tracks.length });
+      console.log('[MEDIA] stopping local tracks', { trackCount: tracks.length });
       tracks.forEach((track) => {
         track.stop();
-        console.log('[WebRTC] cleanup: stopped track', { kind: track.kind, id: track.id });
+        console.log('[MEDIA] stopping local track', { kind: track.kind, id: track.id });
       });
       localStreamRef.current = null;
+      console.log('[MEDIA] local tracks stopped');
     }
 
     // Close peer connection
     if (peerConnectionRef.current) {
       const pc = peerConnectionRef.current;
-      console.log('[WebRTC] cleanup: closing peer connection', { 
+      console.log('[CALL] closing peer connection', { 
         connectionState: pc.connectionState,
         iceConnectionState: pc.iceConnectionState 
       });
       pc.close();
       peerConnectionRef.current = null;
-      console.log('[WebRTC] cleanup: peer connection closed');
+      console.log('[CALL] peer connection closed');
     }
 
     // Clear remote stream
@@ -172,28 +173,32 @@ export function useWebRTCAudioCall(
 
     // Unsubscribe from signals
     if (signalsChannelRef.current) {
-      console.log('[WebRTC] cleanup: unsubscribing from call signals');
+      console.log('[CALL] unsubscribing from signals');
       unsubscribeFromCallSignals(signalsChannelRef.current);
       signalsChannelRef.current = null;
-      console.log('[WebRTC] cleanup: signals unsubscribed');
     }
 
     // Clear video/audio elements
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
+      console.log('[MEDIA] video srcObject cleared (remoteAudio)');
       remoteAudioRef.current = null;
     }
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
+      localVideoRef.current.pause();
+      console.log('[MEDIA] video srcObject cleared (localVideo)');
     }
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
+      remoteVideoRef.current.pause();
+      console.log('[MEDIA] video srcObject cleared (remoteVideo)');
     }
 
     // Clear ICE candidate queue
     const queuedCount = pendingIceCandidatesRef.current.length;
     pendingIceCandidatesRef.current = [];
-    console.log('[WebRTC] cleanup: cleared pending ICE candidates', { queuedCount });
+    console.log('[CALL] cleared ICE candidate queue', { queuedCount });
 
     // Reset ALL guards and refs
     const clearedCallId = currentCallIdRef.current;
@@ -211,7 +216,7 @@ export function useWebRTCAudioCall(
     callerReceivedAnswerRef.current = false;
     remoteTrackArrivedRef.current = false;
 
-    console.log('[WebRTC] cleanup COMPLETED', { 
+    console.log('[CALL] cleanup completed', { 
       clearedCallId,
       reason 
     });
@@ -219,6 +224,7 @@ export function useWebRTCAudioCall(
     // Clear state
     setLocalStream(null);
     setRemoteStream(null);
+    setRemoteHasVideo(false);
     setConnectionState(null);
     setIceConnectionState(null);
     if (reason !== 'call-accepted-for-new-call') {
@@ -238,19 +244,19 @@ export function useWebRTCAudioCall(
     const queue = pendingIceCandidatesRef.current;
     if (queue.length === 0) return;
 
-    console.log('[WebRTC] flushing pending ICE candidates', { count: queue.length });
+    console.log('[CALL] flushing pending ICE candidates', { count: queue.length });
     
     for (const candidate of queue) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('[WebRTC] flushed ICE candidate successfully');
+        console.log('[CALL] ICE candidate added from queue');
       } catch (err) {
-        console.error('[WebRTC] failed to add flushed ICE candidate', err);
+        console.error('[CALL] failed to add ICE candidate from queue', err);
       }
     }
     
     pendingIceCandidatesRef.current = [];
-    console.log('[WebRTC] ICE candidate queue cleared');
+    console.log('[CALL] ICE candidate queue cleared');
   }, []);
 
   // ============================================================================
@@ -259,10 +265,12 @@ export function useWebRTCAudioCall(
   // ============================================================================
   const handleSignal = useCallback(async (signal: CallSignal) => {
     const currentCallId = currentCallIdRef.current;
+    const opts = optionsRef.current;
+    const rolePrefix = opts.role?.toUpperCase() || 'UNKNOWN';
     
     // CRITICAL: Filter signals by call_id - ignore signals for other calls
     if (signal.call_id !== currentCallId) {
-      console.log('[WebRTC] ignoring signal for different call', { 
+      console.log(`[${rolePrefix}] signal filtered - wrong callId`, { 
         signalCallId: signal.call_id, 
         currentCallId,
         type: signal.type 
@@ -272,48 +280,50 @@ export function useWebRTCAudioCall(
 
     const pc = peerConnectionRef.current;
     if (!pc) {
-      console.log('[WebRTC] no peer connection, ignoring signal', { type: signal.type });
+      console.log(`[${rolePrefix}] signal ignored - no peer connection`, { type: signal.type });
       return;
     }
 
     // Dedup by signal ID
     if (processedSignalsRef.current.has(signal.id)) {
-      console.log('[WebRTC] duplicate signal ignored', { signalId: signal.id, type: signal.type });
+      console.log(`[${rolePrefix}] duplicate signal ignored`, { signalId: signal.id, type: signal.type });
       return;
     }
     processedSignalsRef.current.add(signal.id);
 
-    const opts = optionsRef.current;
-
     try {
+      // Determine role for logging
+      const isSignalFromCaller = signal.sender_id === opts.peerUserId && opts.role === 'receiver';
+      const isSignalFromReceiver = signal.sender_id === opts.peerUserId && opts.role === 'caller';
+      
       if (signal.type === 'offer') {
-        console.log('[WebRTC] incoming offer received', { callId: currentCallId });
+        console.log(`[RECEIVER] incoming offer received`, { callId: currentCallId, signalId: signal.id, from: signal.sender_id });
         receiverReceivedOfferRef.current = true;
         
         if (hasCreatedAnswerRef.current) {
-          console.warn('[WebRTC] duplicate answer blocked - already created answer');
+          console.warn(`[RECEIVER] duplicate offer ignored - already created answer`);
           return;
         }
         if (pc.remoteDescription) {
-          console.log('[WebRTC] already have remote description, ignoring offer');
+          console.log(`[RECEIVER] offer ignored - already have remote description`);
           return;
         }
 
-        console.log('[WebRTC] remote offer setting...');
+        console.log(`[RECEIVER] setRemoteDescription(offer)...`);
         await pc.setRemoteDescription(signal.payload as RTCSessionDescriptionInit);
-        console.log('[WebRTC] remote offer set successfully');
+        console.log(`[RECEIVER] setRemoteDescription(offer) done`);
 
         // Flush any pending ICE candidates now that remoteDescription is set
         await flushPendingIceCandidates(pc);
 
-        console.log('[WebRTC] creating answer...');
+        console.log(`[RECEIVER] creating answer...`);
         const answer = await pc.createAnswer();
-        console.log('[WebRTC] local answer setting...');
+        console.log(`[RECEIVER] answer created`);
         await pc.setLocalDescription(answer);
-        console.log('[WebRTC] local answer set successfully');
+        console.log(`[RECEIVER] setLocalDescription(answer) done`);
 
         if (currentCallId && opts.currentUserId && opts.peerUserId) {
-          console.log('[WebRTC] sending answer...', { callId: currentCallId });
+          console.log(`[RECEIVER] saving answer with callId: ${currentCallId}`);
           const { success } = await insertCallSignal({
             callId: currentCallId,
             senderId: opts.currentUserId,
@@ -324,23 +334,23 @@ export function useWebRTCAudioCall(
           if (success) {
             hasCreatedAnswerRef.current = true;
             receiverCreatedAnswerRef.current = true;
-            console.log('[WebRTC] answer sent successfully', { callId: currentCallId });
+            console.log(`[RECEIVER] answer saved/sent`);
           }
         }
         setWebRTCStatus('connecting');
 
       } else if (signal.type === 'answer') {
-        console.log('[WebRTC] remote answer received', { callId: currentCallId });
+        console.log(`[CALLER] answer received`, { callId: currentCallId, signalId: signal.id, from: signal.sender_id });
         callerReceivedAnswerRef.current = true;
         
         if (pc.remoteDescription) {
-          console.log('[WebRTC] already have remote description, ignoring answer');
+          console.log(`[CALLER] answer ignored - already have remote description`);
           return;
         }
 
-        console.log('[WebRTC] remote answer setting...');
+        console.log(`[CALLER] setRemoteDescription(answer)...`);
         await pc.setRemoteDescription(signal.payload as RTCSessionDescriptionInit);
-        console.log('[WebRTC] remote answer set successfully');
+        console.log(`[CALLER] setRemoteDescription(answer) done`);
         
         // Flush any pending ICE candidates now that remoteDescription is set
         await flushPendingIceCandidates(pc);
@@ -352,7 +362,7 @@ export function useWebRTCAudioCall(
         
         // Check if remoteDescription is set before adding ICE candidate
         if (!pc.remoteDescription) {
-          console.log('[WebRTC] ICE candidate queued because remoteDescription is missing', { 
+          console.log(`[${rolePrefix}] ICE candidate queued (remoteDescription not ready)`, { 
             callId: currentCallId,
             queueLength: pendingIceCandidatesRef.current.length + 1
           });
@@ -360,12 +370,12 @@ export function useWebRTCAudioCall(
           return;
         }
         
-        console.log('[WebRTC] ICE candidate received, adding...', { callId: currentCallId });
+        console.log(`[${rolePrefix}] ICE candidate received from peer, adding...`);
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log('[WebRTC] ICE candidate added successfully');
+          console.log(`[${rolePrefix}] ICE candidate added successfully`);
         } catch (err) {
-          console.error('[WebRTC] failed to add ICE candidate', err);
+          console.error(`[${rolePrefix}] failed to add ICE candidate`, err);
         }
       }
     } catch (err) {
@@ -376,35 +386,30 @@ export function useWebRTCAudioCall(
   const initWebRTC = useCallback(async (nextCallId: string, role: 'caller' | 'receiver') => {
     if (!nextCallId) return;
 
-    console.log('[WebRTC] init requested', {
+    console.log(`[${role.toUpperCase()}] init started`, {
       callId: nextCallId,
-      role,
-      alreadyStarted: initStartedCallIdsRef.current.has(nextCallId),
-      isInitializing: isInitializingRef.current,
-      activeCallId: activeCallIdRef.current,
-      hasPeer: !!peerConnectionRef.current,
+      currentUser: optionsRef.current.currentUserId,
+      peerUser: optionsRef.current.peerUserId,
     });
 
     if (initStartedCallIdsRef.current.has(nextCallId)) {
-      console.warn('[WebRTC] duplicate init blocked before microphone', nextCallId);
+      console.warn(`[${role.toUpperCase()}] duplicate init blocked`, nextCallId);
       return;
     }
 
     if (isInitializingRef.current) {
-      console.warn('[WebRTC] init blocked because another init is running', {
+      console.warn(`[${role.toUpperCase()}] init blocked - another init running`, {
         callId: nextCallId,
-        activeCallId: activeCallIdRef.current,
       });
       return;
     }
 
     if (activeCallIdRef.current === nextCallId && peerConnectionRef.current) {
-      console.warn('[WebRTC] init blocked because peer already exists', nextCallId);
+      console.warn(`[${role.toUpperCase()}] init blocked - peer already exists`, nextCallId);
       return;
     }
 
     // CRITICAL: Set currentCallIdRef first so signal handler can filter by callId
-    console.log('[WebRTC] setting current callId', nextCallId);
     currentCallIdRef.current = nextCallId;
     initStartedCallIdsRef.current.add(nextCallId);
     isInitializingRef.current = true;
@@ -412,26 +417,21 @@ export function useWebRTCAudioCall(
 
     try {
       const { currentUserId, peerUserId, currentCall } = optionsRef.current;
-      console.log('[WebRTC] start for accepted call', {
-        callId: nextCallId,
-        role,
-      });
 
       if (!currentUserId || !peerUserId || !role) {
-        console.error('[WebRTC] missing context', {
-          call: currentCall,
+        console.error(`[${role.toUpperCase()}] missing context`, {
           currentUserId,
           peerUserId,
-          callRole: role,
+          role,
         });
         throw new Error('Missing user context for call initialization');
       }
 
       stopOutgoingCallWaitingSound();
       if (optionsRef.current.callType === 'video' && !forceAudioOnlyRef.current) {
-        console.log('[WebRTC Video] requesting camera/mic');
+        console.log(`[${role.toUpperCase()}] video call - will request camera + mic`);
       } else {
-        console.log('[WebRTC] step 1: requesting microphone...');
+        console.log(`[${role.toUpperCase()}] audio call - will request microphone only`);
       }
 
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -442,34 +442,70 @@ export function useWebRTCAudioCall(
       setError(null);
 
       micTimeoutRef.current = setTimeout(() => {
-        console.error('[WebRTC] microphone permission timed out');
+        console.error('[MEDIA] microphone permission timed out');
         setError(new Error('Microphone permission timed out. Please allow microphone access and try again.'));
         setWebRTCStatus('failed');
       }, MICROPHONE_TIMEOUT);
 
-      let stream: MediaStream;
+      let stream: MediaStream | undefined;
       try {
-        if (optionsRef.current.callType === 'video' && !forceAudioOnlyRef.current) {
-          console.log('[WebRTC Video] requesting camera/mic');
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
-              video: true,
+        // Check if we already have a valid local stream - reuse it instead of requesting again
+        if (localStreamRef.current) {
+          const existingTracks = localStreamRef.current.getTracks();
+          const allLive = existingTracks.every(t => t.readyState === 'live');
+          if (allLive && existingTracks.length > 0) {
+            console.log('[MEDIA] local stream already exists, reusing it', { 
+              tracks: existingTracks.map(t => ({ kind: t.kind, id: t.id }))
             });
-          } catch (videoError) {
-            console.error('[WebRTC Video] camera/microphone error', videoError);
-            throw videoError;
-          }
-        } else {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-          });
-          if (optionsRef.current.callType === 'video' && forceAudioOnlyRef.current) {
-            console.log('[WebRTC Audio Fallback] audio stream granted');
-            setIsAudioOnlyFallback(true);
+            stream = localStreamRef.current;
+          } else {
+            console.log('[MEDIA] existing stream has dead tracks, stopping and requesting new');
+            existingTracks.forEach(t => t.stop());
+            localStreamRef.current = null;
           }
         }
+
+        // Request new stream if we don't have one
+        if (!stream) {
+          if (optionsRef.current.callType === 'video' && !forceAudioOnlyRef.current) {
+            console.log('[MEDIA] requesting user media (video + audio)');
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: true,
+              });
+              console.log('[MEDIA] getUserMedia success (video + audio)');
+            } catch (videoError) {
+              console.error('[MEDIA] getUserMedia failed for video', videoError);
+              const errName = videoError instanceof DOMException ? videoError.name : '';
+              const isNotReadable = errName === 'NotReadableError' || 
+                /Could not start video source/i.test(String(videoError));
+              
+              // Auto-fallback to audio-only if camera is busy/not available
+              if (isNotReadable && optionsRef.current.callType === 'video') {
+                console.log('[MEDIA] camera not available, auto-fallback to audio-only');
+                forceAudioOnlyRef.current = true;
+                setIsAudioOnlyFallback(true);
+                console.log('[MEDIA] requesting user media (audio-only fallback)');
+                stream = await navigator.mediaDevices.getUserMedia({
+                  audio: true,
+                  video: false,
+                });
+                console.log('[MEDIA] getUserMedia success (audio-only fallback)');
+              } else {
+                throw videoError;
+              }
+            }
+          } else {
+            console.log('[MEDIA] requesting user media (audio only)');
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: false,
+            });
+            console.log('[MEDIA] getUserMedia success (audio only)');
+          }
+        }
+        
         if (micTimeoutRef.current) {
           clearTimeout(micTimeoutRef.current);
           micTimeoutRef.current = null;
@@ -479,7 +515,7 @@ export function useWebRTCAudioCall(
           clearTimeout(micTimeoutRef.current);
           micTimeoutRef.current = null;
         }
-        console.error('[WebRTC Video] getUserMedia failed', err);
+        console.error('[MEDIA] getUserMedia failed', err);
         const errText = err instanceof Error ? err.message : String(err);
         let msg = optionsRef.current.callType === 'video' ? 'Camera access failed' : 'Microphone access failed';
         const isVideoBusyError =
@@ -508,10 +544,23 @@ export function useWebRTCAudioCall(
         throw new Error(msg);
       }
 
+      // Ensure stream is defined
+      if (!stream) {
+        throw new Error('Failed to get media stream');
+      }
+
+      // Log local tracks as requested
+      const localVideoTracks = stream.getVideoTracks();
+      const localAudioTracks = stream.getAudioTracks();
+      console.log('[LOCAL VIDEO TRACKS]', localVideoTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+      
       if (optionsRef.current.callType === 'video') {
-        console.log('[WebRTC Video] local stream tracks', stream.getTracks());
+        console.log('[MEDIA] local stream acquired', { 
+          videoTracks: localVideoTracks.length,
+          audioTracks: localAudioTracks.length 
+        });
       } else {
-        console.log('[WebRTC] microphone GRANTED', { tracks: stream.getTracks().length });
+        console.log('[MEDIA] microphone GRANTED', { audioTracks: localAudioTracks.length });
       }
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -522,55 +571,79 @@ export function useWebRTCAudioCall(
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.muted = true;
         localVideoRef.current.play().catch(() => {});
-        console.log('[WebRTC Video] local video attached');
+        console.log('[MEDIA] local video attached to element');
       }
       setWebRTCStatus('connecting');
 
       // Check if we need to clean up an old peer connection first
       if (peerConnectionRef.current) {
-        console.warn('[WebRTC] closing old peer connection before creating new one', nextCallId);
+        console.warn(`[${role.toUpperCase()}] closing old peer connection before creating new one`, nextCallId);
         peerConnectionRef.current.close();
         peerConnectionRef.current = null;
       }
 
       // Unsubscribe from any existing signal channel before creating new one
       if (signalsChannelRef.current) {
-        console.log('[WebRTC] unsubscribing from old signal channel before creating new one');
+        console.log(`[${role.toUpperCase()}] unsubscribing from old signal channel`);
         unsubscribeFromCallSignals(signalsChannelRef.current);
         signalsChannelRef.current = null;
       }
 
-      console.log('[WebRTC] peer connection creating', nextCallId);
+      // CRITICAL: Create peer connection BEFORE subscribing to signals
+      console.log(`[${role.toUpperCase()}] creating peer connection`, nextCallId);
       peerConnectionRef.current = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
         ],
       });
-      console.log('[WebRTC] peer connection created');
+      console.log(`[${role.toUpperCase()}] peer connection created`);
 
       const pc = peerConnectionRef.current;
 
       // Add local tracks to peer connection
-      console.log('[WebRTC] adding local tracks to peer connection');
+      console.log('[CALL] adding local tracks to peer connection');
       stream.getTracks().forEach((track) => {
         pc.addTrack(track, stream);
-        console.log('[WebRTC] local track added', { kind: track.kind, id: track.id });
+        console.log('[CALL] local track added', { kind: track.kind, id: track.id });
       });
-      console.log('[WebRTC] local tracks added successfully');
+      console.log('[CALL] local tracks added successfully');
 
       // Set up remote track handler
       pc.ontrack = (event) => {
         remoteTrackArrivedRef.current = true;
-        console.log('[WebRTC] remote track received', { 
-          streams: event.streams.length,
-          trackKinds: event.streams[0]?.getTracks().map(t => t.kind)
-        });
         const [remoteStream] = event.streams;
+        const tracks = remoteStream.getTracks();
+        const videoTracks = remoteStream.getVideoTracks();
+        const audioTracks = remoteStream.getAudioTracks();
+        const rolePrefix = role.toUpperCase();
+        
+        // Log as requested
+        console.log(`[CALL] ontrack fired`, {
+          kind: event.track?.kind,
+          enabled: event.track?.enabled,
+          readyState: event.track?.readyState,
+          streams: event.streams?.length
+        });
+        
+        console.log(`[${rolePrefix}] [REMOTE STREAM]`, remoteStream);
+        console.log(`[${rolePrefix}] [REMOTE AUDIO TRACKS]`, audioTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+        console.log(`[${rolePrefix}] [REMOTE VIDEO TRACKS]`, videoTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+        
         remoteStreamRef.current = remoteStream;
         setRemoteStream(remoteStream);
+        
+        // Check for active video tracks (live and enabled)
+        const hasActiveVideo = videoTracks.length > 0 && 
+          videoTracks.some(t => t.readyState === 'live' && t.enabled);
+        setRemoteHasVideo(hasActiveVideo);
+        
         if (optionsRef.current.callType === 'video') {
-          console.log('[WebRTC Video] remote stream received');
+          console.log(`[${rolePrefix}] remote stream received`, {
+            hasVideo: videoTracks.length > 0,
+            hasActiveVideo,
+            hasAudio: audioTracks.length > 0
+          });
         }
         setWebRTCStatus('connected');
         stopOutgoingCallWaitingSound();
@@ -579,32 +652,69 @@ export function useWebRTCAudioCall(
         if (connectionTimeoutRef.current) {
           clearTimeout(connectionTimeoutRef.current);
           connectionTimeoutRef.current = null;
-          console.log('[WebRTC] connection timeout cleared - connected');
         }
         
+        // Handle audio element
         if (remoteAudioRef.current) {
           remoteAudioRef.current.muted = false;
           remoteAudioRef.current.volume = 1;
           remoteAudioRef.current.srcObject = remoteStream;
           remoteAudioRef.current.play().catch((playError) => {
-            console.warn('[WebRTC] remote audio autoplay failed', playError);
+            console.warn(`[${rolePrefix}] remote audio autoplay failed`, playError);
           });
         }
-        if (optionsRef.current.callType === 'video' && remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream;
-          remoteVideoRef.current.muted = false;
-          remoteVideoRef.current.volume = 1;
-          remoteVideoRef.current.play().catch(() => {});
-          console.log('[WebRTC Video] remote video attached');
+        
+        // Handle video element
+        if (optionsRef.current.callType === 'video') {
+          if (remoteVideoRef.current) {
+            if (hasActiveVideo) {
+              remoteVideoRef.current.srcObject = remoteStream;
+              remoteVideoRef.current.muted = false;
+              remoteVideoRef.current.volume = 1;
+              remoteVideoRef.current.play().catch((e) => {
+                console.warn(`[${rolePrefix}] remote video play failed`, e);
+              });
+              console.log(`[${rolePrefix}] remote video attached and playing`);
+            } else {
+              console.log(`[${rolePrefix}] remote has no active video tracks - audio only`);
+            }
+          } else {
+            console.warn(`[${rolePrefix}] remoteVideoRef not available yet`);
+          }
         }
+        
+        // Listen for track events to update UI when remote user toggles camera
+        tracks.forEach(track => {
+          track.onmute = () => {
+            console.log(`[${rolePrefix}] remote track muted`, { kind: track.kind, id: track.id });
+            if (track.kind === 'video') {
+              const stillHasVideo = remoteStream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled && !t.muted);
+              setRemoteHasVideo(stillHasVideo);
+            }
+          };
+          track.onunmute = () => {
+            console.log(`[${rolePrefix}] remote track unmuted`, { kind: track.kind, id: track.id });
+            if (track.kind === 'video') {
+              setRemoteHasVideo(true);
+            }
+          };
+          track.onended = () => {
+            console.log(`[${rolePrefix}] remote track ended`, { kind: track.kind, id: track.id });
+            if (track.kind === 'video') {
+              const stillHasVideo = remoteStream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled);
+              setRemoteHasVideo(stillHasVideo);
+            }
+          };
+        });
       };
 
       // Set up ICE candidate handler
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           const o = optionsRef.current;
+          const rolePrefix = role.toUpperCase();
           if (currentCallIdRef.current && o.currentUserId && o.peerUserId) {
-            console.log('[WebRTC] ICE candidate generated, sending...', { 
+            console.log(`[${rolePrefix}] ICE generated`, { 
               callId: currentCallIdRef.current,
               candidate: event.candidate.candidate?.substring(0, 50) + '...'
             });
@@ -614,6 +724,10 @@ export function useWebRTCAudioCall(
               receiverId: o.peerUserId,
               type: 'ice-candidate',
               payload: event.candidate.toJSON(),
+            }).then(() => {
+              console.log(`[${rolePrefix}] ICE sent with callId: ${currentCallIdRef.current}`);
+            }).catch((err) => {
+              console.error(`[${rolePrefix}] failed to send ICE`, err);
             });
           }
         }
@@ -621,15 +735,12 @@ export function useWebRTCAudioCall(
 
       // Set up connection state change handler
       pc.onconnectionstatechange = () => {
-        console.log('[WebRTC] peer connection state changed', { 
-          state: pc.connectionState,
-          callId: currentCallIdRef.current 
-        });
+        const rolePrefix = role.toUpperCase();
+        console.log(`[${rolePrefix}] connectionState: ${pc.connectionState}`, { callId: currentCallIdRef.current });
         setConnectionState(pc.connectionState);
         if (pc.connectionState === 'connected') {
           setWebRTCStatus('connected');
           stopOutgoingCallWaitingSound();
-          // Clear connection timeout
           if (connectionTimeoutRef.current) {
             clearTimeout(connectionTimeoutRef.current);
             connectionTimeoutRef.current = null;
@@ -641,15 +752,12 @@ export function useWebRTCAudioCall(
 
       // Set up ICE connection state change handler
       pc.oniceconnectionstatechange = () => {
-        console.log('[WebRTC] ICE connection state changed', { 
-          state: pc.iceConnectionState,
-          callId: currentCallIdRef.current 
-        });
+        const rolePrefix = role.toUpperCase();
+        console.log(`[${rolePrefix}] iceConnectionState: ${pc.iceConnectionState}`, { callId: currentCallIdRef.current });
         setIceConnectionState(pc.iceConnectionState);
         if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
           setWebRTCStatus('connected');
           stopOutgoingCallWaitingSound();
-          // Clear connection timeout
           if (connectionTimeoutRef.current) {
             clearTimeout(connectionTimeoutRef.current);
             connectionTimeoutRef.current = null;
@@ -657,16 +765,31 @@ export function useWebRTCAudioCall(
         }
       };
 
-      // Subscribe to call signals BEFORE creating/sending offer (prevents race condition)
-      console.log('[WebRTC] subscribing to call signals', { callId: nextCallId, currentUserId });
+      // Subscribe to call signals AFTER peer connection is ready
+      console.log(`[${role.toUpperCase()}] subscribing to call signals`, { callId: nextCallId, currentUserId });
       const channel = subscribeToCallSignals(nextCallId, currentUserId, handleSignal);
       signalsChannelRef.current = channel;
-      console.log('[WebRTC] signal subscription created');
+      console.log(`[${role.toUpperCase()}] signal subscription created`);
+
+      // Fetch any existing signals that were sent before subscription started
+      console.log(`[${role.toUpperCase()}] fetching existing signals`, { callId: nextCallId, currentUserId });
+      const { signals: existingSignals, error: signalsError } = await getCallSignals(nextCallId, currentUserId);
+      if (signalsError) {
+        console.error(`[${role.toUpperCase()}] failed to fetch existing signals`, signalsError);
+      } else if (existingSignals.length > 0) {
+        console.log(`[${role.toUpperCase()}] found ${existingSignals.length} existing signals`);
+        for (const signal of existingSignals) {
+          console.log(`[${role.toUpperCase()}] processing existing ${signal.type}`, { signalId: signal.id, sender: signal.sender_id });
+          await handleSignal(signal);
+        }
+      } else {
+        console.log(`[${role.toUpperCase()}] no existing signals found`);
+      }
 
       // Set connection timeout - if not connected within 30 seconds, mark as failed
-      console.log('[WebRTC] setting connection timeout', CONNECTION_TIMEOUT);
+      console.log(`[${role.toUpperCase()}] setting connection timeout`, CONNECTION_TIMEOUT);
       connectionTimeoutRef.current = setTimeout(() => {
-        console.error('[WebRTC] connection timeout - call failed to connect', { 
+        console.error(`[${role.toUpperCase()}] connection timeout - call failed to connect`, { 
           callId: currentCallIdRef.current,
           connectionState: pc.connectionState,
           iceConnectionState: pc.iceConnectionState
@@ -678,23 +801,23 @@ export function useWebRTCAudioCall(
       }, CONNECTION_TIMEOUT);
 
       if (role === 'caller') {
-        // Caller: Create and send offer immediately (subscription is ready)
-        console.log('[WebRTC] caller: preparing to create offer', nextCallId);
+        // Caller: Create and send offer after fetching existing signals
+        console.log(`[CALLER] starting offer creation`, { callId: nextCallId });
         
         if (hasCreatedOfferRef.current || isCreatingOfferRef.current) {
-          console.warn('[WebRTC] duplicate offer blocked', nextCallId);
+          console.warn(`[CALLER] duplicate offer blocked`);
           return;
         }
         
         isCreatingOfferRef.current = true;
         try {
-          console.log('[WebRTC] caller creating offer...');
+          console.log(`[CALLER] creating offer...`);
           const offer = await pc.createOffer();
-          console.log('[WebRTC] caller local offer setting...');
+          console.log(`[CALLER] offer created`);
           await pc.setLocalDescription(offer);
-          console.log('[WebRTC] caller local offer set');
+          console.log(`[CALLER] setLocalDescription done`);
 
-          console.log('[WebRTC] caller sending offer...', nextCallId);
+          console.log(`[CALLER] saving offer to database`, { callId: nextCallId });
           const { success } = await insertCallSignal({
             callId: nextCallId,
             senderId: currentUserId,
@@ -706,22 +829,22 @@ export function useWebRTCAudioCall(
           if (success) {
             hasCreatedOfferRef.current = true;
             callerCreatedOfferRef.current = true;
-            console.log('[WebRTC] caller offer sent successfully', nextCallId);
+            console.log(`[CALLER] offer saved with callId: ${nextCallId}`);
           } else {
-            console.error('[WebRTC] failed to send offer');
+            console.error(`[CALLER] failed to save offer`);
           }
         } catch (err) {
-          console.error('[WebRTC] create offer failed', err);
+          console.error(`[CALLER] create offer failed`, err);
           setWebRTCStatus('failed');
         } finally {
           isCreatingOfferRef.current = false;
         }
       } else {
-        // Receiver: Wait for offer
-        console.log('[WebRTC] receiver: waiting for incoming offer', nextCallId);
+        // Receiver: Already fetched existing signals above
+        console.log(`[RECEIVER] waiting for new signals`, { callId: nextCallId });
       }
     } catch (errorValue) {
-      console.error('[WebRTC] init failed', errorValue);
+      console.error(`[${role.toUpperCase()}] init failed`, errorValue);
       const errMessage = errorValue instanceof Error ? errorValue.message : 'Failed to start audio call';
       setWebRTCStatus('failed');
       setError(new Error(errMessage));
@@ -737,6 +860,15 @@ export function useWebRTCAudioCall(
   useEffect(() => {
     if (!callId) return;
     if (!isAccepted) return;
+    // Prevent re-initialization if already initializing or has active connection
+    if (isInitializingRef.current) {
+      console.log(`[CALL] init blocked - already initializing`);
+      return;
+    }
+    if (peerConnectionRef.current && peerConnectionRef.current.connectionState !== 'closed') {
+      console.log(`[CALL] init blocked - peer connection already exists`);
+      return;
+    }
 
     const {
       currentUserId: currentUserIdValue,
@@ -751,29 +883,26 @@ export function useWebRTCAudioCall(
     const isCaller = callerId === currentUserIdValue;
     const isReceiver = receiverId === currentUserIdValue;
 
-    console.log('[WebRTC] Main effect - call accepted, initializing', {
+    console.log(`[${role?.toUpperCase() || 'UNKNOWN'}] main effect triggered`, {
       callId,
-      currentUserId: currentUserIdValue,
-      callerId,
-      receiverId,
-      isCaller,
-      isReceiver,
-      callRole: role,
-      peerUserId,
+      currentUser: currentUserIdValue,
+      role,
+      isAccepted,
     });
 
     if (!callId || !currentUserIdValue || !peerUserId || !role) {
-      console.error('[WebRTC] missing context', {
-        call: currentCall,
-        currentUserId: currentUserIdValue,
-        peerUserId,
-        callRole: role,
+      console.error('[CALL] missing context - cannot initialize', {
+        callId,
+        currentUser: currentUserIdValue,
+        peerUser: peerUserId,
+        role,
       });
       setWebRTCStatus('failed');
       setError(new Error('Missing user context for call initialization'));
       return;
     }
 
+    console.log(`[${role.toUpperCase()}] calling initWebRTC`, { callId, currentUser: currentUserIdValue });
     initWebRTC(callId, role);
   }, [callId, isAccepted, initWebRTC]);
 
@@ -786,14 +915,17 @@ export function useWebRTCAudioCall(
     if (webRTCStatus !== 'connecting' || !callId) return;
 
     connectingDebugTimeoutRef.current = setTimeout(() => {
-      console.log('[WebRTC] connecting debug', {
+      console.log('[CALL] connecting debug', {
         callId,
         role: optionsRef.current.role,
-        didCallerCreateOffer: callerCreatedOfferRef.current,
-        didReceiverReceiveOffer: receiverReceivedOfferRef.current,
-        didReceiverCreateAnswer: receiverCreatedAnswerRef.current,
-        didCallerReceiveAnswer: callerReceivedAnswerRef.current,
-        didRemoteTrackArrive: remoteTrackArrivedRef.current,
+        connectionState: peerConnectionRef.current?.connectionState,
+        iceConnectionState: peerConnectionRef.current?.iceConnectionState,
+        offerCreated: callerCreatedOfferRef.current,
+        offerReceived: receiverReceivedOfferRef.current,
+        answerCreated: receiverCreatedAnswerRef.current,
+        answerReceived: callerReceivedAnswerRef.current,
+        remoteTrackArrived: remoteTrackArrivedRef.current,
+        pendingIceCandidates: pendingIceCandidatesRef.current.length,
       });
     }, 5000);
 
@@ -826,20 +958,16 @@ export function useWebRTCAudioCall(
   // ============================================================================
 
   const retryMicrophone = useCallback(async () => {
-    console.log('[WebRTC] retrying microphone...');
+    console.log('[CALL] retry started - cleaning up first');
+    
+    // Full cleanup first to release camera/microphone
+    cleanupWebRTC('retry-microphone');
+    
+    console.log('[CALL] retry - cleanup done, reinitializing');
     setError(null);
     setWebRTCStatus('idle');
 
-    // Stop old tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(t => t.stop());
-      localStreamRef.current = null;
-    }
-
-    // Retry is a fresh lifecycle.
-    cleanupWebRTC('retry-microphone');
     const opts = optionsRef.current;
-
     if (!navigator.mediaDevices?.getUserMedia) {
       setError(new Error('Microphone not supported'));
       setWebRTCStatus('failed');
@@ -855,7 +983,7 @@ export function useWebRTCAudioCall(
     const opts = optionsRef.current;
     if (!opts.callId || !opts.role) return;
 
-    console.log('[Video Fallback] continue audio only clicked', {
+    console.log('[CALL] continue audio-only selected', {
       callId: opts.callId,
       role: opts.role,
     });
@@ -865,31 +993,8 @@ export function useWebRTCAudioCall(
     setWebRTCStatus('connecting');
     forceAudioOnlyRef.current = true;
 
-    console.log('[Video Fallback] cleanup for audio-only retry');
-    
-    // Stop local tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    
-    // Close peer connection
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
-    
-    // Unsubscribe from signals
-    if (signalsChannelRef.current) {
-      unsubscribeFromCallSignals(signalsChannelRef.current);
-      signalsChannelRef.current = null;
-    }
-    
-    // Clear video elements
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-
-    // Clear connection timeout
+    // Full cleanup first to release camera, then reinitialize with audio only
+    cleanupWebRTC('continue-audio-only');
     if (connectionTimeoutRef.current) {
       clearTimeout(connectionTimeoutRef.current);
       connectionTimeoutRef.current = null;
@@ -909,9 +1014,9 @@ export function useWebRTCAudioCall(
     activeCallIdRef.current = null;
     currentCallIdRef.current = callId; // Reset to the same call ID for the retry
 
-    console.log('[Video Fallback] retrying with audio only', callId);
+    console.log('[CALL] reinitializing with audio-only', callId);
     await initWebRTC(callId, opts.role);
-  }, [initWebRTC]);
+  }, [cleanupWebRTC, initWebRTC]);
 
   // ============================================================================
   // CONTROLS
@@ -931,7 +1036,7 @@ export function useWebRTCAudioCall(
       localStreamRef.current?.getVideoTracks().forEach((track) => {
         track.enabled = !nextCameraOff;
       });
-      console.log('[WebRTC Video] camera toggled', nextCameraOff);
+      console.log('[MEDIA] camera toggled', { cameraOff: nextCameraOff });
       return nextCameraOff;
     });
   }, []);
@@ -955,10 +1060,51 @@ export function useWebRTCAudioCall(
     cleanupWebRTC('call-ended');
   }, [cleanupWebRTC]);
 
+  // ============================================================================
+  // EFFECT: Re-attach streams when video refs become available
+  // This handles cases where track arrives before video element is rendered
+  // ============================================================================
+  useEffect(() => {
+    if (!localStreamRef.current) return;
+    
+    const isVideoCall = optionsRef.current.callType === 'video';
+    if (isVideoCall && localVideoRef.current && !localVideoRef.current.srcObject) {
+      console.log('[MEDIA] re-attaching local stream to video element');
+      localVideoRef.current.srcObject = localStreamRef.current;
+      localVideoRef.current.muted = true;
+      localVideoRef.current.play().catch((e) => {
+        console.warn('[MEDIA] local video play failed', e);
+      });
+    }
+  });
+
+  useEffect(() => {
+    if (!remoteStreamRef.current) return;
+    
+    const isVideoCall = optionsRef.current.callType === 'video';
+    const remoteVideoTracks = remoteStreamRef.current.getVideoTracks();
+    const hasActiveVideo = remoteVideoTracks.some(t => t.readyState === 'live' && t.enabled);
+    
+    if (remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
+      console.log('[MEDIA] re-attaching remote stream to audio element');
+      remoteAudioRef.current.srcObject = remoteStreamRef.current;
+      remoteAudioRef.current.play().catch(() => {});
+    }
+    
+    if (isVideoCall && remoteVideoRef.current && !remoteVideoRef.current.srcObject && hasActiveVideo) {
+      console.log('[MEDIA] re-attaching remote stream to video element');
+      remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      remoteVideoRef.current.play().catch((e) => {
+        console.warn('[MEDIA] remote video play failed', e);
+      });
+    }
+  });
+
   return {
     webRTCStatus,
     localStream,
     remoteStream,
+    remoteHasVideo,
     isMuted,
     isSpeakerOn,
     connectionState,

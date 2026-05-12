@@ -126,7 +126,9 @@ export function CallModal({
 
   const {
     webRTCStatus,
+    localStream,
     remoteStream,
+    remoteHasVideo,
     isMuted,
     isSpeakerOn,
     isCameraOff,
@@ -156,16 +158,29 @@ export function CallModal({
     },
   });
 
-  // Debug WebRTC state
+  // Debug WebRTC state with track details
   useEffect(() => {
+    const remoteVideoTracks = remoteStream?.getVideoTracks() || [];
+    const remoteAudioTracks = remoteStream?.getAudioTracks() || [];
+    const localVideoTracks = localStream?.getVideoTracks() || [];
+    
+    console.log('[LOCAL VIDEO TRACKS]', localVideoTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+    console.log('[REMOTE AUDIO TRACKS]', remoteAudioTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+    console.log('[REMOTE VIDEO TRACKS]', remoteVideoTracks.map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState, id: t.id })));
+    console.log('[REMOTE STREAM]', remoteStream);
+    
     console.log('[CallModal] WebRTC state:', {
       webRTCStatus,
       connectionState,
       iceConnectionState,
       hasRemoteStream: !!remoteStream,
+      remoteHasVideo,
+      remoteVideoTrackCount: remoteVideoTracks.length,
+      remoteAudioTrackCount: remoteAudioTracks.length,
+      localVideoTrackCount: localVideoTracks.length,
       error: webRTCError?.message,
     });
-  }, [webRTCStatus, connectionState, iceConnectionState, remoteStream, webRTCError]);
+  }, [webRTCStatus, connectionState, iceConnectionState, remoteStream, remoteHasVideo, webRTCError, localStream]);
 
   // Debug logs
   console.log('[Calls UI] currentCall', callSession);
@@ -406,7 +421,25 @@ export function CallModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Render log for debugging
+  console.log("[CALL MODAL RENDER]", {
+    isOpen,
+    hasConversation: !!conversation,
+    currentCall: callSession,
+    callStatus: externalCallStatus,
+    webRTCStatus,
+    hasLocalStream: !!localStream,
+    hasRemoteStream: !!remoteStream,
+  });
+
+  // Safety: don't render if modal is closed or no conversation
   if (!isOpen || !conversation) return null;
+
+  // Safety: if call data is missing or incomplete, show fallback
+  if (!callSession && !externalCallStatus) {
+    console.warn('[CALL MODAL] Missing call data, closing gracefully');
+    return null;
+  }
 
   // Controls visibility for active call states
   const showActiveControls =
@@ -442,7 +475,10 @@ export function CallModal({
       return { text: 'Connecting...', subtext: 'Establishing audio connection' };
     }
     if (webRTCStatus === 'connected') {
-      return { text: 'Connected', subtext: isVoice ? 'Audio connected' : 'Video connected', isTimer: true };
+      // Check actual remote video tracks, not just call type
+      const remoteVideoTracks = remoteStream?.getVideoTracks() || [];
+      const hasActiveRemoteVideo = remoteVideoTracks.some(t => t.readyState === 'live' && t.enabled);
+      return { text: 'Connected', subtext: hasActiveRemoteVideo ? 'Video connected' : 'Audio connected', isTimer: true };
     }
     if (webRTCStatus === 'failed') {
       return { text: isVoice ? 'Connection failed' : 'Video connection failed', subtext: 'Please try again' };
@@ -460,7 +496,7 @@ export function CallModal({
 
   return (
     <div
-      className={`fixed inset-0 z-[110] overflow-hidden ${isVoice ? 'flex items-center justify-center bg-black/80 backdrop-blur-md' : 'bg-black'}`}
+      className={`fixed inset-0 z-110 overflow-hidden ${isVoice ? 'flex items-center justify-center bg-black/80 backdrop-blur-md' : 'bg-black'}`}
       role="dialog"
       aria-modal="true"
       aria-label={`${isVoice ? 'Voice' : 'Video'} call`}
@@ -622,19 +658,73 @@ export function CallModal({
         </div>
       ) : (
         <div className="absolute inset-0 bg-black">
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute right-4 top-4 z-20 h-36 w-28 rounded-xl border border-white/20 bg-black object-cover"
-          />
+          {/* Compute actual remote video state from tracks */}
+          {(() => {
+            const remoteVideoTracks = remoteStream?.getVideoTracks() || [];
+            const hasActiveRemoteVideo = remoteVideoTracks.some(t => t.readyState === 'live' && t.enabled);
+            
+            // Remote video - show fallback if no video track or still connecting
+            if (remoteStream && hasActiveRemoteVideo) {
+              return (
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              );
+            }
+            
+            if (remoteStream && !hasActiveRemoteVideo) {
+              // Connected but peer has no active video
+              return (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
+                  <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-4xl mb-4">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      avatarInitial
+                    )}
+                  </div>
+                  <p className="text-white/80 text-sm">Camera is off</p>
+                  <p className="text-white/50 text-xs mt-1">Audio only</p>
+                </div>
+              );
+            }
+            
+            // Still connecting - show avatar and status
+            return (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
+                <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center text-4xl mb-4">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    avatarInitial
+                  )}
+                </div>
+                <p className="text-white/80 text-sm">
+                  {webRTCStatus === 'connecting' ? 'Connecting...' : statusDisplay.text}
+                </p>
+                <p className="text-white/50 text-xs mt-1">Waiting for peer...</p>
+              </div>
+            );
+          })()}
+          
+          {/* Local video preview - show fallback if camera is off */}
+          {isCameraOff ? (
+            <div className="absolute right-4 top-4 z-20 h-36 w-28 rounded-xl border border-white/20 bg-gray-800 flex flex-col items-center justify-center">
+              <VideoOff className="w-8 h-8 text-white/50 mb-2" />
+              <span className="text-white/50 text-xs">Camera off</span>
+            </div>
+          ) : (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute right-4 top-4 z-20 h-36 w-28 rounded-xl border border-white/20 bg-black object-cover"
+            />
+          )}
 
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 text-center pointer-events-none">
             <h3 className="text-white font-semibold text-lg drop-shadow-lg">{displayName}</h3>
@@ -670,7 +760,7 @@ export function CallModal({
           {/* Controls - Fixed to viewport bottom */}
           {showActiveControls && (
             <div
-              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[130] flex items-center justify-center gap-6 pointer-events-auto"
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-130 flex items-center justify-center gap-6 pointer-events-auto"
               style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
             >
               {/* Mute */}
