@@ -140,10 +140,12 @@ export function CallModal({
     endCall: endWebRTCCall,
     retryMicrophone,
     continueAudioOnly,
+    retryCamera,
     error: webRTCError,
     remoteAudioRef,
     localVideoRef,
     remoteVideoRef,
+    isCameraUnavailable,
     isAudioOnlyFallback,
   } = useWebRTCCall({
     callId: normalizedCall?.id || null,
@@ -446,7 +448,7 @@ export function CallModal({
     !['rejected', 'missed', 'ended'].includes(effectiveCallStatus || '') &&
     callStatus !== 'not-answered';
 
-  const isVoice = mode === 'voice' || isAudioOnlyFallback;
+  const isVoice = mode === 'voice' || isAudioOnlyFallback || isCameraUnavailable;
   const displayName = isGroup ? conversation.name : otherUser?.name || 'Unknown';
   const avatarUrl = isGroup ? conversation.avatar : otherUser?.avatar;
   const avatarInitial = displayName?.charAt(0)?.toUpperCase() || '?';
@@ -587,7 +589,15 @@ export function CallModal({
                     >
                       Retry
                     </button>
-                    {!isVoice && (
+                    {isCameraUnavailable && (
+                      <button
+                        onClick={retryCamera}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded text-sm text-white transition-colors"
+                      >
+                        Retry Camera
+                      </button>
+                    )}
+                    {!isVoice && !isCameraUnavailable && (
                       <button
                         onClick={continueAudioOnly}
                         className="px-4 py-2 bg-teal-600 hover:bg-teal-500 rounded text-sm text-white transition-colors"
@@ -731,6 +741,7 @@ export function CallModal({
             <p className="text-white/80 text-sm drop-shadow-lg">
               {statusDisplay.text}
               {isAudioOnlyFallback && <span className="block text-amber-300 text-xs mt-0.5">Audio only</span>}
+              {isCameraUnavailable && <span className="block text-red-300 text-xs mt-0.5">Camera unavailable</span>}
               {statusDisplay.subtext && <span className="block text-xs text-white/60 mt-0.5">{statusDisplay.subtext}</span>}
             </p>
             {webRTCStatus === 'failed' && (
