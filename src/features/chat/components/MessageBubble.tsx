@@ -33,6 +33,8 @@ interface MessageBubbleProps {
   onPinMessage?: (messageId: string) => void;
   isPinned?: boolean;
   isHighlighted?: boolean;
+  // Ref for scrolling to message
+  messageRef?: (el: HTMLDivElement | null) => void;
   // Audio coordination props
   activeAudioId?: string | null;
   setActiveAudioId?: (id: string | null) => void;
@@ -52,6 +54,7 @@ export function MessageBubble({
   onPinMessage,
   isPinned = false,
   isHighlighted = false,
+  messageRef,
   activeAudioId,
   setActiveAudioId,
   registerAudioRef,
@@ -393,10 +396,11 @@ export function MessageBubble({
   return (
     <div
       id={`message-${message.id}`}
+      ref={messageRef}
       data-message-id={message.id}
       className={`group flex w-full items-start gap-2 ${
         isCurrentUser ? 'justify-end' : 'justify-start'
-      }`}
+      } ${isHighlighted ? 'animate-message-highlight' : ''}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -625,3 +629,28 @@ export function MessageBubble({
     </div>
   );
 }
+
+// Custom animation for highlighted message (scale up/down pulse)
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes message-highlight {
+    0%, 100% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.02);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+    75% {
+      transform: scale(1.02);
+    }
+  }
+  
+  .animate-message-highlight {
+    animation: message-highlight 2s ease-in-out;
+    z-index: 10;
+  }
+`;
+document.head.appendChild(style);

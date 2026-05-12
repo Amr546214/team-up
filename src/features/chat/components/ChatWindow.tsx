@@ -175,24 +175,38 @@ export function ChatWindow({
   });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Scroll to highlighted message when it changes
-  useEffect(() => {
-    if (!highlightedMessageId) return;
-    const attempt = (retriesLeft: number) => {
-      const el = document.getElementById(`message-${highlightedMessageId}`);
+  // Handle navigation to a message (from pinned messages bar)
+  const handleNavigateToMessage = useCallback((messageId: string) => {
+    console.log('[ChatWindow] navigate to message', messageId);
+
+    // Set highlighted state for animation
+    setHighlightedMessageId?.(messageId);
+
+    // Find and scroll to the message
+    const attemptScroll = (retriesLeft: number) => {
+      const el = messageRefs.current[messageId] || document.getElementById(`message-${messageId}`);
+
       if (el) {
-        console.log('[Starred] scrolling to message', highlightedMessageId);
+        console.log('[ChatWindow] scrolling to message', messageId);
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (retriesLeft > 0) {
-        // Messages may not be rendered yet — retry
-        setTimeout(() => attempt(retriesLeft - 1), 150);
+        // Message may not be rendered yet — retry
+        setTimeout(() => attemptScroll(retriesLeft - 1), 150);
       } else {
-        console.warn('[Starred] target message not found', highlightedMessageId);
+        console.warn('[ChatWindow] target message not found', messageId);
       }
     };
-    setTimeout(() => attempt(5), 200);
-  }, [highlightedMessageId]);
+
+    // Start scrolling attempt
+    setTimeout(() => attemptScroll(10), 100);
+
+    // Clear highlight after animation duration (2 seconds)
+    setTimeout(() => {
+      setHighlightedMessageId?.(null);
+    }, 2000);
+  }, [setHighlightedMessageId]);
 
   // Mark incoming messages as read when conversation opens
   useEffect(() => {
@@ -807,7 +821,7 @@ export function ChatWindow({
           pinnedMessages={pinnedMessages}
           currentUserId={currentUser.id}
           onUnpinMessage={onUnpinMessage || (() => {})}
-          onNavigateToMessage={(messageId) => setHighlightedMessageId?.(messageId)}
+          onNavigateToMessage={handleNavigateToMessage}
         />
       )}
 
@@ -870,6 +884,7 @@ export function ChatWindow({
                       isCurrentUser={message.senderId === currentUser.id}
                       sender={getSender()}
                       isHighlighted={message.id === highlightedMessageId}
+                      messageRef={(el) => { messageRefs.current[message.id] = el; }}
                     onImageClick={message.type === 'image' && message.mediaUrl ? () => {
                       setPreviewImage({
                         url: message.mediaUrl!,

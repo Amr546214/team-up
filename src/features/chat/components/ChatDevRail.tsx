@@ -33,6 +33,8 @@ interface ChatDevRailProps {
   profilesError: string | null;
   startingChatFor: string | null;
   currentUserId?: string;
+  currentUserAvatar?: string | null;
+  currentUserName?: string | null;
   authUserId?: string;
   isAuthReady: boolean;
   isProfileReady: boolean;
@@ -54,6 +56,8 @@ export function ChatDevRail({
   profilesError,
   startingChatFor,
   currentUserId,
+  currentUserAvatar,
+  currentUserName,
   authUserId,
   isAuthReady,
   isProfileReady,
@@ -66,6 +70,15 @@ export function ChatDevRail({
   onSelectConversation,
   copiedId,
 }: ChatDevRailProps) {
+  // Debug logging for avatar
+  console.log('[Chat Sidebar Avatar] props received', {
+    currentUserId,
+    currentUserAvatar,
+    currentUserName,
+    hasAvatar: !!currentUserAvatar,
+    avatarLength: currentUserAvatar?.length,
+  });
+
   const [usersPanelOpen, setUsersPanelOpen] = useState(false);
   const [starredPanelOpen, setStarredPanelOpen] = useState(false);
   const [starredMessages, setStarredMessages] = useState<StarredMessageItem[]>([]);
@@ -298,22 +311,6 @@ export function ChatDevRail({
           <BellIcon className="w-5 h-5" />
         </button>
 
-        {/* Available Users */}
-        <button
-          onClick={handleToggleUsers}
-          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors mb-1 ${
-            usersPanelOpen
-              ? 'bg-teal-50 text-teal-600'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-          }`}
-          title="Available Users"
-        >
-          <UsersIcon className="w-5 h-5" />
-          {profiles.length > 0 && !usersPanelOpen && (
-            <span className="absolute bottom-1 right-1 w-2 h-2 bg-teal-500 rounded-full" />
-          )}
-        </button>
-
         {/* Starred Messages */}
         <button
           onClick={handleToggleStarred}
@@ -331,9 +328,26 @@ export function ChatDevRail({
         {/* Bottom spacer */}
         <div className="flex-1" />
 
-        {/* Dev indicator */}
-        <div className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center">
-          <span className="text-[9px] font-medium text-gray-400">Dev</span>
+        {/* Current User Avatar */}
+        <div className="w-10 h-10 flex items-center justify-center">
+          {currentUserAvatar ? (
+            <img
+              src={currentUserAvatar}
+              alt={currentUserName || 'User'}
+              className="w-8 h-8 rounded-full object-cover border border-gray-200"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+          ) : null}
+          <div
+            className={`w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[11px] font-semibold border border-gray-200 ${
+              currentUserAvatar ? 'hidden' : 'flex'
+            }`}
+          >
+            {getInitials(currentUserName || undefined)}
+          </div>
         </div>
       </div>
 
