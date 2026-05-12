@@ -9,6 +9,7 @@ import { ChatUserPopover } from './ChatUserPopover';
 import { ChatHeaderMenu } from './ChatHeaderMenu';
 import { ConfirmActionModal } from './ConfirmActionModal';
 import { CallModal } from './CallModal';
+import { CallErrorBoundary } from './CallErrorBoundary';
 import { ReportMessageModal } from './ReportMessageModal';
 import { ReportUserModal } from './ReportUserModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
@@ -699,7 +700,11 @@ export function ChatWindow({
   });
 
   return (
-    <div className="relative flex flex-col h-full bg-white w-full overflow-hidden">
+    <div className={`
+      relative flex flex-col bg-white w-full overflow-hidden
+      h-full md:h-full
+      ${isMobile ? 'h-dvh' : ''}
+    `}>
 
       {/* User Action Card Overlay - Above messages, below header */}
       {isUserPopoverOpen && (
@@ -840,7 +845,10 @@ export function ChatWindow({
       )}
 
       {/* Messages - Using flex-col with justify-end to keep messages near bottom */}
-      <div className="relative z-0 flex-1 overflow-y-auto bg-linear-to-b from-teal-50/20 via-white to-white">
+      <div className={`
+        relative z-0 flex-1 overflow-y-auto bg-linear-to-b from-teal-50/20 via-white to-white
+        ${isMobile ? 'pb-[140px]' : ''}
+      `}>
         <div className="min-h-full flex flex-col">
           {isLoadingMessages ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
@@ -939,15 +947,25 @@ export function ChatWindow({
         </div>
       )}
 
-      {/* Typing Indicator */}
-      <TypingIndicator
-        typingUsers={typingUsers}
-        isGroup={isGroup}
-        currentUserId={currentUser.id}
-      />
+      {/* Typing Indicator - Fixed on mobile above input */}
+      <div className={isMobile ? 'fixed left-0 right-0 bottom-[130px] z-50' : ''}>
+        <TypingIndicator
+          typingUsers={typingUsers}
+          isGroup={isGroup}
+          currentUserId={currentUser.id}
+        />
+      </div>
 
-      {/* Input */}
-      <div className="shrink-0 bg-white border-t border-gray-100">
+      {/* Input - Fixed on mobile above bottom nav, normal on desktop */}
+      <div className={`
+        bg-white border-t border-gray-100
+        ${isMobile 
+          ? 'fixed left-0 right-0 bottom-[64px] z-50 shadow-lg shadow-gray-200/50' 
+          : 'shrink-0'
+        }
+      `}
+      style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
+      >
         <MessageInput
           onSendMessage={onSendMessage}
           onSendAttachment={onSendAttachment}
@@ -1048,16 +1066,18 @@ export function ChatWindow({
 
       {/* Call Modal */}
       {callModalMode && conversation && (
-        <CallModal
-          conversation={conversation}
-          mode={callModalMode}
-          isOpen={!!callModalMode}
-          onClose={handleCloseCall}
-          callSession={activeCallSession}
-          callStatus={externalCallStatus || callStatus}
-          isIncoming={isIncomingActiveCall}
-          currentUserId={currentUser.id}
-        />
+        <CallErrorBoundary>
+          <CallModal
+            conversation={conversation}
+            mode={callModalMode}
+            isOpen={!!callModalMode}
+            onClose={handleCloseCall}
+            callSession={activeCallSession}
+            callStatus={externalCallStatus || callStatus}
+            isIncoming={isIncomingActiveCall}
+            currentUserId={currentUser.id}
+          />
+        </CallErrorBoundary>
       )}
 
       {/* Call Error Toast */}
