@@ -325,6 +325,20 @@ export function ChatDevRail({
           <StarIcon className="w-5 h-5" />
         </button>
 
+        {/* Available Users */}
+        <button
+          onClick={handleToggleUsers}
+          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors mb-1 ${
+            usersPanelOpen
+              ? 'bg-teal-50 text-teal-600'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+          }`}
+          title="Available Users"
+          aria-label="Available Users"
+        >
+          <UsersIcon className="w-5 h-5" />
+        </button>
+
         {/* Bottom spacer */}
         <div className="flex-1" />
 
