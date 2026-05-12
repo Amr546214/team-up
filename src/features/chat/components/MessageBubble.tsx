@@ -28,7 +28,7 @@ interface MessageBubbleProps {
   onImageClick?: () => void;
   onToggleStar?: (messageId: string, isStarred: boolean) => void;
   onHideForMe?: (messageId: string) => void;
-  onReport?: (messageId: string) => void;
+  onReport?: (messageId: string, reason?: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
   onPinMessage?: (messageId: string) => void;
   isPinned?: boolean;

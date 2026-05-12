@@ -8,7 +8,7 @@ function AppContent() {
   const isProd = import.meta.env.PROD;
 
   // Hide chatbot on chat-related pages
-  const isChatPage = location.pathname.startsWith('/chat');
+  const isChatPage = location.pathname.startsWith('/chat') || location.pathname.includes('/chat-test');
 
   return (
     <>
