@@ -121,6 +121,9 @@ interface ChatWindowProps {
   setHighlightedMessageId?: (id: string | null) => void;
   // Pinned messages
   pinnedMessages?: PinnedMessageWithData[];
+  // Message reactions
+  onAddReaction?: (messageId: string, emoji: string) => Promise<void>;
+  onRemoveReaction?: (messageId: string) => Promise<void>;
   // Call props
   onCallStateChange?: (state: {
     callSession: CallSession | null;
@@ -171,6 +174,8 @@ export function ChatWindow({
   getOnlineCount,
   onConversationUpdate,
   allUsers,
+  onAddReaction,
+  onRemoveReaction,
 }: ChatWindowProps) {
   // Debug log for pin troubleshooting
   console.log('[Pin Debug] ChatWindow pin state', {
@@ -989,9 +994,29 @@ export function ChatWindow({
           ) : (
             <div className="flex-1 flex flex-col justify-end px-6 py-6">
               <div className="space-y-3">
-                {messages.map((message) => {
+                {/* Safety guard for messages array */}
+                {console.log('[CHAT RENDER] messages', {
+                  isArray: Array.isArray(messages),
+                  length: Array.isArray(messages) ? messages.length : 0,
+                  type: typeof messages
+                })}
+                {Array.isArray(messages) && messages.map((message) => {
+                  // Skip invalid messages
+                  if (!message || typeof message !== 'object' || !message.id) {
+                    console.error('[CHAT RENDER] Invalid message:', message);
+                    return null;
+                  }
+
+                  console.log('[MESSAGE RENDER]', {
+                    id: message.id,
+                    type: message.type,
+                    hasReactions: !!message.reactions,
+                    reactionsCount: Array.isArray(message.reactions) ? message.reactions.length : 0,
+                  });
+
                   // Get sender for this message (for groups, look up in participants)
                   const getSender = (): ChatUser | undefined => {
+                    if (!message.senderId) return undefined;
                     if (message.senderId === currentUser.id) return currentUser;
                     // For groups, find sender in participants or use senderProfile from message
                     if (isGroup) {
@@ -1054,6 +1079,9 @@ export function ChatWindow({
                     isPinned={isMessagePinned}
                     onReply={handleReply}
                     onReplyClick={handleReplyClick}
+                    onAddReaction={onAddReaction}
+                    onRemoveReaction={onRemoveReaction}
+                    currentUserId={currentUser.id}
                     activeAudioId={activeAudioId}
                     setActiveAudioId={setActiveAudioId}
                     registerAudioRef={registerAudioRef}

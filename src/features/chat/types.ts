@@ -48,6 +48,24 @@ export interface Message {
   replyToPreview?: string | null;
   replyToSenderName?: string | null;
   replyToMessageType?: string | null;
+  // Message reactions (aggregated from message_reactions table)
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  userId: string;
+  emoji: string;
+  createdAt: string;
+  updatedAt: string;
+  // User info for display
+  user?: {
+    id: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+  };
 }
 
 export type ChatFilter =

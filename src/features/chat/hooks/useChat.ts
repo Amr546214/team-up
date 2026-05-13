@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import type { Conversation, Message, ChatUser } from '../types';
+import type { Conversation, Message, ChatUser, MessageReaction } from '../types';
 import type { UploadModalState } from '../components/ChatUploadModal';
 import { useAuth } from '../../../hooks/useAuth';
 import {
@@ -29,6 +29,9 @@ import {
   getPinnedMessages,
   pinMessage,
   unpinMessage,
+  getConversationReactions,
+  addOrUpdateReaction,
+  removeReaction,
   type PinnedMessageWithData,
 } from '../services/supabaseChatService';
 import { supabase } from '../../../lib/supabase';
@@ -96,6 +99,11 @@ interface UseChatState {
   onPinMessage: (messageId: string) => Promise<void>;
   onUnpinMessage: (messageId: string) => Promise<void>;
   loadPinnedMessages: (conversationId: string) => Promise<void>;
+
+  // Message reactions
+  messageReactions: Record<string, MessageReaction[]>; // keyed by messageId
+  onAddReaction: (messageId: string, emoji: string) => Promise<void>;
+  onRemoveReaction: (messageId: string) => Promise<void>;
 }
 
 export function useChat(): UseChatState {
@@ -119,6 +127,9 @@ export function useChat(): UseChatState {
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessageWithData[]>([]);
   const [isLoadingPinnedMessages, setIsLoadingPinnedMessages] = useState(false);
   const [pinMessageError, setPinMessageError] = useState<string | null>(null);
+
+  // Message reactions state - keyed by messageId
+  const [messageReactions, setMessageReactions] = useState<Record<string, MessageReaction[]>>({});
 
   // Track which conversation IDs are real Supabase conversations
   const realConversationIds = useRef<Set<string>>(new Set());
@@ -309,19 +320,51 @@ export function useChat(): UseChatState {
       console.log('[Messages] loading', id);
       setIsLoadingMessages(true);
 
-      const { messages: loadedMessages, error } = await getConversationMessages(id);
+      // Load messages and reactions in parallel with error handling
+      let loadedMessages: Message[] = [];
+      let reactionsMap: Record<string, MessageReaction[]> = {};
 
-      if (error) {
-        console.error('[Messages] load failed', id, error);
-        setIsLoadingMessages(false);
-        return;
+      try {
+        const [{ messages: msgs, error: msgErr }, { reactions, error: reactionErr }] = await Promise.all([
+          getConversationMessages(id),
+          getConversationReactions(id).catch((err) => {
+            console.error('[Reactions] load error (non-fatal):', err);
+            return { reactions: {}, error: err?.message };
+          }),
+        ]);
+
+        if (msgErr) {
+          console.error('[Messages] load failed', id, msgErr);
+          setIsLoadingMessages(false);
+          return;
+        }
+
+        loadedMessages = msgs || [];
+        reactionsMap = reactions || {};
+
+        // Attach reactions to messages safely
+        const messagesWithReactions = loadedMessages.map((msg) => ({
+          ...msg,
+          reactions: Array.isArray(reactionsMap[msg.id]) ? reactionsMap[msg.id] : [],
+        }));
+
+        console.log('[Messages] loaded with reactions', id, messagesWithReactions.length, 'messages');
+        setMessages((prev) => ({
+          ...prev,
+          [id]: messagesWithReactions,
+        }));
+
+        // Store reactions in state for future use
+        setMessageReactions(reactionsMap);
+      } catch (err) {
+        console.error('[Messages] unexpected error loading messages:', err);
+        // Don't crash - just set empty messages
+        setMessages((prev) => ({
+          ...prev,
+          [id]: [],
+        }));
       }
 
-      console.log('[Messages] loaded count', id, loadedMessages.length);
-      setMessages((prev) => ({
-        ...prev,
-        [id]: loadedMessages,
-      }));
       setIsLoadingMessages(false);
 
       // Mark incoming messages as read for read receipts (don't block)
@@ -894,61 +937,8 @@ export function useChat(): UseChatState {
             });
           }
         }
-
-        setMessages((prevMessages) => {
-          const existingMessages = prevMessages[savedId];
-          if (!existingMessages || existingMessages.length === 0) {
-            console.log('[Messages] loading messages for restored conversation', savedId);
-            setIsLoadingMessages(true);
-            getConversationMessages(savedId).then(({ messages: loadedMessages, error }) => {
-              if (error) {
-                console.error('[Messages] load failed for restored conversation', savedId, error);
-                setIsLoadingMessages(false);
-                return;
-              }
-              console.log('[Messages] loaded count for restored conversation', savedId, loadedMessages.length);
-              setMessages((prev) => ({
-                ...prev,
-                [savedId]: loadedMessages,
-              }));
-              setIsLoadingMessages(false);
-
-              // After loading messages, mark incoming as read for read receipts
-              const currentUserIdForRead = realUserIdRef.current || currentUserIdRef.current;
-              if (currentUserIdForRead) {
-                const userIdForRead = currentUserIdForRead; // narrow type
-                markConversationMessagesAsRead(savedId, userIdForRead).then((result) => {
-                  if (result.success && result.data && result.data.length > 0) {
-                    console.log('[Read Receipts Restore Load] updating local state', result.data);
-                    setMessages((prev) => {
-                      const conversationMessages = prev[savedId] || [];
-                      const updatedMessages = conversationMessages.map((msg) => {
-                        const updated = result.data?.find((item) => item.id === msg.id);
-                        if (!updated) return msg;
-                        return {
-                          ...msg,
-                          readAt: updated.read_at,
-                        };
-                      });
-                      return {
-                        ...prev,
-                        [savedId]: updatedMessages,
-                      };
-                    });
-                  }
-                }).catch((err) => {
-                  console.error('[Read Receipts Restore Load] mark failed', err);
-                });
-              }
-            });
-          }
-          return prevMessages;
-        });
-      } else {
-        sessionStorage.removeItem(LAST_CONVERSATION_STORAGE_KEY);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations.length]);
 
   // Realtime: listen to INSERT messages for ALL loaded conversations.
@@ -1065,239 +1055,45 @@ export function useChat(): UseChatState {
               console.log('[CHAT] conversations updated without refetch (active)');
               return prev.map((c) =>
                 c.id === convId
-                  ? {
-                      ...c,
-                      lastMessage: lastMsgPreview,
-                      updatedAt: new Date(row.created_at),
-                      unreadCount: 0,
-                    }
+                  ? { ...c, lastMessage: lastMsgPreview, updatedAt: lastMsgPreview.timestamp, unreadCount: 0 }
                   : c
               );
             });
-
-            // Mark as read if message is from another user
-            if (isFromOtherUser) {
-              // Mark conversation as read for unread count
-              markConversationAsRead(convId).catch((err) => {
-                console.error('[Unread] mark read failed', err);
-              });
-
-              // Also mark individual messages as read for read receipts
-              const currentUserIdForRead = realUserIdRef.current || currentUserIdRef.current;
-              if (currentUserIdForRead) {
-                const userIdForRead = currentUserIdForRead; // narrow type
-                markConversationMessagesAsRead(convId, userIdForRead).then((result) => {
-                  if (result.success && result.data && result.data.length > 0) {
-                    console.log('[Read Receipts Realtime] updating local state', result.data);
-                    setMessages((prev) => {
-                      const conversationMessages = prev[convId] || [];
-                      const updatedMessages = conversationMessages.map((msg) => {
-                        const updated = result.data?.find((item) => item.id === msg.id);
-                        if (!updated) return msg;
-                        return {
-                          ...msg,
-                          readAt: updated.read_at,
-                        };
-                      });
-                      return {
-                        ...prev,
-                        [convId]: updatedMessages,
-                      };
-                    });
-                  }
-                }).catch((err) => {
-                  console.error('[Read Receipts Realtime] mark failed', err);
-                });
-              }
-            }
           } else {
-            // Inactive conversation - update sidebar preview and increment unread
-            console.log('[Realtime Insert] inactive conversation update', {
-              conversationId: convId,
-              senderId: row.sender_id,
-              currentUserId,
+            // Inactive conversation - increment unread count and update sidebar
+            console.log('[CHAT] realtime message for inactive conversation', convId);
+
+            setConversations((prev) => {
+              return prev.map((c) => {
+                if (c.id !== convId) return c;
+                const currentUnread = c.unreadCount || 0;
+                return {
+                  ...c,
+                  lastMessage: {
+                    id: row.id,
+                    conversationId: row.conversation_id,
+                    senderId: row.sender_id,
+                    content: row.content || undefined,
+                    timestamp: new Date(row.created_at),
+                    status: 'sent',
+                    type: row.type || 'text',
+                  },
+                  updatedAt: new Date(row.created_at),
+                  unreadCount: isFromOtherUser ? currentUnread + 1 : currentUnread,
+                };
+              });
             });
-
-            // Process message for sidebar preview
-            processRealtimeMessage(row, convId);
-
-            // Increment unread count if from other user
-            if (isFromOtherUser) {
-              console.log('[Realtime Insert] inactive conversation unread increment', {
-                conversationId: convId,
-                senderId: row.sender_id,
-                currentUserId,
-              });
-              setConversations((prev) => {
-                console.log('[CHAT] conversations updated without refetch (inactive +unread)');
-                return prev.map((c) =>
-                  c.id === convId
-                    ? {
-                        ...c,
-                        updatedAt: new Date(row.created_at),
-                        unreadCount: (c.unreadCount || 0) + 1,
-                      }
-                    : c
-                );
-              });
-            }
           }
         }
       )
       .subscribe((status) => {
-        console.log('[Realtime Insert] status', status);
+        console.log('[CHAT] subscription status:', status);
       });
 
     return () => {
-      console.log('[CHAT] subscription cleaned up for messages INSERT');
+      console.log('[CHAT] cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations.length]);
-
-  // Realtime: listen to UPDATE messages for read receipts
-  useEffect(() => {
-    // Only subscribe once we have loaded some real conversations
-    if (realConversationIds.current.size === 0) return;
-
-    console.log('[Read Receipts Realtime] subscribed');
-
-    const channel = supabase
-      .channel('chat-messages-update')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-        },
-        (payload) => {
-          const row = payload.new as any;
-          const convId = row.conversation_id;
-
-          console.log('[Read Receipts] message updated realtime', row);
-
-          // Ignore messages for conversations we haven't loaded
-          if (!realConversationIds.current.has(convId)) {
-            console.log('[Read Receipts] ignored unknown conversation', convId);
-            return;
-          }
-
-          // Update the message in state
-          setMessages((prev) => {
-            const conversationMessages = prev[convId] || [];
-            const updatedMessages = conversationMessages.map((msg) =>
-              msg.id === row.id
-                ? {
-                    ...msg,
-                    readAt: row.read_at ? String(row.read_at) : null,
-                  }
-                : msg
-            );
-
-            return {
-              ...prev,
-              [convId]: updatedMessages,
-            };
-          });
-        }
-      )
-      .subscribe((status) => {
-        console.log('[Read Receipts Realtime] status', status);
-      });
-
-    return () => {
-      console.log('[Read Receipts Realtime] cleanup chat-messages-update channel');
-      supabase.removeChannel(channel);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations.length]);
-
-  // Process a realtime message for sidebar preview (inactive conversations)
-  const processRealtimeMessage = useCallback(async (row: any, convId: string) => {
-    // 1. Map row to Message type
-    const msg: Message = {
-      id: row.id,
-      conversationId: row.conversation_id,
-      senderId: row.sender_id,
-      content: row.content || undefined,
-      timestamp: new Date(row.created_at),
-      status: 'sent',
-      type: row.type || 'text',
-      fileName: row.file_name || undefined,
-      fileSize: row.file_size || undefined,
-      fileType: row.file_type || undefined,
-      mediaUrl: row.media_url || undefined,
-      duration: row.duration || undefined,
-      deletedAt: row.deleted_at ?? null,
-      deletedBy: row.deleted_by ?? null,
-      deleteScope: row.delete_scope ?? null,
-      deleteReason: row.delete_reason ?? null,
-    };
-
-    // 2. Fetch sender profile for sidebar preview
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, avatar_url, role')
-        .eq('id', row.sender_id)
-        .single();
-
-      if (profile) {
-        msg.senderProfile = {
-          id: profile.id,
-          name: profile.full_name || null,
-          email: profile.email || null,
-          avatarUrl: profile.avatar_url || null,
-          role: profile.role || null,
-        };
-      }
-    } catch (err) {
-      console.error('[Realtime Insert] sender profile fetch failed', err);
-    }
-
-    // 3. Default action states
-    msg.isStarred = false;
-    msg.hiddenAt = null;
-    msg.reportedAt = null;
-    msg.reportReason = null;
-
-    // 4. Build sidebar preview content
-    let previewContent = msg.content || '';
-    const msgType = row.type || 'text';
-    const msgFileName = row.file_name || '';
-    const msgFileType = row.file_type || '';
-
-    if (msgType === 'image') {
-      previewContent = '📷 Photo';
-    } else if (msgType === 'file') {
-      // Check if video
-      const ext = msgFileName.split('.').pop()?.toLowerCase() || '';
-      if (msgFileType.startsWith('video/') || ['mp4', 'mov', 'webm', 'mkv'].includes(ext)) {
-        previewContent = `🎬 ${msgFileName}`;
-      } else {
-        previewContent = `📎 ${msgFileName}`;
-      }
-    } else if (msgType === 'voice') {
-      previewContent = '🎤 Voice message';
-    } else if (msgType === 'audio') {
-      previewContent = `🎵 ${msgFileName || 'Audio'}`;
-    }
-
-    // 5. Update conversation lastMessage and updatedAt in sidebar
-    const previewMessage: Message = {
-      ...msg,
-      content: previewContent,
-    };
-
-    setConversations((prev) => {
-      console.log('[CHAT] conversations updated without refetch (sidebar preview)');
-      return prev.map((c) =>
-        c.id === convId
-          ? { ...c, lastMessage: previewMessage, updatedAt: msg.timestamp }
-          : c
-      );
-    });
   }, []);
 
   const refreshConversations = useCallback(async () => {
@@ -1542,6 +1338,114 @@ export function useChat(): UseChatState {
     }
   }, [activeConversationId, loadPinnedMessages]);
 
+  // Message reactions handlers
+  const onAddReaction = useCallback(async (messageId: string, emoji: string) => {
+    const convId = activeConversationId;
+    if (!convId) return;
+
+    console.log('[Reactions] adding', { messageId, emoji });
+
+    // Optimistic update
+    setMessageReactions((prev) => {
+      const currentReactions = prev[messageId] || [];
+      const newReaction: MessageReaction = {
+        id: `temp-${Date.now()}`,
+        messageId,
+        conversationId: convId,
+        userId: realUserIdRef.current || 'unknown',
+        emoji,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      return {
+        ...prev,
+        [messageId]: [...currentReactions, newReaction],
+      };
+    });
+
+    // Update messages with new reaction
+    setMessages((prev) => {
+      const updated: Record<string, Message[]> = {};
+      for (const [id, msgs] of Object.entries(prev)) {
+        updated[id] = msgs.map((m) => {
+          if (m.id !== messageId) return m;
+          const currentReactions = m.reactions || [];
+          return {
+            ...m,
+            reactions: [...currentReactions, {
+              id: `temp-${Date.now()}`,
+              messageId,
+              conversationId: convId,
+              userId: realUserIdRef.current || 'unknown',
+              emoji,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }],
+          };
+        });
+      }
+      return updated;
+    });
+
+    const { reaction, error } = await addOrUpdateReaction(messageId, convId, emoji);
+
+    if (error || !reaction) {
+      console.error('[Reactions] add failed', error);
+      // Revert optimistic update
+      setMessageReactions((prev) => {
+        const currentReactions = prev[messageId] || [];
+        return {
+          ...prev,
+          [messageId]: currentReactions.filter((r) => r.id !== `temp-${Date.now()}`),
+        };
+      });
+      return;
+    }
+
+    console.log('[Reactions] added successfully', reaction.id);
+  }, [activeConversationId]);
+
+  const onRemoveReaction = useCallback(async (messageId: string) => {
+    const convId = activeConversationId;
+    if (!convId) return;
+
+    console.log('[Reactions] removing', { messageId });
+
+    // Optimistic update
+    setMessageReactions((prev) => {
+      const currentReactions = prev[messageId] || [];
+      const userId = realUserIdRef.current;
+      return {
+        ...prev,
+        [messageId]: currentReactions.filter((r) => r.userId !== userId),
+      };
+    });
+
+    // Update messages
+    setMessages((prev) => {
+      const updated: Record<string, Message[]> = {};
+      const userId = realUserIdRef.current;
+      for (const [id, msgs] of Object.entries(prev)) {
+        updated[id] = msgs.map((m) => {
+          if (m.id !== messageId) return m;
+          const currentReactions = m.reactions || [];
+          return {
+            ...m,
+            reactions: currentReactions.filter((r) => r.userId !== userId),
+          };
+        });
+      }
+      return updated;
+    });
+
+    const { success, error } = await removeReaction(messageId);
+
+    if (!success) {
+      console.error('[Reactions] remove failed', error);
+      // Note: In a production app, you might want to re-fetch reactions here
+    }
+  }, [activeConversationId]);
+
   return {
     activeConversationId,
     messages,
@@ -1591,5 +1495,10 @@ export function useChat(): UseChatState {
     onPinMessage,
     onUnpinMessage,
     loadPinnedMessages,
+
+    // Message reactions
+    messageReactions,
+    onAddReaction,
+    onRemoveReaction,
   };
 }

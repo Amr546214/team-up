@@ -88,6 +88,8 @@ export function ChatLayout({ onReady, devRail, allUsers }: ChatLayoutProps = {})
     onPinMessage,
     onUnpinMessage,
     loadPinnedMessages,
+    onAddReaction,
+    onRemoveReaction,
   } = useChat();
 
   // Mobile screen navigation state
@@ -396,6 +398,8 @@ export function ChatLayout({ onReady, devRail, allUsers }: ChatLayoutProps = {})
                 onPinMessage={onPinMessage}
                 onUnpinMessage={onUnpinMessage}
                 pinnedMessages={pinnedMessages}
+                onAddReaction={onAddReaction}
+                onRemoveReaction={onRemoveReaction}
                 highlightedMessageId={highlightedMessageId}
                 setHighlightedMessageId={setHighlightedMessageId}
                 onCallStateChange={handleCallStateChange}

@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChatLayout, ChatDevRail } from '../../features/chat';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 import {
   requestNotificationPermission,
   showUnreadNotification,
@@ -267,37 +268,39 @@ function ChatTest() {
   }
 
   return (
-    <div className="h-screen w-full bg-gray-50">
-      {/* Chat Layout with Dev Rail inside the shell */}
-      <ChatLayout
-        onReady={handleChatLayoutReady}
-        allUsers={profiles}
-        devRail={
-          <ChatDevRail
-            totalUnreadCount={totalUnreadCount}
-            unreadChatsCount={unreadChatsCount}
-            profiles={profiles}
-            profilesLoading={profilesLoading}
-            profilesError={profilesError}
-            startingChatFor={startingChatFor}
-            currentUserId={currentUserId}
-            currentUserAvatar={session?.avatar}
-            currentUserName={session?.name}
-            authUserId={session?.id}
-            isAuthReady={isAuthReady}
-            isProfileReady={isProfileReady}
-            onBackHome={() => navigate('/')}
-            onTestNotification={handleTestNotification}
-            onFetchAvailableUsers={fetchProfiles}
-            onStartChat={handleStartChat}
-            onCreateGroup={handleCreateGroup}
-            onCopyId={handleCopyId}
-            onSelectConversation={handleSelectConversation}
-            copiedId={copiedId}
-          />
-        }
-      />
-    </div>
+    <ErrorBoundary>
+      <div className="h-screen w-full bg-gray-50">
+        {/* Chat Layout with Dev Rail inside the shell */}
+        <ChatLayout
+          onReady={handleChatLayoutReady}
+          allUsers={profiles}
+          devRail={
+            <ChatDevRail
+              totalUnreadCount={totalUnreadCount}
+              unreadChatsCount={unreadChatsCount}
+              profiles={profiles}
+              profilesLoading={profilesLoading}
+              profilesError={profilesError}
+              startingChatFor={startingChatFor}
+              currentUserId={currentUserId}
+              currentUserAvatar={session?.avatar}
+              currentUserName={session?.name}
+              authUserId={session?.id}
+              isAuthReady={isAuthReady}
+              isProfileReady={isProfileReady}
+              onBackHome={() => navigate('/')}
+              onTestNotification={handleTestNotification}
+              onFetchAvailableUsers={fetchProfiles}
+              onStartChat={handleStartChat}
+              onCreateGroup={handleCreateGroup}
+              onCopyId={handleCopyId}
+              onSelectConversation={handleSelectConversation}
+              copiedId={copiedId}
+            />
+          }
+        />
+      </div>
+    </ErrorBoundary>
   );
 }
 
