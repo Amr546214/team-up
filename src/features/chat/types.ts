@@ -14,7 +14,7 @@ export interface Message {
   senderId: string;
   content?: string;
   timestamp: Date;
-  status: 'sent' | 'delivered' | 'read' | 'unread';
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'unread' | 'failed';
   type: MessageType;
   // File/attachment fields
   fileName?: string;
@@ -42,6 +42,29 @@ export interface Message {
     email?: string | null;
     avatarUrl?: string | null;
     role?: string | null;
+  };
+  // Reply fields (for replying to a specific message)
+  replyToMessageId?: string | null;
+  replyToPreview?: string | null;
+  replyToSenderName?: string | null;
+  replyToMessageType?: string | null;
+  // Message reactions (aggregated from message_reactions table)
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  userId: string;
+  emoji: string;
+  createdAt: string;
+  updatedAt: string;
+  // User info for display
+  user?: {
+    id: string;
+    name?: string | null;
+    avatarUrl?: string | null;
   };
 }
 

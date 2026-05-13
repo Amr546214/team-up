@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabase';
-import type { Conversation, Message, ChatUser } from '../types';
+import type { Conversation, Message, ChatUser, MessageReaction } from '../types';
 
 /**
  * Get or create a direct conversation between the current user and a target user.
@@ -244,6 +244,11 @@ function rowToMessage(row: any): Message {
     deleteScope: row.delete_scope ?? null,
     deleteReason: row.delete_reason ?? null,
     readAt: row.read_at ?? null,
+    // Reply fields
+    replyToMessageId: row.reply_to_message_id ?? null,
+    replyToPreview: row.reply_to_preview ?? null,
+    replyToSenderName: row.reply_to_sender_name ?? null,
+    replyToMessageType: row.reply_to_message_type ?? null,
   };
 }
 
@@ -334,10 +339,16 @@ export async function getConversationMessages(
   try {
     console.log('[Messages Debug] getConversationMessages called', conversationId);
 
-    // 1. Fetch messages from public.messages
+    // 1. Fetch messages from public.messages (including reply fields)
     const { data, error } = await supabase
       .from('messages')
-      .select('*')
+      .select(`
+        *,
+        reply_to_message_id,
+        reply_to_preview,
+        reply_to_sender_name,
+        reply_to_message_type
+      `)
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
 
@@ -482,7 +493,13 @@ export async function getConversationMessages(
  */
 export async function sendTextMessage(
   conversationId: string,
-  content: string
+  content: string,
+  replyTo?: {
+    messageId: string;
+    preview: string;
+    senderName: string;
+    messageType: string;
+  } | null
 ): Promise<{ message: Message | null; error: string | null }> {
   try {
     if (!content.trim()) {
@@ -494,15 +511,33 @@ export async function sendTextMessage(
     } = await supabase.auth.getUser();
     if (!user) return { message: null, error: 'Not authenticated' };
 
+    const insertData: any = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: content.trim(),
+      type: 'text',
+    };
+
+    // Add reply fields if replying to a message
+    if (replyTo) {
+      insertData.reply_to_message_id = replyTo.messageId;
+      insertData.reply_to_preview = replyTo.preview.slice(0, 80);
+      insertData.reply_to_sender_name = replyTo.senderName;
+      insertData.reply_to_message_type = replyTo.messageType;
+    }
+
+    console.log("[SEND MESSAGE PAYLOAD]", insertData);
+
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: content.trim(),
-        type: 'text',
-      })
-      .select('*')
+      .insert(insertData)
+      .select(`
+        *,
+        reply_to_message_id,
+        reply_to_preview,
+        reply_to_sender_name,
+        reply_to_message_type
+      `)
       .single();
 
     if (error || !data) {
@@ -511,7 +546,7 @@ export async function sendTextMessage(
     }
 
     const mapped = rowToMessage(data);
-    console.log('[Chat] message sent', mapped.id);
+    console.log('[MESSAGE SEND] inserted message', mapped);
     return { message: mapped, error: null };
   } catch (err: any) {
     console.error('[Chat] send real message failed', err);
@@ -588,6 +623,7 @@ export async function sendMediaMessage({
   fileSize,
   fileType,
   duration,
+  replyTo,
 }: {
   conversationId: string;
   type: 'image' | 'file' | 'voice' | 'audio';
@@ -596,6 +632,12 @@ export async function sendMediaMessage({
   fileSize: number;
   fileType: string;
   duration?: number;
+  replyTo?: {
+    messageId: string;
+    preview: string;
+    senderName: string;
+    messageType: string;
+  } | null;
 }): Promise<{ message: Message | null; error: string | null }> {
   try {
     // 1. Upload to storage
@@ -615,21 +657,38 @@ export async function sendMediaMessage({
     } = await supabase.auth.getUser();
     if (!user) return { message: null, error: 'Not authenticated' };
 
-    // 3. Insert message row
+    // 3. Build insert data
+    const insertData: any = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: type === 'file' || type === 'audio' ? fileName : null,
+      type,
+      media_url: path,
+      file_name: fileName,
+      file_size: fileSize,
+      file_type: fileType,
+      duration: duration || null,
+    };
+
+    // Add reply fields if replying to a message
+    if (replyTo) {
+      insertData.reply_to_message_id = replyTo.messageId;
+      insertData.reply_to_preview = replyTo.preview.slice(0, 80);
+      insertData.reply_to_sender_name = replyTo.senderName;
+      insertData.reply_to_message_type = replyTo.messageType;
+    }
+
+    // 4. Insert message row
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: type === 'file' || type === 'audio' ? fileName : null,
-        type,
-        media_url: path,
-        file_name: fileName,
-        file_size: fileSize,
-        file_type: fileType,
-        duration: duration || null,
-      })
-      .select('*')
+      .insert(insertData)
+      .select(`
+        *,
+        reply_to_message_id,
+        reply_to_preview,
+        reply_to_sender_name,
+        reply_to_message_type
+      `)
       .single();
 
     if (error || !data) {
@@ -1783,5 +1842,191 @@ export async function isMessagePinned(
   } catch (err: any) {
     console.error('[Pinned] check failed', err);
     return { isPinned: false, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Fetch all reactions for a conversation's messages.
+ * Returns reactions grouped by message_id.
+ */
+export async function getConversationReactions(
+  conversationId: string
+): Promise<{ reactions: Record<string, MessageReaction[]>; error: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('message_reactions')
+      .select(`
+        id,
+        message_id,
+        conversation_id,
+        user_id,
+        emoji,
+        created_at,
+        updated_at
+      `)
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[Reactions] fetch failed', error);
+      return { reactions: {}, error: error.message };
+    }
+
+    // Group reactions by message_id
+    const grouped: Record<string, MessageReaction[]> = {};
+    data?.forEach((row: any) => {
+      const reaction: MessageReaction = {
+        id: row.id,
+        messageId: row.message_id,
+        conversationId: row.conversation_id,
+        userId: row.user_id,
+        emoji: row.emoji,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+
+      if (!grouped[reaction.messageId]) {
+        grouped[reaction.messageId] = [];
+      }
+      grouped[reaction.messageId].push(reaction);
+    });
+
+    console.log('[Reactions] fetched', conversationId, Object.keys(grouped).length, 'messages with reactions');
+    return { reactions: grouped, error: null };
+  } catch (err: any) {
+    console.error('[Reactions] fetch failed', err);
+    return { reactions: {}, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Add or update a reaction to a message.
+ * Uses upsert with unique constraint (message_id, user_id).
+ */
+export async function addOrUpdateReaction(
+  messageId: string,
+  conversationId: string,
+  emoji: string
+): Promise<{ reaction: MessageReaction | null; error: string | null }> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { reaction: null, error: 'Not authenticated' };
+
+    const reactionPayload = {
+      message_id: messageId,
+      conversation_id: conversationId,
+      user_id: user.id,
+      emoji: emoji,
+    };
+    console.log('[REACTION] inserting', reactionPayload);
+
+    const { data, error } = await supabase
+      .from('message_reactions')
+      .upsert(reactionPayload, {
+        onConflict: 'message_id,user_id',
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('[REACTION] insert failed', error);
+      return { reaction: null, error: error?.message || 'Failed to add reaction' };
+    }
+
+    const reaction: MessageReaction = {
+      id: data.id,
+      messageId: data.message_id,
+      conversationId: data.conversation_id,
+      userId: data.user_id,
+      emoji: data.emoji,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+
+    console.log('[REACTION] inserted', reaction.id);
+    return { reaction, error: null };
+  } catch (err: any) {
+    console.error('[Reactions] add failed', err);
+    return { reaction: null, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Remove the current user's reaction from a message.
+ */
+export async function removeReaction(
+  messageId: string
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Not authenticated' };
+
+    console.log('[REACTION] deleting', { messageId, userId: user.id });
+
+    const { error } = await supabase
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('[REACTION] delete failed', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[REACTION] deleted', messageId);
+    return { success: true, error: null };
+  } catch (err: any) {
+    console.error('[Reactions] remove failed', err);
+    return { success: false, error: err?.message || 'Unexpected error' };
+  }
+}
+
+/**
+ * Get the current user's reaction for a specific message.
+ */
+export async function getUserReaction(
+  messageId: string
+): Promise<{ reaction: MessageReaction | null; error: string | null }> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { reaction: null, error: 'Not authenticated' };
+
+    const { data, error } = await supabase
+      .from('message_reactions')
+      .select()
+      .eq('message_id', messageId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Reactions] get user reaction failed', error);
+      return { reaction: null, error: error.message };
+    }
+
+    if (!data) {
+      return { reaction: null, error: null };
+    }
+
+    const reaction: MessageReaction = {
+      id: data.id,
+      messageId: data.message_id,
+      conversationId: data.conversation_id,
+      userId: data.user_id,
+      emoji: data.emoji,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+
+    return { reaction, error: null };
+  } catch (err: any) {
+    console.error('[Reactions] get user reaction failed', err);
+    return { reaction: null, error: err?.message || 'Unexpected error' };
   }
 }
