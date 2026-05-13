@@ -16,6 +16,8 @@ import {
   Trash,
   Play,
   Pin,
+  Reply,
+  Smile,
 } from 'lucide-react';
 import { VoiceMessageBubble } from './VoiceMessageBubble';
 import { VideoPreviewModal } from './VideoPreviewModal';
@@ -31,10 +33,18 @@ interface MessageBubbleProps {
   onReport?: (messageId: string, reason?: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
   onPinMessage?: (messageId: string) => void;
+  onUnpinMessage?: (messageId: string) => void;
   isPinned?: boolean;
   isHighlighted?: boolean;
   // Ref for scrolling to message
   messageRef?: (el: HTMLDivElement | null) => void;
+  // Reply feature
+  onReply?: (message: Message) => void;
+  onReplyClick?: (messageId: string) => void;
+  // Message reactions
+  onAddReaction?: (messageId: string, emoji: string) => Promise<void>;
+  onRemoveReaction?: (messageId: string) => Promise<void>;
+  currentUserId?: string;
   // Audio coordination props
   activeAudioId?: string | null;
   setActiveAudioId?: (id: string | null) => void;
@@ -55,24 +65,61 @@ export function MessageBubble({
   isPinned = false,
   isHighlighted = false,
   messageRef,
+  onReply,
+  onReplyClick,
+  onAddReaction,
+  onRemoveReaction,
+  currentUserId,
   activeAudioId,
   setActiveAudioId,
   registerAudioRef,
   stopOtherAudios,
 }: MessageBubbleProps) {
-  // Debug log for pin troubleshooting
-  console.log('[Pin Debug] MessageBubble props', {
-    messageId: message?.id,
-    isPinned,
-    hasOnPinMessage: typeof onPinMessage === 'function',
-    hasOnUnpinMessage: typeof onPinMessage === 'function', // using onPinMessage for both pin/unpin
+  // Safety guard: validate message is an object
+  if (!message || typeof message !== 'object') {
+    console.error('[MessageBubble] Invalid message prop:', message);
+    return (
+      <div className="p-4 text-red-500 text-sm bg-red-50 rounded-lg m-2">
+        Error: Invalid message data
+      </div>
+    );
+  }
+
+  // Debug logs
+  console.log('[MESSAGE RENDER]', {
+    id: message.id,
+    type: message.type,
+    hasReactions: !!message.reactions,
+    reactionsCount: Array.isArray(message.reactions) ? message.reactions.length : 0,
   });
+  console.log('[MESSAGE REACTIONS]', message?.reactions);
 
   const [isHovered, setIsHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [deleteForEveryoneConfirm, setDeleteForEveryoneConfirm] = useState(false);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const reactionPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (reactionPickerRef.current && !reactionPickerRef.current.contains(e.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+  const handleAddReaction = async (emoji: string) => {
+    console.log('[Reactions] adding', emoji);
+    await onAddReaction?.(message.id, emoji);
+    setShowReactionPicker(false);
+  };
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Resolve sender display info: prefer senderProfile from message, fall back to sender prop
@@ -152,6 +199,19 @@ export function MessageBubble({
     setMenuOpen(false);
   };
 
+  const handleReply = () => {
+    console.log('[Reply] initiating reply to message', message.id);
+    onReply?.(message);
+    setMenuOpen(false);
+  };
+
+  const handleReplyClick = () => {
+    if (message.replyToMessageId) {
+      console.log('[Reply] clicking reply block to navigate to', message.replyToMessageId);
+      onReplyClick?.(message.replyToMessageId);
+    }
+  };
+
   const handleDeleteForEveryone = () => {
     console.log('[DeleteEveryone UI Debug]', {
       messageId: message.id,
@@ -172,6 +232,131 @@ export function MessageBubble({
   const confirmDeleteForEveryone = () => {
     setDeleteForEveryoneConfirm(false);
     onDeleteForEveryone?.(message.id);
+  };
+
+  // Helper to generate preview text for reply
+  const getReplyPreviewText = (msg: Message): string => {
+    if (msg.deletedAt && msg.deleteScope === 'everyone') {
+      return 'Deleted message';
+    }
+    switch (msg.type) {
+      case 'image':
+        return '📷 Photo';
+      case 'file': {
+        const ext = msg.fileName?.split('.').pop()?.toLowerCase() || '';
+        const isVideo = msg.fileType?.startsWith('video/') || ['mp4', 'mov', 'webm', 'mkv'].includes(ext);
+        if (isVideo) return `🎬 ${msg.fileName || 'Video'}`;
+        return `📎 ${msg.fileName || 'File'}`;
+      }
+      case 'voice':
+        return '🎤 Voice message';
+      case 'audio':
+        return `🎵 ${msg.fileName || 'Audio'}`;
+      default:
+        return msg.content?.slice(0, 80) || '';
+    }
+  };
+
+  // Helper to get preview text from reply metadata
+  const getReplyDisplayText = (): string => {
+    if (!message.replyToPreview) {
+      return 'Original message unavailable';
+    }
+    return message.replyToPreview;
+  };
+
+  const renderReplyBlock = () => {
+    console.log('[MessageBubble] renderReplyBlock', {
+      messageId: message.id,
+      replyToMessageId: message.replyToMessageId,
+      replyToPreview: message.replyToPreview,
+      replyToSenderName: message.replyToSenderName,
+      replyToMessageType: message.replyToMessageType
+    });
+
+    if (!message.replyToMessageId) return null;
+
+    const isReplyToDeleted = message.replyToPreview?.includes('Deleted');
+    const senderName = message.replyToSenderName || 'Unknown';
+
+    return (
+      <button
+        onClick={handleReplyClick}
+        className={`w-full text-left mb-2 rounded-lg overflow-hidden transition-colors ${
+          isReplyToDeleted ? 'opacity-60' : 'hover:bg-black/5'
+        }`}
+      >
+        <div className="flex">
+          {/* Left accent bar */}
+          <div className={`w-1 shrink-0 ${isCurrentUser ? 'bg-teal-300' : 'bg-teal-500'}`} />
+          <div className="flex-1 px-2 py-1.5 min-w-0">
+            <p className={`text-xs font-medium truncate ${isCurrentUser ? 'text-teal-100' : 'text-teal-700'}`}>
+              {senderName}
+            </p>
+            <p className={`text-sm truncate ${isCurrentUser ? 'text-white/90' : 'text-gray-600'}`}>
+              {getReplyDisplayText()}
+            </p>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  // Helper to check if current user has reacted - with safety guards
+  const getUserReaction = () => {
+    const safeReactions = Array.isArray(message.reactions) ? message.reactions : [];
+    if (!currentUserId || safeReactions.length === 0) return null;
+    return safeReactions.find((r) => r && r.userId === currentUserId);
+  };
+
+  // Render reactions bar - with safety guards
+  const renderReactions = () => {
+    const safeReactions = Array.isArray(message.reactions) ? message.reactions : [];
+    if (safeReactions.length === 0) return null;
+
+    // Group reactions by emoji - with null checks
+    const emojiCounts: Record<string, { count: number; userIds: string[] }> = {};
+    safeReactions.forEach((r) => {
+      if (!r || !r.emoji) return; // Skip invalid reactions
+      if (!emojiCounts[r.emoji]) {
+        emojiCounts[r.emoji] = { count: 0, userIds: [] };
+      }
+      emojiCounts[r.emoji].count++;
+      if (r.userId) {
+        emojiCounts[r.emoji].userIds.push(r.userId);
+      }
+    });
+
+    const userReaction = getUserReaction();
+
+    return (
+      <div className="flex flex-wrap items-center gap-1 mt-1.5">
+        {Object.entries(emojiCounts).map(([emoji, data]) => (
+          <button
+            key={emoji}
+            onClick={() => {
+              if (userReaction?.emoji === emoji) {
+                onRemoveReaction?.(message.id);
+              } else {
+                handleAddReaction(emoji);
+              }
+            }}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-sm transition-colors ${
+              userReaction?.emoji === emoji
+                ? isCurrentUser
+                  ? 'bg-teal-600/80 text-white'
+                  : 'bg-teal-100 text-teal-700'
+                : isCurrentUser
+                  ? 'bg-white/20 hover:bg-white/30'
+                  : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
+            <span>{emoji}</span>
+            <span className="text-xs">{data.count}</span>
+          </button>
+        ))}
+      </div>
+    );
   };
 
   const renderMessageContent = () => {
@@ -457,6 +642,23 @@ export function MessageBubble({
                       <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                       {message.isStarred ? 'Unstar message' : 'Star message'}
                     </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setShowReactionPicker(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Smile className="w-4 h-4 text-yellow-500" />
+                      React
+                    </button>
+                    <button
+                      onClick={handleReply}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Reply className="w-4 h-4 text-teal-600" />
+                      Reply
+                    </button>
                   </>
                 )}
                 <button
@@ -477,6 +679,26 @@ export function MessageBubble({
                 )}
               </div>
             )}
+
+            {/* Reaction Picker Popup */}
+            {showReactionPicker && (
+              <div
+                ref={reactionPickerRef}
+                className="absolute right-full top-0 mr-2 bg-white rounded-lg shadow-lg border border-gray-100 p-2 z-50"
+              >
+                <div className="flex gap-1">
+                  {commonEmojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleAddReaction(emoji)}
+                      className="text-xl hover:bg-gray-100 rounded p-1 transition-colors"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bubble */}
@@ -494,7 +716,9 @@ export function MessageBubble({
                 <Flag className="w-3 h-3 text-orange-500" />
               </div>
             )}
+            {renderReplyBlock()}
             {renderMessageContent()}
+            {renderReactions()}
             <div className="flex items-center justify-end gap-1.5 mt-1 text-teal-200">
               <span className="text-[11px]">{formatMessageTime(message.timestamp)}</span>
               {/* Read receipts: show check marks only for current user's messages */}
@@ -530,7 +754,9 @@ export function MessageBubble({
                 <Flag className="w-3 h-3 text-orange-500" />
               </div>
             )}
+            {renderReplyBlock()}
             {renderMessageContent()}
+            {renderReactions()}
             <div className="flex items-center justify-end gap-1.5 mt-1 text-gray-400">
               <span className="text-[11px]">{formatMessageTime(message.timestamp)}</span>
             </div>
@@ -570,6 +796,23 @@ export function MessageBubble({
                       <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                       {message.isStarred ? 'Unstar message' : 'Star message'}
                     </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setShowReactionPicker(true);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Smile className="w-4 h-4 text-yellow-500" />
+                      React
+                    </button>
+                    <button
+                      onClick={handleReply}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Reply className="w-4 h-4 text-teal-600" />
+                      Reply
+                    </button>
                   </>
                 )}
                 <button
@@ -595,6 +838,26 @@ export function MessageBubble({
                     </button>
                   )
                 )}
+              </div>
+            )}
+
+            {/* Reaction Picker Popup */}
+            {showReactionPicker && (
+              <div
+                ref={reactionPickerRef}
+                className="absolute left-full top-0 ml-2 bg-white rounded-lg shadow-lg border border-gray-100 p-2 z-50"
+              >
+                <div className="flex gap-1">
+                  {commonEmojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => handleAddReaction(emoji)}
+                      className="text-xl hover:bg-gray-100 rounded p-1 transition-colors"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
