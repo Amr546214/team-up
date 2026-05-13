@@ -373,6 +373,7 @@ export function ChatLayout({ onReady, devRail, allUsers }: ChatLayoutProps = {})
           >
             {activeConversation ? (
               <ChatWindow
+                key={activeConversation.id}
                 conversation={activeConversation}
                 messages={activeMessages}
                 currentUser={currentUser}

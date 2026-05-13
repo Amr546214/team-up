@@ -14,7 +14,7 @@ export interface Message {
   senderId: string;
   content?: string;
   timestamp: Date;
-  status: 'sent' | 'delivered' | 'read' | 'unread';
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'unread' | 'failed';
   type: MessageType;
   // File/attachment fields
   fileName?: string;

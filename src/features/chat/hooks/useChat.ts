@@ -372,6 +372,8 @@ export function useChat(): UseChatState {
   }, []);
 
   const sendMessage = useCallback((content: string) => {
+    console.log('[CHAT] sending message', { conversationId: activeConversationId, content: content.slice(0, 50) });
+
     if (!activeConversationId) return;
 
     if (realConversationIds.current.has(activeConversationId)) {
@@ -379,29 +381,67 @@ export function useChat(): UseChatState {
       setIsSendingMessage(true);
       setSendMessageError(null);
 
+      // Create optimistic message immediately
+      const optimisticId = `temp-${Date.now()}`;
+      const optimisticMessage: Message = {
+        id: optimisticId,
+        conversationId: convId,
+        senderId: currentUser.id,
+        content,
+        timestamp: new Date(),
+        status: 'sending',
+        type: 'text',
+      };
+
+      console.log('[CHAT] optimistic message appended', optimisticId);
+      setMessages((prev) => ({
+        ...prev,
+        [convId]: [...(prev[convId] || []), optimisticMessage],
+      }));
+
       supabaseSendTextMessage(convId, content).then(({ message: msg, error: err }) => {
         if (err || !msg) {
           console.error('[Messages] send failed', convId, err);
           setSendMessageError(err || 'Failed to send');
+          // Mark optimistic message as failed
+          setMessages((prev) => {
+            const current = prev[convId] || [];
+            return {
+              ...prev,
+              [convId]: current.map((m) =>
+                m.id === optimisticId ? { ...m, status: 'failed' } : m
+              ),
+            };
+          });
           setIsSendingMessage(false);
           return;
         }
 
-        console.log('[Messages] sent', convId, msg.id);
+        console.log('[Messages] sent successfully, replacing optimistic', optimisticId, 'with', msg.id);
 
+        // Replace optimistic message with real one
         setMessages((prev) => {
           const current = prev[convId] || [];
           const exists = current.some((m) => m.id === msg.id);
-
+          if (exists) {
+            console.log('[CHAT] message already exists (from realtime), removing optimistic');
+            return {
+              ...prev,
+              [convId]: current.filter((m) => m.id !== optimisticId),
+            };
+          }
           return {
             ...prev,
-            [convId]: exists ? current : [...current, msg],
+            [convId]: current.map((m) =>
+              m.id === optimisticId ? msg : m
+            ),
           };
         });
 
-        setConversations((prev) =>
-          prev.map((c) => (c.id === convId ? { ...c, lastMessage: msg, updatedAt: msg.timestamp } : c))
-        );
+        setConversations((prev) => {
+          console.log('[CHAT] conversations updated without refetch');
+          return prev.map((c) => (c.id === convId ? { ...c, lastMessage: msg, updatedAt: msg.timestamp } : c));
+        });
 
         setIsSendingMessage(false);
       });
@@ -900,13 +940,14 @@ export function useChat(): UseChatState {
   }, [conversations.length]);
 
   // Realtime: listen to INSERT messages for ALL loaded conversations.
-  // Active conversation messages are reloaded immediately.
+  // Active conversation messages are appended immediately without reload.
   // Inactive conversations get sidebar lastMessage/updatedAt updated and unread incremented.
   useEffect(() => {
     // Only subscribe once we have loaded some real conversations
     if (realConversationIds.current.size === 0) return;
 
-    console.log('[Realtime Insert] subscribed');
+    console.log('[CHAT] subscription created for messages INSERT');
+    console.log('[CHAT] subscription covers conversations:', Array.from(realConversationIds.current));
 
     const channel = supabase
       .channel('chat-messages-insert')
@@ -935,44 +976,76 @@ export function useChat(): UseChatState {
           const isFromOtherUser = row.sender_id !== currentUserId;
 
           if (isActiveConversation) {
-            console.log('[Realtime Insert] active conversation message', convId);
+            console.log('[CHAT] realtime message received for active conversation', convId);
 
-            // Check for duplicate
-            const existingMessages = messages[convId] || [];
-            if (existingMessages.some((m) => m.id === row.id)) {
-              console.log('[Realtime Insert] ignored duplicate', row.id);
-              return;
-            }
+            // Check for duplicate using functional state update to avoid stale closure
+            setMessages((prev) => {
+              const existingMessages = prev[convId] || [];
+              if (existingMessages.some((m) => m.id === row.id)) {
+                console.log('[CHAT] ignored duplicate message', row.id);
+                return prev;
+              }
 
-            // Reload messages for active conversation to get full message with all fields
-            setIsLoadingMessages(true);
-            const { messages: loadedMessages, error } = await getConversationMessages(convId);
-            setIsLoadingMessages(false);
+              console.log('[CHAT] appending new message without reload', row.id);
 
-            if (error) {
-              console.error('[Realtime Insert] failed to reload messages', convId, error);
-              return;
-            }
+              // Build the new message object from the row
+              const newMessage: Message = {
+                id: row.id,
+                conversationId: row.conversation_id,
+                senderId: row.sender_id,
+                content: row.content || undefined,
+                timestamp: new Date(row.created_at),
+                status: 'sent',
+                type: row.type || 'text',
+                fileName: row.file_name || undefined,
+                fileSize: row.file_size || undefined,
+                fileType: row.file_type || undefined,
+                mediaUrl: row.media_url || undefined,
+                duration: row.duration || undefined,
+                deletedAt: row.deleted_at ?? null,
+                deletedBy: row.deleted_by ?? null,
+                deleteScope: row.delete_scope ?? null,
+                deleteReason: row.delete_reason ?? null,
+                hiddenAt: null,
+                isStarred: false,
+                readAt: isFromOtherUser ? null : new Date().toISOString(), // Mark own messages as read
+              };
 
-            // Update messages state
-            setMessages((prev) => ({
-              ...prev,
-              [convId]: loadedMessages,
-            }));
+              return {
+                ...prev,
+                [convId]: [...existingMessages, newMessage],
+              };
+            });
 
-            // Keep unread at 0 for active conversation
-            setConversations((prev) =>
-              prev.map((c) =>
+            // Keep unread at 0 for active conversation - build lastMessage from row
+            const lastMsgPreview: Message = {
+              id: row.id,
+              conversationId: row.conversation_id,
+              senderId: row.sender_id,
+              content: row.content || undefined,
+              timestamp: new Date(row.created_at),
+              status: 'sent',
+              type: row.type || 'text',
+              fileName: row.file_name || undefined,
+              fileSize: row.file_size || undefined,
+              fileType: row.file_type || undefined,
+              mediaUrl: row.media_url || undefined,
+              duration: row.duration || undefined,
+            };
+
+            setConversations((prev) => {
+              console.log('[CHAT] conversations updated without refetch (active)');
+              return prev.map((c) =>
                 c.id === convId
                   ? {
                       ...c,
-                      lastMessage: loadedMessages[loadedMessages.length - 1] || c.lastMessage,
+                      lastMessage: lastMsgPreview,
                       updatedAt: new Date(row.created_at),
                       unreadCount: 0,
                     }
                   : c
-              )
-            );
+              );
+            });
 
             // Mark as read if message is from another user
             if (isFromOtherUser) {
@@ -1027,8 +1100,9 @@ export function useChat(): UseChatState {
                 senderId: row.sender_id,
                 currentUserId,
               });
-              setConversations((prev) =>
-                prev.map((c) =>
+              setConversations((prev) => {
+                console.log('[CHAT] conversations updated without refetch (inactive +unread)');
+                return prev.map((c) =>
                   c.id === convId
                     ? {
                         ...c,
@@ -1036,8 +1110,8 @@ export function useChat(): UseChatState {
                         unreadCount: (c.unreadCount || 0) + 1,
                       }
                     : c
-                )
-              );
+                );
+              });
             }
           }
         }
@@ -1047,7 +1121,7 @@ export function useChat(): UseChatState {
       });
 
     return () => {
-      console.log('[Realtime Insert] cleanup chat-messages-insert channel');
+      console.log('[CHAT] subscription cleaned up for messages INSERT');
       supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1088,7 +1162,7 @@ export function useChat(): UseChatState {
               msg.id === row.id
                 ? {
                     ...msg,
-                    readAt: row.read_at ?? null,
+                    readAt: row.read_at ? String(row.read_at) : null,
                   }
                 : msg
             );
@@ -1188,13 +1262,14 @@ export function useChat(): UseChatState {
       content: previewContent,
     };
 
-    setConversations((prev) =>
-      prev.map((c) =>
+    setConversations((prev) => {
+      console.log('[CHAT] conversations updated without refetch (sidebar preview)');
+      return prev.map((c) =>
         c.id === convId
           ? { ...c, lastMessage: previewMessage, updatedAt: msg.timestamp }
           : c
-      )
-    );
+      );
+    });
   }, []);
 
   const refreshConversations = useCallback(async () => {
