@@ -1,6 +1,7 @@
 import { useState, useRef, FormEvent, KeyboardEvent, useCallback, useEffect } from 'react';
 import { Send, Image, Paperclip, Mic, Square, X, File } from 'lucide-react';
 import { formatFileSize, formatDuration, isMediaRecorderSupported } from '../utils/fileFormat';
+import type { Message } from '../types';
 
 interface MessageInputProps {
   onSendMessage: (content: string) => void;
@@ -17,6 +18,9 @@ interface MessageInputProps {
   // Typing indicator handlers
   onTypingStart?: () => void;
   onTypingStop?: () => void;
+  // Reply feature
+  replyTo?: Message | null;
+  onCancelReply?: () => void;
 }
 
 export function MessageInput({
@@ -26,6 +30,8 @@ export function MessageInput({
   conversationId,
   onTypingStart,
   onTypingStop,
+  replyTo,
+  onCancelReply,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -37,6 +43,7 @@ export function MessageInput({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Ref to track if recording should be discarded (cancelled)
   const shouldDiscardRecordingRef = useRef(false);
@@ -63,6 +70,24 @@ export function MessageInput({
       onTypingStop();
     }
   }, [onTypingStop]);
+
+  // Auto-focus input when reply is selected
+  useEffect(() => {
+    if (replyTo && !disabled && textareaRef.current) {
+      console.log('[REPLY] selected message', replyTo);
+      console.log('[REPLY] focusing input');
+      
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        textareaRef.current?.focus();
+        // On mobile, scroll input into view
+        textareaRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }, 0);
+    }
+  }, [replyTo, disabled]);
 
   // Cleanup on conversation change or unmount
   useEffect(() => {
@@ -109,6 +134,10 @@ export function MessageInput({
       triggerTypingStop();
       onSendMessage(message.trim());
       setMessage('');
+      // Clear reply after sending
+      if (replyTo && onCancelReply) {
+        onCancelReply();
+      }
     }
   };
 
@@ -120,6 +149,10 @@ export function MessageInput({
         triggerTypingStop();
         onSendMessage(message.trim());
         setMessage('');
+        // Clear reply after sending
+        if (replyTo && onCancelReply) {
+          onCancelReply();
+        }
       }
     }
   };
@@ -139,6 +172,10 @@ export function MessageInput({
         fileSize: file.size,
         fileType: file.type,
       });
+      // Clear reply after sending attachment
+      if (replyTo && onCancelReply) {
+        onCancelReply();
+      }
     }
     // Reset input
     if (imageInputRef.current) {
@@ -176,6 +213,10 @@ export function MessageInput({
         fileSize: file.size,
         fileType: file.type,
       });
+      // Clear reply after sending attachment
+      if (replyTo && onCancelReply) {
+        onCancelReply();
+      }
     }
     // Reset input
     if (fileInputRef.current) {
@@ -237,6 +278,10 @@ export function MessageInput({
           fileType: mimeType,
           duration,
         });
+        // Clear reply after sending voice message
+        if (replyTo && onCancelReply) {
+          onCancelReply();
+        }
 
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
@@ -374,6 +419,7 @@ export function MessageInput({
 
             {/* Text Input */}
             <textarea
+              ref={textareaRef}
               value={message}
               onChange={(e) => handleMessageChange(e.target.value)}
               onKeyDown={handleKeyDown}

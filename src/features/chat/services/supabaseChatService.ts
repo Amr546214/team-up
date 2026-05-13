@@ -244,6 +244,11 @@ function rowToMessage(row: any): Message {
     deleteScope: row.delete_scope ?? null,
     deleteReason: row.delete_reason ?? null,
     readAt: row.read_at ?? null,
+    // Reply fields
+    replyToMessageId: row.reply_to_message_id ?? null,
+    replyToPreview: row.reply_to_preview ?? null,
+    replyToSenderName: row.reply_to_sender_name ?? null,
+    replyToMessageType: row.reply_to_message_type ?? null,
   };
 }
 
@@ -334,10 +339,16 @@ export async function getConversationMessages(
   try {
     console.log('[Messages Debug] getConversationMessages called', conversationId);
 
-    // 1. Fetch messages from public.messages
+    // 1. Fetch messages from public.messages (including reply fields)
     const { data, error } = await supabase
       .from('messages')
-      .select('*')
+      .select(`
+        *,
+        reply_to_message_id,
+        reply_to_preview,
+        reply_to_sender_name,
+        reply_to_message_type
+      `)
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
 
@@ -482,7 +493,13 @@ export async function getConversationMessages(
  */
 export async function sendTextMessage(
   conversationId: string,
-  content: string
+  content: string,
+  replyTo?: {
+    messageId: string;
+    preview: string;
+    senderName: string;
+    messageType: string;
+  } | null
 ): Promise<{ message: Message | null; error: string | null }> {
   try {
     if (!content.trim()) {
@@ -494,15 +511,33 @@ export async function sendTextMessage(
     } = await supabase.auth.getUser();
     if (!user) return { message: null, error: 'Not authenticated' };
 
+    const insertData: any = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: content.trim(),
+      type: 'text',
+    };
+
+    // Add reply fields if replying to a message
+    if (replyTo) {
+      insertData.reply_to_message_id = replyTo.messageId;
+      insertData.reply_to_preview = replyTo.preview.slice(0, 80);
+      insertData.reply_to_sender_name = replyTo.senderName;
+      insertData.reply_to_message_type = replyTo.messageType;
+    }
+
+    console.log("[SEND MESSAGE PAYLOAD]", insertData);
+
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: content.trim(),
-        type: 'text',
-      })
-      .select('*')
+      .insert(insertData)
+      .select(`
+        *,
+        reply_to_message_id,
+        reply_to_preview,
+        reply_to_sender_name,
+        reply_to_message_type
+      `)
       .single();
 
     if (error || !data) {
@@ -588,6 +623,7 @@ export async function sendMediaMessage({
   fileSize,
   fileType,
   duration,
+  replyTo,
 }: {
   conversationId: string;
   type: 'image' | 'file' | 'voice' | 'audio';
@@ -596,6 +632,12 @@ export async function sendMediaMessage({
   fileSize: number;
   fileType: string;
   duration?: number;
+  replyTo?: {
+    messageId: string;
+    preview: string;
+    senderName: string;
+    messageType: string;
+  } | null;
 }): Promise<{ message: Message | null; error: string | null }> {
   try {
     // 1. Upload to storage
@@ -615,21 +657,38 @@ export async function sendMediaMessage({
     } = await supabase.auth.getUser();
     if (!user) return { message: null, error: 'Not authenticated' };
 
-    // 3. Insert message row
+    // 3. Build insert data
+    const insertData: any = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: type === 'file' || type === 'audio' ? fileName : null,
+      type,
+      media_url: path,
+      file_name: fileName,
+      file_size: fileSize,
+      file_type: fileType,
+      duration: duration || null,
+    };
+
+    // Add reply fields if replying to a message
+    if (replyTo) {
+      insertData.reply_to_message_id = replyTo.messageId;
+      insertData.reply_to_preview = replyTo.preview.slice(0, 80);
+      insertData.reply_to_sender_name = replyTo.senderName;
+      insertData.reply_to_message_type = replyTo.messageType;
+    }
+
+    // 4. Insert message row
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: type === 'file' || type === 'audio' ? fileName : null,
-        type,
-        media_url: path,
-        file_name: fileName,
-        file_size: fileSize,
-        file_type: fileType,
-        duration: duration || null,
-      })
-      .select('*')
+      .insert(insertData)
+      .select(`
+        *,
+        reply_to_message_id,
+        reply_to_preview,
+        reply_to_sender_name,
+        reply_to_message_type
+      `)
       .single();
 
     if (error || !data) {

@@ -43,6 +43,11 @@ export interface Message {
     avatarUrl?: string | null;
     role?: string | null;
   };
+  // Reply fields (for replying to a specific message)
+  replyToMessageId?: string | null;
+  replyToPreview?: string | null;
+  replyToSenderName?: string | null;
+  replyToMessageType?: string | null;
 }
 
 export type ChatFilter =

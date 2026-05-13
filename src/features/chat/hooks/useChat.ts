@@ -61,8 +61,8 @@ interface UseChatState {
   setError: (error: string | null) => void;
   selectConversation: (id: string) => void;
   backToList: () => void;
-  sendMessage: (content: string) => void;
-  sendAttachment: (attachmentData: { type: 'image' | 'file' | 'voice' | 'audio'; fileOrBlob: File | Blob; fileName: string; fileSize: number; fileType: string; duration?: number }) => void;
+  sendMessage: (content: string, replyTo?: { messageId: string; preview: string; senderName: string; messageType: string } | null) => void;
+  sendAttachment: (attachmentData: { type: 'image' | 'file' | 'voice' | 'audio'; fileOrBlob: File | Blob; fileName: string; fileSize: number; fileType: string; duration?: number }, replyTo?: { messageId: string; preview: string; senderName: string; messageType: string } | null) => void;
   togglePin: (conversationId: string) => void;
   toggleMute: (conversationId: string) => void;
   markUnread: (conversationId: string) => void;
@@ -371,8 +371,8 @@ export function useChat(): UseChatState {
     }
   }, []);
 
-  const sendMessage = useCallback((content: string) => {
-    console.log('[CHAT] sending message', { conversationId: activeConversationId, content: content.slice(0, 50) });
+  const sendMessage = useCallback((content: string, replyTo?: { messageId: string; preview: string; senderName: string; messageType: string } | null) => {
+    console.log('[CHAT] sending message', { conversationId: activeConversationId, content: content.slice(0, 50), replyTo });
 
     if (!activeConversationId) return;
 
@@ -391,6 +391,11 @@ export function useChat(): UseChatState {
         timestamp: new Date(),
         status: 'sending',
         type: 'text',
+        // Add reply fields to optimistic message
+        replyToMessageId: replyTo?.messageId ?? null,
+        replyToPreview: replyTo?.preview ?? null,
+        replyToSenderName: replyTo?.senderName ?? null,
+        replyToMessageType: replyTo?.messageType ?? null,
       };
 
       console.log('[CHAT] optimistic message appended', optimisticId);
@@ -399,7 +404,7 @@ export function useChat(): UseChatState {
         [convId]: [...(prev[convId] || []), optimisticMessage],
       }));
 
-      supabaseSendTextMessage(convId, content).then(({ message: msg, error: err }) => {
+      supabaseSendTextMessage(convId, content, replyTo ?? null).then(({ message: msg, error: err }) => {
         if (err || !msg) {
           console.error('[Messages] send failed', convId, err);
           setSendMessageError(err || 'Failed to send');
@@ -418,6 +423,12 @@ export function useChat(): UseChatState {
         }
 
         console.log('[Messages] sent successfully, replacing optimistic', optimisticId, 'with', msg.id);
+        console.log('[Messages] saved message reply data', {
+          replyToMessageId: msg.replyToMessageId,
+          replyToPreview: msg.replyToPreview,
+          replyToSenderName: msg.replyToSenderName,
+          replyToMessageType: msg.replyToMessageType
+        });
 
         // Replace optimistic message with real one
         setMessages((prev) => {
@@ -486,7 +497,7 @@ export function useChat(): UseChatState {
     fileSize: number;
     fileType: string;
     duration?: number;
-  }) => {
+  }, replyTo?: { messageId: string; preview: string; senderName: string; messageType: string } | null) => {
     if (!activeConversationId) return;
 
     const convId = activeConversationId;
@@ -499,7 +510,7 @@ export function useChat(): UseChatState {
     });
 
     if (realConversationIds.current.has(convId)) {
-      console.log('[Media] uploading to Supabase Storage', convId);
+      console.log('[Media] uploading to Supabase Storage', convId, { replyTo });
 
       const { message, error } = await supabaseSendMediaMessage({
         conversationId: convId,
@@ -509,6 +520,7 @@ export function useChat(): UseChatState {
         fileSize,
         fileType,
         duration,
+        replyTo: replyTo ?? null,
       });
 
       if (error || !message) {
@@ -962,7 +974,13 @@ export function useChat(): UseChatState {
           const row = payload.new as any;
           const convId = row.conversation_id;
 
-          console.log('[Realtime Insert] received', row);
+          console.log('[REALTIME MESSAGE RECEIVED]', payload.new);
+          console.log('[REALTIME REPLY DATA]', {
+            reply_to_message_id: payload.new.reply_to_message_id,
+            reply_to_preview: payload.new.reply_to_preview,
+            reply_to_sender_name: payload.new.reply_to_sender_name,
+            reply_to_message_type: payload.new.reply_to_message_type
+          });
 
           // Ignore messages for conversations we haven't loaded
           if (!realConversationIds.current.has(convId)) {
@@ -1009,6 +1027,11 @@ export function useChat(): UseChatState {
                 hiddenAt: null,
                 isStarred: false,
                 readAt: isFromOtherUser ? null : new Date().toISOString(), // Mark own messages as read
+                // Reply fields - map from database column names
+                replyToMessageId: row.reply_to_message_id ?? row.replyToMessageId ?? null,
+                replyToPreview: row.reply_to_preview ?? row.replyToPreview ?? null,
+                replyToSenderName: row.reply_to_sender_name ?? row.replyToSenderName ?? null,
+                replyToMessageType: row.reply_to_message_type ?? row.replyToMessageType ?? null,
               };
 
               return {
@@ -1031,6 +1054,11 @@ export function useChat(): UseChatState {
               fileType: row.file_type || undefined,
               mediaUrl: row.media_url || undefined,
               duration: row.duration || undefined,
+              // Reply fields - map from database column names
+              replyToMessageId: row.reply_to_message_id ?? row.replyToMessageId ?? null,
+              replyToPreview: row.reply_to_preview ?? row.replyToPreview ?? null,
+              replyToSenderName: row.reply_to_sender_name ?? row.replyToSenderName ?? null,
+              replyToMessageType: row.reply_to_message_type ?? row.replyToMessageType ?? null,
             };
 
             setConversations((prev) => {

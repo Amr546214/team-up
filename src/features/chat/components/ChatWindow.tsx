@@ -90,7 +90,7 @@ interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   currentUser: ChatUser;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, replyTo?: { messageId: string; preview: string; senderName: string; messageType: string } | null) => void;
   onSendAttachment: (data: {
     type: 'image' | 'file' | 'voice' | 'audio';
     fileOrBlob: File | Blob;
@@ -98,7 +98,7 @@ interface ChatWindowProps {
     fileSize: number;
     fileType: string;
     duration?: number;
-  }) => void;
+  }, replyTo?: { messageId: string; preview: string; senderName: string; messageType: string } | null) => void;
   onBack?: () => void;
   isMobile?: boolean;
   // Menu actions
@@ -317,6 +317,9 @@ export function ChatWindow({
   const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
   const audioRefsMap = useRef<Map<string, HTMLAudioElement>>(new Map());
 
+  // Reply state
+  const [selectedReplyMessage, setSelectedReplyMessage] = useState<Message | null>(null);
+
   // Register audio element for management
   const registerAudioRef = useCallback(
     (audioId: string, audioElement: HTMLAudioElement | null) => {
@@ -386,6 +389,76 @@ export function ChatWindow({
     currentUser.id,
     currentUser.name
   );
+
+  // Reply helpers
+  const getReplyPreviewText = useCallback((msg: Message): string => {
+    if (msg.deletedAt && msg.deleteScope === 'everyone') {
+      return 'Deleted message';
+    }
+    switch (msg.type) {
+      case 'image':
+        return '📷 Photo';
+      case 'file': {
+        const ext = msg.fileName?.split('.').pop()?.toLowerCase() || '';
+        const isVideo = msg.fileType?.startsWith('video/') || ['mp4', 'mov', 'webm', 'mkv'].includes(ext);
+        if (isVideo) return `🎬 ${msg.fileName || 'Video'}`;
+        return `📎 ${msg.fileName || 'File'}`;
+      }
+      case 'voice':
+        return '🎤 Voice message';
+      case 'audio':
+        return `🎵 ${msg.fileName || 'Audio'}`;
+      default:
+        return msg.content?.slice(0, 80) || '';
+    }
+  }, []);
+
+  const handleReply = useCallback((message: Message) => {
+    console.log('[Reply] selected message to reply to', message.id);
+    setSelectedReplyMessage(message);
+  }, []);
+
+  const handleReplyClick = useCallback((messageId: string) => {
+    console.log('[Reply] clicking reply to navigate to', messageId);
+    handleNavigateToMessage(messageId);
+  }, [handleNavigateToMessage]);
+
+  const handleCancelReply = useCallback(() => {
+    console.log('[Reply] cancelled reply');
+    setSelectedReplyMessage(null);
+  }, []);
+
+  // Wrap send functions to include reply info
+  const handleSendMessage = useCallback((content: string) => {
+    const replyInfo = selectedReplyMessage ? {
+      messageId: selectedReplyMessage.id,
+      preview: getReplyPreviewText(selectedReplyMessage),
+      senderName: selectedReplyMessage.senderProfile?.name || 'Unknown',
+      messageType: selectedReplyMessage.type,
+    } : null;
+    onSendMessage(content, replyInfo);
+    // Clear reply after sending
+    setSelectedReplyMessage(null);
+  }, [onSendMessage, selectedReplyMessage, getReplyPreviewText]);
+
+  const handleSendAttachment = useCallback((data: {
+    type: 'image' | 'file' | 'voice' | 'audio';
+    fileOrBlob: File | Blob;
+    fileName: string;
+    fileSize: number;
+    fileType: string;
+    duration?: number;
+  }) => {
+    const replyInfo = selectedReplyMessage ? {
+      messageId: selectedReplyMessage.id,
+      preview: getReplyPreviewText(selectedReplyMessage),
+      senderName: selectedReplyMessage.senderProfile?.name || 'Unknown',
+      messageType: selectedReplyMessage.type,
+    } : null;
+    onSendAttachment(data, replyInfo);
+    // Clear reply after sending
+    setSelectedReplyMessage(null);
+  }, [onSendAttachment, selectedReplyMessage, getReplyPreviewText]);
 
   // Call handlers
   const handleVoiceCall = useCallback(async () => {
@@ -979,6 +1052,8 @@ export function ChatWindow({
                     }}
                     onPinMessage={onPinMessage}
                     isPinned={isMessagePinned}
+                    onReply={handleReply}
+                    onReplyClick={handleReplyClick}
                     activeAudioId={activeAudioId}
                     setActiveAudioId={setActiveAudioId}
                     registerAudioRef={registerAudioRef}
@@ -1019,13 +1094,39 @@ export function ChatWindow({
         shrink-0 md:shrink-0
         pb-[env(safe-area-inset-bottom)] md:pb-0
       ">
+        {/* Reply Preview */}
+        {selectedReplyMessage && (
+          <div className="px-4 pt-2 pb-1 bg-gray-50 border-b border-gray-100">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-teal-600 mb-0.5">
+                  Replying to {selectedReplyMessage.senderProfile?.name || 'Unknown'}
+                </p>
+                <p className="text-sm text-gray-600 truncate">
+                  {getReplyPreviewText(selectedReplyMessage)}
+                </p>
+              </div>
+              <button
+                onClick={handleCancelReply}
+                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
+                aria-label="Cancel reply"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
         <MessageInput
-          onSendMessage={onSendMessage}
-          onSendAttachment={onSendAttachment}
+          onSendMessage={handleSendMessage}
+          onSendAttachment={handleSendAttachment}
           disabled={isSendingMessage}
           onTypingStart={sendTypingStart}
           onTypingStop={sendTypingStop}
           conversationId={conversation?.id}
+          replyTo={selectedReplyMessage}
+          onCancelReply={handleCancelReply}
         />
       </div>
 

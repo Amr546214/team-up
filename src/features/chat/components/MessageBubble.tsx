@@ -16,6 +16,7 @@ import {
   Trash,
   Play,
   Pin,
+  Reply,
 } from 'lucide-react';
 import { VoiceMessageBubble } from './VoiceMessageBubble';
 import { VideoPreviewModal } from './VideoPreviewModal';
@@ -31,10 +32,14 @@ interface MessageBubbleProps {
   onReport?: (messageId: string, reason?: string) => void;
   onDeleteForEveryone?: (messageId: string) => Promise<void>;
   onPinMessage?: (messageId: string) => void;
+  onUnpinMessage?: (messageId: string) => void;
   isPinned?: boolean;
   isHighlighted?: boolean;
   // Ref for scrolling to message
   messageRef?: (el: HTMLDivElement | null) => void;
+  // Reply feature
+  onReply?: (message: Message) => void;
+  onReplyClick?: (messageId: string) => void;
   // Audio coordination props
   activeAudioId?: string | null;
   setActiveAudioId?: (id: string | null) => void;
@@ -55,6 +60,8 @@ export function MessageBubble({
   isPinned = false,
   isHighlighted = false,
   messageRef,
+  onReply,
+  onReplyClick,
   activeAudioId,
   setActiveAudioId,
   registerAudioRef,
@@ -152,6 +159,19 @@ export function MessageBubble({
     setMenuOpen(false);
   };
 
+  const handleReply = () => {
+    console.log('[Reply] initiating reply to message', message.id);
+    onReply?.(message);
+    setMenuOpen(false);
+  };
+
+  const handleReplyClick = () => {
+    if (message.replyToMessageId) {
+      console.log('[Reply] clicking reply block to navigate to', message.replyToMessageId);
+      onReplyClick?.(message.replyToMessageId);
+    }
+  };
+
   const handleDeleteForEveryone = () => {
     console.log('[DeleteEveryone UI Debug]', {
       messageId: message.id,
@@ -172,6 +192,74 @@ export function MessageBubble({
   const confirmDeleteForEveryone = () => {
     setDeleteForEveryoneConfirm(false);
     onDeleteForEveryone?.(message.id);
+  };
+
+  // Helper to generate preview text for reply
+  const getReplyPreviewText = (msg: Message): string => {
+    if (msg.deletedAt && msg.deleteScope === 'everyone') {
+      return 'Deleted message';
+    }
+    switch (msg.type) {
+      case 'image':
+        return '📷 Photo';
+      case 'file': {
+        const ext = msg.fileName?.split('.').pop()?.toLowerCase() || '';
+        const isVideo = msg.fileType?.startsWith('video/') || ['mp4', 'mov', 'webm', 'mkv'].includes(ext);
+        if (isVideo) return `🎬 ${msg.fileName || 'Video'}`;
+        return `📎 ${msg.fileName || 'File'}`;
+      }
+      case 'voice':
+        return '🎤 Voice message';
+      case 'audio':
+        return `🎵 ${msg.fileName || 'Audio'}`;
+      default:
+        return msg.content?.slice(0, 80) || '';
+    }
+  };
+
+  // Helper to get preview text from reply metadata
+  const getReplyDisplayText = (): string => {
+    if (!message.replyToPreview) {
+      return 'Original message unavailable';
+    }
+    return message.replyToPreview;
+  };
+
+  const renderReplyBlock = () => {
+    console.log('[MessageBubble] renderReplyBlock', {
+      messageId: message.id,
+      replyToMessageId: message.replyToMessageId,
+      replyToPreview: message.replyToPreview,
+      replyToSenderName: message.replyToSenderName,
+      replyToMessageType: message.replyToMessageType
+    });
+
+    if (!message.replyToMessageId) return null;
+
+    const isReplyToDeleted = message.replyToPreview?.includes('Deleted');
+    const senderName = message.replyToSenderName || 'Unknown';
+
+    return (
+      <button
+        onClick={handleReplyClick}
+        className={`w-full text-left mb-2 rounded-lg overflow-hidden transition-colors ${
+          isReplyToDeleted ? 'opacity-60' : 'hover:bg-black/5'
+        }`}
+      >
+        <div className="flex">
+          {/* Left accent bar */}
+          <div className={`w-1 shrink-0 ${isCurrentUser ? 'bg-teal-300' : 'bg-teal-500'}`} />
+          <div className="flex-1 px-2 py-1.5 min-w-0">
+            <p className={`text-xs font-medium truncate ${isCurrentUser ? 'text-teal-100' : 'text-teal-700'}`}>
+              {senderName}
+            </p>
+            <p className={`text-sm truncate ${isCurrentUser ? 'text-white/90' : 'text-gray-600'}`}>
+              {getReplyDisplayText()}
+            </p>
+          </div>
+        </div>
+      </button>
+    );
   };
 
   const renderMessageContent = () => {
@@ -457,6 +545,13 @@ export function MessageBubble({
                       <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                       {message.isStarred ? 'Unstar message' : 'Star message'}
                     </button>
+                    <button
+                      onClick={handleReply}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Reply className="w-4 h-4 text-teal-600" />
+                      Reply
+                    </button>
                   </>
                 )}
                 <button
@@ -494,6 +589,7 @@ export function MessageBubble({
                 <Flag className="w-3 h-3 text-orange-500" />
               </div>
             )}
+            {renderReplyBlock()}
             {renderMessageContent()}
             <div className="flex items-center justify-end gap-1.5 mt-1 text-teal-200">
               <span className="text-[11px]">{formatMessageTime(message.timestamp)}</span>
@@ -530,6 +626,7 @@ export function MessageBubble({
                 <Flag className="w-3 h-3 text-orange-500" />
               </div>
             )}
+            {renderReplyBlock()}
             {renderMessageContent()}
             <div className="flex items-center justify-end gap-1.5 mt-1 text-gray-400">
               <span className="text-[11px]">{formatMessageTime(message.timestamp)}</span>
@@ -569,6 +666,13 @@ export function MessageBubble({
                     >
                       <Star className={`w-4 h-4 ${message.isStarred ? 'fill-amber-400 text-amber-400' : ''}`} />
                       {message.isStarred ? 'Unstar message' : 'Star message'}
+                    </button>
+                    <button
+                      onClick={handleReply}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <Reply className="w-4 h-4 text-teal-600" />
+                      Reply
                     </button>
                   </>
                 )}
