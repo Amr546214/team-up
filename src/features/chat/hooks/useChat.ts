@@ -1096,6 +1096,317 @@ export function useChat(): UseChatState {
     };
   }, []);
 
+  // Realtime: subscribe to messages for the ACTIVE conversation only
+  // This ensures messages appear instantly when the chat is open
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    console.log('[MESSAGES REALTIME] subscribing to', activeConversationId);
+    console.log('[ACTIVE CONVERSATION ID]', activeConversationId);
+
+    const channel = supabase
+      .channel(`messages:${activeConversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${activeConversationId}`,
+        },
+        (payload) => {
+          console.log('[MESSAGES REALTIME] INSERT received', payload.new);
+          console.log('[MESSAGES REALTIME] payload', payload);
+          console.log('[MESSAGES REALTIME] activeConversation', activeConversationId);
+
+          const row = payload.new as any;
+          const convId = row.conversation_id;
+
+          // Double-check this is for the active conversation
+          if (convId !== activeConversationId) {
+            console.log('[MESSAGES REALTIME] ignored - wrong conversation', convId);
+            return;
+          }
+
+          // Check for duplicate
+          setMessages((prev) => {
+            const existingMessages = prev[convId] || [];
+            console.log('[MESSAGES STATE] before append', existingMessages.length);
+
+            if (existingMessages.some((m) => m.id === row.id)) {
+              console.log('[MESSAGES REALTIME] ignored duplicate', row.id);
+              return prev;
+            }
+
+            console.log('[MESSAGES REALTIME] appending message', row.id);
+
+            const currentUserId = realUserIdRef.current || currentUserIdRef.current;
+            const isFromOtherUser = row.sender_id !== currentUserId;
+
+            // Build new message object
+            const newMessage: Message = {
+              id: row.id,
+              conversationId: row.conversation_id,
+              senderId: row.sender_id,
+              content: row.content || undefined,
+              timestamp: new Date(row.created_at),
+              status: 'sent',
+              type: row.type || 'text',
+              fileName: row.file_name || undefined,
+              fileSize: row.file_size || undefined,
+              fileType: row.file_type || undefined,
+              mediaUrl: row.media_url || undefined,
+              duration: row.duration || undefined,
+              deletedAt: row.deleted_at ?? null,
+              deletedBy: row.deleted_by ?? null,
+              deleteScope: row.delete_scope ?? null,
+              deleteReason: row.delete_reason ?? null,
+              hiddenAt: null,
+              isStarred: false,
+              readAt: isFromOtherUser ? null : new Date().toISOString(),
+              // Reply fields - map from database column names
+              replyToMessageId: row.reply_to_message_id ?? row.replyToMessageId ?? null,
+              replyToPreview: row.reply_to_preview ?? row.replyToPreview ?? null,
+              replyToSenderName: row.reply_to_sender_name ?? row.replyToSenderName ?? null,
+              replyToMessageType: row.reply_to_message_type ?? row.replyToMessageType ?? null,
+              reactions: [], // Initialize with empty reactions, will be populated by reactions realtime
+            };
+
+            return {
+              ...prev,
+              [convId]: [...existingMessages, newMessage],
+            };
+          });
+
+          // Update sidebar last message without refetching
+          console.log('[CONVERSATION LIST] updating last message');
+          setConversations((prev) => {
+            return prev.map((c) => {
+              if (c.id !== convId) return c;
+              return {
+                ...c,
+                lastMessage: {
+                  id: row.id,
+                  conversationId: row.conversation_id,
+                  senderId: row.sender_id,
+                  content: row.content || undefined,
+                  timestamp: new Date(row.created_at),
+                  status: 'sent',
+                  type: row.type || 'text',
+                  fileName: row.file_name || undefined,
+                  fileSize: row.file_size || undefined,
+                  fileType: row.file_type || undefined,
+                  mediaUrl: row.media_url || undefined,
+                  duration: row.duration || undefined,
+                  replyToMessageId: row.reply_to_message_id ?? null,
+                  replyToPreview: row.reply_to_preview ?? null,
+                  replyToSenderName: row.reply_to_sender_name ?? null,
+                  replyToMessageType: row.reply_to_message_type ?? null,
+                } as Message,
+                updatedAt: new Date(row.created_at),
+                // Keep unread at 0 for active conversation
+                unreadCount: 0,
+              };
+            });
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('[MESSAGES REALTIME] subscription status', status);
+      });
+
+    return () => {
+      console.log('[MESSAGES REALTIME] cleanup', activeConversationId);
+      supabase.removeChannel(channel);
+    };
+  }, [activeConversationId]);
+
+  // Realtime: subscribe to message_reactions for the ACTIVE conversation only
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    console.log('[REACTIONS REALTIME] subscribing to', activeConversationId);
+
+    const channel = supabase
+      .channel(`message-reactions:${activeConversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_reactions',
+          filter: `conversation_id=eq.${activeConversationId}`,
+        },
+        (payload) => {
+          console.log('[REACTIONS REALTIME] event received', payload.eventType, payload);
+
+          const reaction = (payload.new || payload.old) as any;
+          const messageId = reaction?.message_id;
+
+          if (!messageId) {
+            console.warn('[REACTIONS REALTIME] missing message_id', payload);
+            return;
+          }
+
+          console.log('[REACTIONS REALTIME] applying to message', messageId);
+
+          // Update messages state directly
+          setMessages((prev) => {
+            const conversationMessages = prev[activeConversationId] || [];
+
+            const updatedMessages = conversationMessages.map((msg) => {
+              if (msg.id !== messageId) return msg;
+
+              const currentReactions = Array.isArray(msg.reactions) ? msg.reactions : [];
+
+              if (payload.eventType === 'INSERT') {
+                const newReaction: MessageReaction = {
+                  id: reaction.id,
+                  messageId: reaction.message_id,
+                  conversationId: reaction.conversation_id,
+                  userId: reaction.user_id,
+                  emoji: reaction.emoji,
+                  createdAt: reaction.created_at,
+                  updatedAt: reaction.updated_at,
+                };
+
+                const exists = currentReactions.some(
+                  (r) =>
+                    r.id === newReaction.id ||
+                    (r.messageId === newReaction.messageId && r.userId === newReaction.userId)
+                );
+
+                if (exists) return msg;
+
+                const updatedMessage = {
+                  ...msg,
+                  reactions: [...currentReactions, newReaction],
+                };
+                console.log('[MESSAGE REACTIONS AFTER UPDATE]', updatedMessage.reactions);
+                return updatedMessage;
+              }
+
+              if (payload.eventType === 'UPDATE') {
+                const updatedReaction: MessageReaction = {
+                  id: reaction.id,
+                  messageId: reaction.message_id,
+                  conversationId: reaction.conversation_id,
+                  userId: reaction.user_id,
+                  emoji: reaction.emoji,
+                  createdAt: reaction.created_at,
+                  updatedAt: reaction.updated_at,
+                };
+
+                const updatedMessage = {
+                  ...msg,
+                  reactions: currentReactions.map((r) =>
+                    r.id === updatedReaction.id ||
+                    (r.messageId === updatedReaction.messageId && r.userId === updatedReaction.userId)
+                      ? updatedReaction
+                      : r
+                  ),
+                };
+                console.log('[MESSAGE REACTIONS AFTER UPDATE]', updatedMessage.reactions);
+                return updatedMessage;
+              }
+
+              if (payload.eventType === 'DELETE') {
+                const deletedReaction = payload.old as any;
+
+                const updatedMessage = {
+                  ...msg,
+                  reactions: currentReactions.filter(
+                    (r) =>
+                      r.id !== deletedReaction?.id &&
+                      !(r.messageId === deletedReaction?.message_id && r.userId === deletedReaction?.user_id)
+                  ),
+                };
+                console.log('[MESSAGE REACTIONS AFTER UPDATE]', updatedMessage.reactions);
+                return updatedMessage;
+              }
+
+              return msg;
+            });
+
+            return {
+              ...prev,
+              [activeConversationId]: updatedMessages,
+            };
+          });
+
+          // Also update messageReactions state for reference
+          setMessageReactions((prev) => {
+            const currentReactions = prev[messageId] || [];
+
+            if (payload.eventType === 'INSERT') {
+              const newReaction: MessageReaction = {
+                id: reaction.id,
+                messageId: reaction.message_id,
+                conversationId: reaction.conversation_id,
+                userId: reaction.user_id,
+                emoji: reaction.emoji,
+                createdAt: reaction.created_at,
+                updatedAt: reaction.updated_at,
+              };
+              const exists = currentReactions.some(
+                (r) =>
+                  r.id === newReaction.id ||
+                  (r.messageId === newReaction.messageId && r.userId === newReaction.userId)
+              );
+              if (exists) return prev;
+              return {
+                ...prev,
+                [messageId]: [...currentReactions, newReaction],
+              };
+            }
+
+            if (payload.eventType === 'UPDATE') {
+              const updatedReaction: MessageReaction = {
+                id: reaction.id,
+                messageId: reaction.message_id,
+                conversationId: reaction.conversation_id,
+                userId: reaction.user_id,
+                emoji: reaction.emoji,
+                createdAt: reaction.created_at,
+                updatedAt: reaction.updated_at,
+              };
+              return {
+                ...prev,
+                [messageId]: currentReactions.map((r) =>
+                  r.id === updatedReaction.id ||
+                  (r.messageId === updatedReaction.messageId && r.userId === updatedReaction.userId)
+                    ? updatedReaction
+                    : r
+                ),
+              };
+            }
+
+            if (payload.eventType === 'DELETE') {
+              const deletedReaction = payload.old as any;
+              return {
+                ...prev,
+                [messageId]: currentReactions.filter(
+                  (r) =>
+                    r.id !== deletedReaction?.id &&
+                    !(r.messageId === deletedReaction?.message_id && r.userId === deletedReaction?.user_id)
+                ),
+              };
+            }
+
+            return prev;
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log('[REACTIONS REALTIME] subscription status', status);
+      });
+
+    return () => {
+      console.log('[REACTIONS REALTIME] cleanup', activeConversationId);
+      supabase.removeChannel(channel);
+    };
+  }, [activeConversationId]);
+
   const refreshConversations = useCallback(async () => {
     await loadRealConversations();
   }, [loadRealConversations]);
@@ -1343,7 +1654,7 @@ export function useChat(): UseChatState {
     const convId = activeConversationId;
     if (!convId) return;
 
-    console.log('[Reactions] adding', { messageId, emoji });
+    console.log('[REACTION ACTION] insert/update', { messageId, emoji });
 
     // Optimistic update
     setMessageReactions((prev) => {
@@ -1402,14 +1713,14 @@ export function useChat(): UseChatState {
       return;
     }
 
-    console.log('[Reactions] added successfully', reaction.id);
+    console.log('[REACTION] inserted', reaction.id);
   }, [activeConversationId]);
 
   const onRemoveReaction = useCallback(async (messageId: string) => {
     const convId = activeConversationId;
     if (!convId) return;
 
-    console.log('[Reactions] removing', { messageId });
+    console.log('[REACTION ACTION] delete', { messageId });
 
     // Optimistic update
     setMessageReactions((prev) => {

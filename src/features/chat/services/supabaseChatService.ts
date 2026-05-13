@@ -546,7 +546,7 @@ export async function sendTextMessage(
     }
 
     const mapped = rowToMessage(data);
-    console.log('[Chat] message sent', mapped.id);
+    console.log('[MESSAGE SEND] inserted message', mapped);
     return { message: mapped, error: null };
   } catch (err: any) {
     console.error('[Chat] send real message failed', err);
@@ -1914,26 +1914,24 @@ export async function addOrUpdateReaction(
     } = await supabase.auth.getUser();
     if (!user) return { reaction: null, error: 'Not authenticated' };
 
-    console.log('[Reactions] adding reaction', { messageId, emoji });
+    const reactionPayload = {
+      message_id: messageId,
+      conversation_id: conversationId,
+      user_id: user.id,
+      emoji: emoji,
+    };
+    console.log('[REACTION] inserting', reactionPayload);
 
     const { data, error } = await supabase
       .from('message_reactions')
-      .upsert(
-        {
-          message_id: messageId,
-          conversation_id: conversationId,
-          user_id: user.id,
-          emoji: emoji,
-        },
-        {
-          onConflict: 'message_id,user_id',
-        }
-      )
+      .upsert(reactionPayload, {
+        onConflict: 'message_id,user_id',
+      })
       .select()
       .single();
 
     if (error || !data) {
-      console.error('[Reactions] add failed', error);
+      console.error('[REACTION] insert failed', error);
       return { reaction: null, error: error?.message || 'Failed to add reaction' };
     }
 
@@ -1947,7 +1945,7 @@ export async function addOrUpdateReaction(
       updatedAt: data.updated_at,
     };
 
-    console.log('[Reactions] added', reaction.id);
+    console.log('[REACTION] inserted', reaction.id);
     return { reaction, error: null };
   } catch (err: any) {
     console.error('[Reactions] add failed', err);
@@ -1967,7 +1965,7 @@ export async function removeReaction(
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated' };
 
-    console.log('[Reactions] removing reaction', { messageId, userId: user.id });
+    console.log('[REACTION] deleting', { messageId, userId: user.id });
 
     const { error } = await supabase
       .from('message_reactions')
@@ -1976,11 +1974,11 @@ export async function removeReaction(
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('[Reactions] remove failed', error);
+      console.error('[REACTION] delete failed', error);
       return { success: false, error: error.message };
     }
 
-    console.log('[Reactions] removed');
+    console.log('[REACTION] deleted', messageId);
     return { success: true, error: null };
   } catch (err: any) {
     console.error('[Reactions] remove failed', err);
