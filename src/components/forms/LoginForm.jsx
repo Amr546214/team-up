@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, ShieldCheck, Lock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle, signInWithGitHub, signInWithLinkedIn } from "../../lib/supabaseAuth";
@@ -139,18 +140,20 @@ const LoginForm = () => {
     // Other roles still use existing auth logic for now
     const authResult = login(email, password, userType, rememberMe);
     if (!authResult.ok) {
-      if (authResult.reason === "invalid_credentials") {
-        setErrors({ email: "", password: "Invalid email or password" });
+      if (authResult.reason === "invalid_email") {
+        setErrors({ email: "Invalid email", password: "" });
         return;
       }
-      if (authResult.reason === "skill_quiz_required") {
-        setErrors({
-          email: "",
-          password: "Please complete the skill quiz before logging in.",
-        });
+    
+      if (authResult.reason === "invalid_password") {
+        setErrors({ email: "", password: "Invalid password" });
         return;
       }
-      setErrors({ email: "", password: authResult.message || "Login failed." });
+    
+      setErrors({
+        email: "",
+        password: authResult.message || "Login failed.",
+      });
       return;
     }
 
@@ -442,9 +445,9 @@ const LoginForm = () => {
                 <span className="text-sm text-gray-700">{t("auth.rememberMe")}</span>
               </label>
 
-              <a href="#" className="text-sm text-teal-600 hover:text-teal-700">
+              <Link to="/forgot-password" className="text-sm text-teal-600 hover:text-teal-700">
                 {t("auth.forgotPassword")}
-              </a>
+              </Link>
             </div>
 
             {/* LOGIN AS LINK */}
