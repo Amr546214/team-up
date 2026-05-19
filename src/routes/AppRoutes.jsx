@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
+import OAuthCallback from "../pages/auth/OAuthCallback";
 import Home from "../pages/public/Home";
 import DeploymentPage from "../pages/public/DeploymentPage";
 import NotFound from "../pages/public/NotFound";
@@ -8,6 +9,7 @@ import ChatTest from "../pages/dev/ChatTest";
 import PrivateRoute from "./PrivateRoute";
 import RoleRoute from "./RoleRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
+import { isLocalhost, shouldShowDeploymentPage } from "../utils/environment";
 
 import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 
@@ -38,20 +40,20 @@ import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
 function AppRoutes() {
-  // Environment variable override to show deployment page
-  const showDeploymentPage =
-    import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE === "true";
+  // Check environment - localhost should NEVER show deployment page
+  const onLocalhost = isLocalhost();
+  const showDeploymentPage = shouldShowDeploymentPage();
 
-  // Debug log for routing environment
   console.log("[Routing]", {
     mode: import.meta.env.MODE,
-    appEnv: import.meta.env.VITE_APP_ENV,
-    showDeploymentPage: import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE,
     hostname: window.location.hostname,
+    isLocalhost: onLocalhost,
+    showDeploymentPage,
+    viteShowFlag: import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE,
   });
 
-  // Show DeploymentPage only when explicitly enabled via env var
-  if (showDeploymentPage) {
+  // Show DeploymentPage only on production (not localhost) when enabled
+  if (showDeploymentPage && !onLocalhost) {
     return <DeploymentPage />;
   }
 
@@ -65,6 +67,7 @@ function AppRoutes() {
       {/* Public only routes - redirect authenticated users to their dashboard */}
       <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
       <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+      <Route path="/auth/callback" element={<OAuthCallback />} />
 
       <Route path="/skill-quiz" element={<SkillQuiz />} />
       <Route path="/quiz" element={<SkillQuiz />} />
