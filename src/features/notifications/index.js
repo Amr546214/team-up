@@ -20,6 +20,10 @@ export {
 // Hooks
 export { useNotifications, default } from './useNotifications';
 
+// Components
+export { default as NotificationsDropdown } from './components/NotificationsDropdown';
+export { default as NotificationItem } from './components/NotificationItem';
+
 // Mapper utilities
 export {
   getNotificationConfig,
