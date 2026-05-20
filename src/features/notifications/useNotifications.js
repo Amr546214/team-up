@@ -31,10 +31,12 @@ export function useNotifications(userId, options = {}) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [latestRealtimeNotification, setLatestRealtimeNotification] = useState(null);
   
   // Use ref to track subscription cleanup
   const unsubscribeRef = useRef(null);
   const isMountedRef = useRef(true);
+  const initialLoadDoneRef = useRef(false);
 
   /**
    * Calculate unread count from current notifications
@@ -66,6 +68,7 @@ export function useNotifications(userId, options = {}) {
 
     setNotifications(data || []);
     setLoading(false);
+    initialLoadDoneRef.current = true;
     console.log('[useNotifications] Loaded', data?.length || 0, 'notifications');
   }, [userId, limit]);
 
@@ -87,6 +90,11 @@ export function useNotifications(userId, options = {}) {
       // Prepend new notification (newest first)
       return [newNotification, ...prev];
     });
+
+    // Only surface to toast after initial load is done (skip page-load data)
+    if (initialLoadDoneRef.current) {
+      setLatestRealtimeNotification(newNotification);
+    }
   }, []);
 
   /**
@@ -177,6 +185,7 @@ export function useNotifications(userId, options = {}) {
     unreadCount,
     loading,
     error,
+    latestRealtimeNotification,
     
     // Actions
     markAsRead,

@@ -78,8 +78,9 @@ const NOTIFICATION_TYPES = {
     color: 'teal',
     label: 'New Message',
     getRedirectPath: (metadata) => {
-      if (metadata?.conversationId) return `/chat?conversation=${metadata.conversationId}`;
-      return '/chat';
+      if (metadata?.redirectTo) return metadata.redirectTo;
+      if (metadata?.conversationId) return `/dev/chat-test?conversation=${metadata.conversationId}`;
+      return '/dev/chat-test';
     },
     priority: 'medium',
   },
@@ -92,8 +93,9 @@ const NOTIFICATION_TYPES = {
     color: 'purple',
     label: 'You were mentioned',
     getRedirectPath: (metadata) => {
+      if (metadata?.redirectTo) return metadata.redirectTo;
       if (metadata?.messageId && metadata?.conversationId) {
-        return `/chat?conversation=${metadata.conversationId}&message=${metadata.messageId}`;
+        return `/dev/chat-test?conversation=${metadata.conversationId}&message=${metadata.messageId}`;
       }
       if (metadata?.commentId && metadata?.projectId) {
         return `/project/${metadata.projectId}?comment=${metadata.commentId}`;
@@ -256,14 +258,14 @@ export function mapNotification(notification) {
     isRead: notification.is_read,
     createdAt: notification.created_at,
     actorId: notification.actor_id,
-    metadata: notification.metadata,
+    metadata: notification.data || {},
     
     // UI properties
     icon: config.icon,
     color: config.color,
     label: config.label,
     priority: config.priority,
-    redirectPath: config.getRedirectPath(notification.metadata),
+    redirectPath: config.getRedirectPath(notification.data || {}),
   };
 }
 
