@@ -1,6 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import type { Conversation, Message, ChatUser, MessageReaction } from '../types';
-import { notifyMessageRecipients } from './chatNotifications';
+import { notifyMessageRecipients, notifyMentions } from './chatNotifications';
 
 /**
  * Get or create a direct conversation between the current user and a target user.
@@ -549,9 +549,14 @@ export async function sendTextMessage(
     const mapped = rowToMessage(data);
     console.log('[MESSAGE SEND] inserted message', mapped);
 
-    // Fire-and-forget: create in-app notifications for recipients
+    // Fire-and-forget: detect mentions and notify mentioned users first (priority)
+    // Mentioned users get priority notification and are excluded from generic message notification
     // TODO: Attach push notifications / mobile notifications here in the future
-    notifyMessageRecipients(mapped.id, conversationId, user.id).catch(() => {});
+    // TODO: In the future, add autocomplete mention picker in the UI
+    (async () => {
+      const mentionedIds = await notifyMentions(mapped.id, conversationId, user.id, content.trim());
+      await notifyMessageRecipients(mapped.id, conversationId, user.id, mentionedIds);
+    })().catch(() => {});
 
     return { message: mapped, error: null };
   } catch (err: any) {

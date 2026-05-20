@@ -64,10 +64,181 @@ function wasAlreadyNotified(messageId: string): boolean {
  *
  * TODO: In the future, attach push notifications / mobile notifications here.
  */
+/**
+ * Set of message IDs that have already triggered mention notifications.
+ * Used to prevent duplicate mention notifications.
+ */
+const _mentionNotifiedMessages = new Set<string>();
+const MAX_MENTION_CACHE = 200;
+
+function markMentionsSent(messageId: string) {
+  _mentionNotifiedMessages.add(messageId);
+  if (_mentionNotifiedMessages.size > MAX_MENTION_CACHE) {
+    const entries = [..._mentionNotifiedMessages];
+    _mentionNotifiedMessages.clear();
+    entries.slice(-100).forEach((id) => _mentionNotifiedMessages.add(id));
+  }
+}
+
+function wereMentionsAlreadySent(messageId: string): boolean {
+  return _mentionNotifiedMessages.has(messageId);
+}
+
+/**
+ * Detect @mentions in message content and notify mentioned users.
+ * Returns the list of user IDs who were mentioned and notified.
+ *
+ * @param messageId - The message ID
+ * @param conversationId - The conversation ID
+ * @param senderId - The sender user ID
+ * @param content - The message content to parse for mentions
+ * @returns Array of mentioned user IDs who received notifications
+ *
+ * TODO: In the future, add autocomplete mention picker in the UI.
+ */
+export async function notifyMentions(
+  messageId: string,
+  conversationId: string,
+  senderId: string,
+  content: string,
+): Promise<string[]> {
+  try {
+    // --- Guard: dedup mentions for this message ---
+    if (wereMentionsAlreadySent(messageId)) {
+      return [];
+    }
+
+    // --- 1. Parse mentions from content (@username or @"full name") ---
+    // Matches @username or @"full name" patterns
+    const mentionRegex = /@(?:"([^"]+)"|(\S+))/g;
+    const mentionedNames: string[] = [];
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      const name = match[1] || match[2]; // quoted name or unquoted username
+      if (name && name.trim()) {
+        mentionedNames.push(name.trim().toLowerCase());
+      }
+    }
+
+    if (mentionedNames.length === 0) {
+      return [];
+    }
+
+    // --- 2. Get conversation participants with their profiles ---
+    const { data: participants, error: partErr } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId);
+
+    if (partErr || !participants || participants.length === 0) {
+      return [];
+    }
+
+    const participantIds = participants
+      .map((p) => p.user_id as string)
+      .filter((uid) => uid !== senderId); // Don't notify sender
+
+    if (participantIds.length === 0) return [];
+
+    // --- 3. Fetch participant profiles to match against mentions ---
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', participantIds);
+
+    if (!profiles || profiles.length === 0) return [];
+
+    // --- 4. Match mentions to users ---
+    const mentionedUserIds: string[] = [];
+
+    for (const profile of profiles) {
+      const fullName = (profile.full_name || '').toLowerCase();
+      const firstName = fullName.split(' ')[0];
+
+      const isMentioned = mentionedNames.some((mention) => {
+        // Match full name or first name
+        return fullName === mention || firstName === mention;
+      });
+
+      if (isMentioned) {
+        mentionedUserIds.push(profile.id);
+      }
+    }
+
+    if (mentionedUserIds.length === 0) return [];
+
+    // --- 5. Get sender name and conversation title ---
+    const [{ data: senderProfile }, { data: convo }] = await Promise.all([
+      supabase.from('profiles').select('full_name').eq('id', senderId).single(),
+      supabase.from('conversations').select('type, title').eq('id', conversationId).single(),
+    ]);
+
+    const senderName = senderProfile?.full_name || 'Someone';
+    const isGroup = convo?.type === 'group';
+
+    // --- 6. Create mention notifications (high priority) ---
+    const body = isGroup
+      ? `${senderName} mentioned you in ${convo?.title || 'a group chat'}`
+      : `${senderName} mentioned you in a conversation`;
+
+    const results = await Promise.allSettled(
+      mentionedUserIds.map((userId) => {
+        // Suppress if local user has conversation open
+        if (userId === _getLocalUserId() && _activeConversationId === conversationId) {
+          console.log('[ChatNotif] Mention suppressed — user has conversation open');
+          return Promise.resolve({ data: null, error: null });
+        }
+
+        return createNotification({
+          userId,
+          type: 'mention_received',
+          title: 'You were mentioned',
+          body,
+          metadata: {
+            conversationId,
+            messageId,
+            senderId,
+            redirectTo: `/dev/chat-test?conversation=${conversationId}&message=${messageId}`,
+          },
+          actorId: senderId,
+        });
+      }),
+    );
+
+    const sent = results.filter(
+      (r) => r.status === 'fulfilled' && (r.value as any)?.data,
+    ).length;
+
+    if (sent > 0) {
+      console.log(`[ChatNotif] ${sent} mention notification(s) created for message ${messageId}`);
+      markMentionsSent(messageId);
+    }
+
+    return mentionedUserIds;
+  } catch (err) {
+    console.error('[ChatNotif] Error sending mention notifications:', err);
+    return [];
+  }
+}
+
+/**
+ * Send in-app notifications for a newly sent chat message.
+ *
+ * @param messageId  - The inserted message row id (used for dedup)
+ * @param conversationId - The conversation the message belongs to
+ * @param senderId - The user who sent the message
+ * @param excludeUserIds - User IDs to exclude from notification (e.g., mentioned users who got priority notification)
+ *
+ * Call this fire-and-forget after a successful message insert.
+ *
+ * TODO: In the future, attach push notifications / mobile notifications here.
+ */
 export async function notifyMessageRecipients(
   messageId: string,
   conversationId: string,
   senderId: string,
+  excludeUserIds: string[] = [],
 ): Promise<void> {
   try {
     // --- Guard: dedup ---
@@ -87,12 +258,13 @@ export async function notifyMessageRecipients(
       return;
     }
 
-    // --- 2. Determine recipients (everyone except sender) ---
+    // --- 2. Determine recipients (everyone except sender and excluded users) ---
+    const excludeSet = new Set([senderId, ...excludeUserIds]);
     const recipientIds = participants
       .map((p) => p.user_id as string)
-      .filter((uid) => uid !== senderId);
+      .filter((uid) => !excludeSet.has(uid));
 
-    if (recipientIds.length === 0) return; // sender is alone
+    if (recipientIds.length === 0) return; // no one to notify
 
     // --- 3. Get conversation metadata (type, title) ---
     const { data: convo } = await supabase

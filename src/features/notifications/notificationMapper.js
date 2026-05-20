@@ -93,8 +93,9 @@ const NOTIFICATION_TYPES = {
     color: 'purple',
     label: 'You were mentioned',
     getRedirectPath: (metadata) => {
+      if (metadata?.redirectTo) return metadata.redirectTo;
       if (metadata?.messageId && metadata?.conversationId) {
-        return `/chat?conversation=${metadata.conversationId}&message=${metadata.messageId}`;
+        return `/dev/chat-test?conversation=${metadata.conversationId}&message=${metadata.messageId}`;
       }
       if (metadata?.commentId && metadata?.projectId) {
         return `/project/${metadata.projectId}?comment=${metadata.commentId}`;
