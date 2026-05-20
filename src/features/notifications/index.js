@@ -23,6 +23,7 @@ export { useNotifications, default } from './useNotifications';
 // Components
 export { default as NotificationsDropdown } from './components/NotificationsDropdown';
 export { default as NotificationItem } from './components/NotificationItem';
+export { default as NotificationToast } from './components/NotificationToast';
 
 // Mapper utilities
 export {

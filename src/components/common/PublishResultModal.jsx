@@ -1,4 +1,7 @@
 import { notifyAcceptedTeamDevelopers } from "../../lib/developerInvites";
+import { useAuth } from "../../hooks/useAuth";
+import { createNotification } from "../../features/notifications";
+import { supabase } from "../../lib/supabase";
 
 function safeJsonParse(value) {
   if (typeof value !== "string") return value;
@@ -196,6 +199,9 @@ function extractTeam(response) {
 }
 
 function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
+  const { supabaseSession } = useAuth();
+  const clientUserId = supabaseSession?.user?.id || null;
+
   const isSuccess = job.n8nStatus === "success";
 
   const rawResponse = job?.n8nResponse;
@@ -249,6 +255,77 @@ function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
 
   const canAcceptTeam = selectedTeam.length > 0 && !isOverBudget;
 
+  /**
+   * Send Supabase notifications to developers matched by full_name.
+   * Fire-and-forget — does not block the accept flow.
+   * Deduplicates by storing a sent flag per job in localStorage.
+   */
+  const sendSupabaseNotifications = async (acceptedJob) => {
+    const jobKey = acceptedJob?.id || acceptedJob?.title || "unknown";
+    const sentFlag = `supabase_notif_sent_${jobKey}`;
+
+    if (localStorage.getItem(sentFlag)) {
+      console.log("[AcceptTeam] Supabase notifications already sent for:", jobKey);
+      return;
+    }
+
+    // Collect developer names from normalized team
+    const developerNames = normalizedTeam
+      .map((d) => getDeveloperName(d))
+      .filter((n) => n && n !== "Unknown Developer");
+
+    if (developerNames.length === 0) {
+      console.warn("[AcceptTeam] No developer names to notify");
+      return;
+    }
+
+    try {
+      // Look up Supabase profiles that match by full_name
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("full_name", developerNames);
+
+      if (error) {
+        console.error("[AcceptTeam] Profile lookup failed:", error.message);
+        return;
+      }
+
+      if (!profiles || profiles.length === 0) {
+        console.warn("[AcceptTeam] No Supabase profiles matched developer names:", developerNames);
+        return;
+      }
+
+      console.log("[AcceptTeam] Matched Supabase profiles:", profiles.length, "of", developerNames.length);
+
+      // Create a notification for each matched developer
+      const results = await Promise.allSettled(
+        profiles.map((profile) =>
+          createNotification({
+            userId: profile.id,
+            type: "developer_invited",
+            title: "New project invitation",
+            body: `You have been invited to join the project: ${acceptedJob?.title || "a new project"}.`,
+            metadata: {
+              redirectTo: "/developer/dashboard",
+              jobId: acceptedJob?.id || null,
+            },
+            actorId: clientUserId,
+          })
+        )
+      );
+
+      const succeeded = results.filter((r) => r.status === "fulfilled" && r.value?.data).length;
+      const failed = results.length - succeeded;
+      console.log(`[AcceptTeam] Supabase notifications: ${succeeded} sent, ${failed} failed`);
+
+      // Mark as sent to prevent duplicates
+      localStorage.setItem(sentFlag, new Date().toISOString());
+    } catch (err) {
+      console.error("[AcceptTeam] Supabase notification error:", err);
+    }
+  };
+
   const handleAcceptTeam = () => {
     if (!canAcceptTeam) return;
 
@@ -262,9 +339,12 @@ function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
       budgetStatus,
     };
 
-    // Notify matched developers and create invites
+    // Notify matched developers and create invites (localStorage / fakeApi)
     const { matched, unmatched } = notifyAcceptedTeamDevelopers(acceptedJob, normalizedTeam);
     console.log("[AcceptTeam] Matched developers:", matched.length, "Unmatched:", unmatched.length);
+
+    // Send real Supabase notifications (fire-and-forget, non-blocking)
+    sendSupabaseNotifications(acceptedJob);
 
     onAcceptTeam(acceptedJob);
   };

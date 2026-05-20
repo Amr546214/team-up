@@ -1,6 +1,7 @@
 import AppRoutes from "./routes/AppRoutes";
 import { AuthProvider } from "./context/AuthContext";
 import ChatbotWidget from "./components/common/ChatbotWidget";
+import NotificationToast from "./features/notifications/components/NotificationToast";
 import { useLocation } from "react-router-dom";
 
 function AppContent() {
@@ -14,6 +15,7 @@ function AppContent() {
     <>
       <AppRoutes />
       {!isChatPage && <ChatbotWidget forceShow={isProd} />}
+      <NotificationToast />
     </>
   );
 }

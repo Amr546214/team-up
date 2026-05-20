@@ -35,6 +35,10 @@ import {
   type PinnedMessageWithData,
 } from '../services/supabaseChatService';
 import { supabase } from '../../../lib/supabase';
+import {
+  setActiveConversationForNotifications,
+  setCachedLocalUserId,
+} from '../services/chatNotifications';
 
 const LAST_CONVERSATION_STORAGE_KEY = 'chat:lastConversationId';
 const PINNED_CHATS_STORAGE_KEY = 'chat:pinnedConversationIds';
@@ -162,10 +166,14 @@ export function useChat(): UseChatState {
   // Keep refs synced with state to avoid stale closures
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
+    // Sync to notification suppression tracker
+    setActiveConversationForNotifications(activeConversationId);
   }, [activeConversationId]);
 
   useEffect(() => {
     currentUserIdRef.current = currentUserProfile?.id || null;
+    // Cache local user id for notification suppression
+    setCachedLocalUserId(currentUserProfile?.id || null);
   }, [currentUserProfile?.id]);
 
   // Load pinned conversations from localStorage and apply on mount (SSR-safe)

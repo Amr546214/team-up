@@ -1,0 +1,177 @@
+/**
+ * Chat Message Notifications
+ *
+ * Creates in-app notifications when a message is sent in a conversation.
+ * Notifications are NOT created if the recipient currently has the
+ * conversation open or if the sender is messaging themselves.
+ *
+ * Fire-and-forget — errors are logged but never block the send flow.
+ *
+ * @module features/chat/services/chatNotifications
+ */
+
+import { supabase } from '../../../lib/supabase';
+import { createNotification } from '../../notifications';
+
+// ---------------------------------------------------------------------------
+// Active conversation tracking
+// ---------------------------------------------------------------------------
+// The chat UI sets this when a conversation is opened/closed.
+// Used to suppress notifications for the conversation the user is viewing.
+let _activeConversationId: string | null = null;
+
+export function setActiveConversationForNotifications(id: string | null) {
+  _activeConversationId = id;
+}
+
+export function getActiveConversationForNotifications(): string | null {
+  return _activeConversationId;
+}
+
+// ---------------------------------------------------------------------------
+// Deduplication
+// ---------------------------------------------------------------------------
+// Keep a small set of recently-notified message IDs to guard against
+// double-fire from optimistic + realtime flows.
+const _recentlyNotifiedMessageIds = new Set<string>();
+const MAX_RECENT = 200;
+
+function markAsNotified(messageId: string) {
+  _recentlyNotifiedMessageIds.add(messageId);
+  if (_recentlyNotifiedMessageIds.size > MAX_RECENT) {
+    const entries = [..._recentlyNotifiedMessageIds];
+    _recentlyNotifiedMessageIds.clear();
+    entries.slice(-100).forEach((id) => _recentlyNotifiedMessageIds.add(id));
+  }
+}
+
+function wasAlreadyNotified(messageId: string): boolean {
+  return _recentlyNotifiedMessageIds.has(messageId);
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Send in-app notifications for a newly sent chat message.
+ *
+ * @param messageId  - The inserted message row id (used for dedup)
+ * @param conversationId - The conversation the message belongs to
+ * @param senderId - The user who sent the message
+ *
+ * Call this fire-and-forget after a successful message insert.
+ *
+ * TODO: In the future, attach push notifications / mobile notifications here.
+ */
+export async function notifyMessageRecipients(
+  messageId: string,
+  conversationId: string,
+  senderId: string,
+): Promise<void> {
+  try {
+    // --- Guard: dedup ---
+    if (wasAlreadyNotified(messageId)) {
+      return;
+    }
+    markAsNotified(messageId);
+
+    // --- 1. Get conversation participants ---
+    const { data: participants, error: partErr } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId);
+
+    if (partErr || !participants || participants.length === 0) {
+      console.warn('[ChatNotif] No participants found', partErr?.message);
+      return;
+    }
+
+    // --- 2. Determine recipients (everyone except sender) ---
+    const recipientIds = participants
+      .map((p) => p.user_id as string)
+      .filter((uid) => uid !== senderId);
+
+    if (recipientIds.length === 0) return; // sender is alone
+
+    // --- 3. Get conversation metadata (type, title) ---
+    const { data: convo } = await supabase
+      .from('conversations')
+      .select('type, title')
+      .eq('id', conversationId)
+      .single();
+
+    const isGroup = convo?.type === 'group';
+    const groupName = convo?.title || 'a group chat';
+
+    // --- 4. Get sender profile for display name ---
+    const { data: senderProfile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', senderId)
+      .single();
+
+    const senderName = senderProfile?.full_name || 'Someone';
+
+    // --- 5. Build notification body ---
+    const body = isGroup
+      ? `${senderName} sent a message in ${groupName}`
+      : `${senderName} sent you a message`;
+
+    // --- 6. Create notifications (skip recipients viewing this conversation) ---
+    // NOTE: We can only suppress for the LOCAL user's active conversation.
+    // For other recipients on different devices, suppression happens client-side
+    // (the dropdown/toast already handles dedup by notification id).
+    const results = await Promise.allSettled(
+      recipientIds.map((recipientId) => {
+        // Suppress if this recipient is the local user AND the conversation is open
+        if (recipientId === _getLocalUserId() && _activeConversationId === conversationId) {
+          console.log('[ChatNotif] Suppressed — recipient has conversation open');
+          return Promise.resolve({ data: null, error: null });
+        }
+
+        return createNotification({
+          userId: recipientId,
+          type: 'message_received',
+          title: 'New message',
+          body,
+          metadata: {
+            conversationId,
+            senderId,
+            redirectTo: `/dev/chat-test?conversation=${conversationId}`,
+          },
+          actorId: senderId,
+        });
+      }),
+    );
+
+    const sent = results.filter(
+      (r) => r.status === 'fulfilled' && (r.value as any)?.data,
+    ).length;
+    if (sent > 0) {
+      console.log(`[ChatNotif] ${sent} notification(s) created for message ${messageId}`);
+    }
+  } catch (err) {
+    // Never let notification errors propagate to the send flow
+    console.error('[ChatNotif] Error sending notifications:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/** Cached local user id to avoid repeated auth calls */
+let _cachedLocalUserId: string | null = null;
+
+function _getLocalUserId(): string | null {
+  return _cachedLocalUserId;
+}
+
+/**
+ * Cache the local user id. Called once during auth initialisation.
+ * Also re-exported so the chat hook can set it on mount.
+ */
+export function setCachedLocalUserId(id: string | null) {
+  _cachedLocalUserId = id;
+}

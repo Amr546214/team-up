@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import type { Conversation, Message, ChatUser, MessageReaction } from '../types';
+import { notifyMessageRecipients } from './chatNotifications';
 
 /**
  * Get or create a direct conversation between the current user and a target user.
@@ -547,6 +548,11 @@ export async function sendTextMessage(
 
     const mapped = rowToMessage(data);
     console.log('[MESSAGE SEND] inserted message', mapped);
+
+    // Fire-and-forget: create in-app notifications for recipients
+    // TODO: Attach push notifications / mobile notifications here in the future
+    notifyMessageRecipients(mapped.id, conversationId, user.id).catch(() => {});
+
     return { message: mapped, error: null };
   } catch (err: any) {
     console.error('[Chat] send real message failed', err);
@@ -702,6 +708,11 @@ export async function sendMediaMessage({
     (mapped as any).mediaPath = path; // Keep path for future reference
 
     console.log('[Media Message] sent', mapped.id);
+
+    // Fire-and-forget: create in-app notifications for recipients
+    // TODO: Attach push notifications / mobile notifications here in the future
+    notifyMessageRecipients(mapped.id, conversationId, user.id).catch(() => {});
+
     return { message: mapped, error: null };
   } catch (err: any) {
     console.error('[Media Message] failed', err);

@@ -56,7 +56,7 @@ function NotificationsDropdown() {
     await markAsRead(notification.id);
 
     const config = getNotificationConfig(notification.type);
-    const redirectPath = config.getRedirectPath(notification.metadata);
+    const redirectPath = config.getRedirectPath(notification.data || {});
 
     if (redirectPath && redirectPath !== "/notifications") {
       navigate(redirectPath);

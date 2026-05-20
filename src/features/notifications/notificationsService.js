@@ -25,7 +25,7 @@ export async function fetchNotifications(userId, limit = 50) {
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', userId)
+      .eq('recipient_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -85,7 +85,7 @@ export async function markAllNotificationsAsRead(userId) {
     const { error } = await supabase
       .from('notifications')
       .update({ is_read: true, read_at: new Date().toISOString() })
-      .eq('user_id', userId)
+      .eq('recipient_id', userId)
       .eq('is_read', false);
 
     if (error) {
@@ -132,14 +132,13 @@ export async function createNotification({
     const { data, error } = await supabase
       .from('notifications')
       .insert({
-        user_id: userId,
+        recipient_id: userId,
         type,
         title,
         body,
-        metadata,
+        data: metadata,
         actor_id: actorId,
         is_read: false,
-        created_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -183,7 +182,7 @@ export function subscribeToNotifications(userId, callback) {
         event: 'INSERT',
         schema: 'public',
         table: 'notifications',
-        filter: `user_id=eq.${userId}`,
+        filter: `recipient_id=eq.${userId}`,
       },
       (payload) => {
         console.log('[Notifications Realtime] New notification:', payload.new);
@@ -223,7 +222,7 @@ export async function deleteOldNotifications(userId, daysToKeep = 30) {
     const { error, count } = await supabase
       .from('notifications')
       .delete()
-      .eq('user_id', userId)
+      .eq('recipient_id', userId)
       .eq('is_read', true)
       .lt('created_at', cutoffDate.toISOString());
 
