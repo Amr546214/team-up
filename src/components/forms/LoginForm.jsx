@@ -166,7 +166,7 @@ const LoginForm = () => {
       client: "/client/profile",
       developer: "/developer/dashboard",
       company: "/company/profile",
-      admin: "/",
+      admin: "/admin/dashboard",
     };
     const targetRoute = roleRedirects[actualRole];
 
@@ -457,83 +457,67 @@ const LoginForm = () => {
               {isLoading ? "Logging in..." : t("auth.loginButton")}
             </button>
 
-            {/* Admin secure message only */}
-            {isAdmin && authMode === "login" && (
-              <div className="flex items-start gap-2 text-[12px] leading-5 text-[#8B95A7] px-1">
-                <Lock size={15} strokeWidth={1.8} className="mt-[2px] shrink-0" />
-                <p>
-                  {t("auth.secureMessage")}
-                </p>
+            {/* OAuth login buttons for all roles */}
+            <div className="mt-4">
+              <p className="text-center text-[12px] font-medium uppercase tracking-wide text-[#98A2B3]">
+                {t("auth.orContinueWith")}
+              </p>
+
+              <div className="mt-6 grid grid-cols-3 gap-7">
+                <button
+                  type="button"
+                  onClick={() => signInWithGoogle(userType)}
+                  className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
+                  aria-label="Continue with Google"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-[20px] w-[20px]"
+                    aria-hidden="true"
+                  >
+                    <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.63Z" />
+                    <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.87-3c-1.07.72-2.44 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.97H1.25v3.12A12 12 0 0 0 12 24Z" />
+                    <path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.88 12c0-.79.14-1.56.37-2.28V6.6H1.25A12 12 0 0 0 0 12c0 1.93.46 3.76 1.25 5.4l4-3.12Z" />
+                    <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.11 15.23 0 12 0A12 12 0 0 0 1.25 6.6l4 3.12c.95-2.85 3.61-4.97 6.75-4.97Z" />
+                  </svg>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => signInWithGitHub(userType)}
+                  className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
+                  aria-label="Continue with GitHub"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-[20px] w-[20px] fill-[#4B5563]"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.74-1.33-1.74-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.23 1.84 1.23 1.08 1.83 2.83 1.3 3.52 1 .1-.77.42-1.3.76-1.6-2.67-.3-5.47-1.32-5.47-5.9 0-1.3.47-2.36 1.23-3.2-.12-.3-.53-1.5.12-3.13 0 0 1-.32 3.3 1.22A11.5 11.5 0 0 1 12 6.3c1.02 0 2.04.14 3 .4 2.29-1.54 3.29-1.22 3.29-1.22.65 1.63.24 2.83.12 3.13.77.84 1.23 1.9 1.23 3.2 0 4.6-2.8 5.6-5.48 5.9.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+                  </svg>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => signInWithLinkedIn(userType)}
+                  className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
+                  aria-label="Continue with LinkedIn"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-[20px] w-[20px]"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fill="#4B5563"
+                      d="M6.94 8.5A1.56 1.56 0 1 0 6.94 5.38 1.56 1.56 0 0 0 6.94 8.5ZM5.6 9.78h2.67V18H5.6V9.78Zm4.35 0h2.56v1.12h.04c.36-.68 1.23-1.4 2.53-1.4 2.7 0 3.2 1.73 3.2 3.98V18H15.6v-3.98c0-.95-.02-2.17-1.36-2.17-1.36 0-1.57 1.03-1.57 2.1V18H9.95V9.78Z"
+                    />
+                  </svg>
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* Social login only for non-admin */}
-            {!isAdmin && (
-              <div className="mt-4">
-                <p className="text-center text-[12px] font-medium uppercase tracking-wide text-[#98A2B3]">
-                  {t("auth.orContinueWith")}
-                </p>
-
-                <div className="mt-6 grid grid-cols-3 gap-7">
-                  <button
-                    type="button"
-                    onClick={() => signInWithGoogle(userType)}
-                    className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
-                    aria-label="Continue with Google"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-[20px] w-[20px]"
-                      aria-hidden="true"
-                    >
-                      <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.29h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.63Z" />
-                      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.87-3c-1.07.72-2.44 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.97H1.25v3.12A12 12 0 0 0 12 24Z" />
-                      <path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.88 12c0-.79.14-1.56.37-2.28V6.6H1.25A12 12 0 0 0 0 12c0 1.93.46 3.76 1.25 5.4l4-3.12Z" />
-                      <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.11 15.23 0 12 0A12 12 0 0 0 1.25 6.6l4 3.12c.95-2.85 3.61-4.97 6.75-4.97Z" />
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => signInWithGitHub(userType)}
-                    className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
-                    aria-label="Continue with GitHub"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-[20px] w-[20px] fill-[#4B5563]"
-                      aria-hidden="true"
-                    >
-                      <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.02c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.74-1.33-1.74-1.09-.74.08-.73.08-.73 1.2.09 1.84 1.23 1.84 1.23 1.08 1.83 2.83 1.3 3.52 1 .1-.77.42-1.3.76-1.6-2.67-.3-5.47-1.32-5.47-5.9 0-1.3.47-2.36 1.23-3.2-.12-.3-.53-1.5.12-3.13 0 0 1-.32 3.3 1.22A11.5 11.5 0 0 1 12 6.3c1.02 0 2.04.14 3 .4 2.29-1.54 3.29-1.22 3.29-1.22.65 1.63.24 2.83.12 3.13.77.84 1.23 1.9 1.23 3.2 0 4.6-2.8 5.6-5.48 5.9.43.37.82 1.1.82 2.22v3.3c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => signInWithLinkedIn(userType)}
-                    className="flex h-[44px] items-center justify-center rounded-[12px] border border-[#D9DEE7] bg-white transition hover:bg-[#F8FAFC] cursor-pointer"
-                    aria-label="Continue with LinkedIn"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-[20px] w-[20px]"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fill="#4B5563"
-                        d="M6.94 8.5A1.56 1.56 0 1 0 6.94 5.38 1.56 1.56 0 0 0 6.94 8.5ZM5.6 9.78h2.67V18H5.6V9.78Zm4.35 0h2.56v1.12h.04c.36-.68 1.23-1.4 2.53-1.4 2.7 0 3.2 1.73 3.2 3.98V18H15.6v-3.98c0-.95-.02-2.17-1.36-2.17-1.36 0-1.57 1.03-1.57 2.1V18H9.95V9.78Z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <p
-              className={`text-center text-[13px] text-[#667085] ${
-                isAdmin ? "mt-8" : "mt-6"
-              }`}
-            >
+            <p className="text-center text-[13px] text-[#667085] mt-6">
               {t("auth.noAccount")}{" "}
               <a
                 href="#"

@@ -17,7 +17,5 @@ export default function PublicOnlyRoute({ children }) {
 
   const redirectPath = getDashboardPath(userRole);
 
-  console.log("PublicOnlyRoute: User already authenticated, redirecting to:", redirectPath);
-
   return <Navigate to={redirectPath} replace />;
 }

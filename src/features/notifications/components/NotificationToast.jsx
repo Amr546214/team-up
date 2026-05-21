@@ -117,7 +117,8 @@ function NotificationToast() {
 
   if (!toast) return null;
 
-  const config = getNotificationConfig(toast.type);
+  // Pass toast data for dynamic color support (e.g., project_status_changed)
+  const config = getNotificationConfig(toast.type, toast.data);
   const colors = getColorClasses(config.color);
   const IconComponent = ICON_MAP[config.icon] || BellIcon;
 

@@ -39,18 +39,12 @@ import Tasks from "../pages/team-leader/Tasks";
 import Progress from "../pages/team-leader/Progress";
 import Reports from "../pages/team-leader/Reports";
 
+import AdminDashboard from "../pages/admin/AdminDashboard";
+
 function AppRoutes() {
   // Check environment - localhost should NEVER show deployment page
   const onLocalhost = isLocalhost();
   const showDeploymentPage = shouldShowDeploymentPage();
-
-  console.log("[Routing]", {
-    mode: import.meta.env.MODE,
-    hostname: window.location.hostname,
-    isLocalhost: onLocalhost,
-    showDeploymentPage,
-    viteShowFlag: import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE,
-  });
 
   // Show DeploymentPage only on production (not localhost) when enabled
   if (showDeploymentPage && !onLocalhost) {
@@ -113,6 +107,11 @@ function AppRoutes() {
           <Route path="/team-leader/tasks" element={<Tasks />} />
           <Route path="/team-leader/progress" element={<Progress />} />
           <Route path="/team-leader/reports" element={<Reports />} />
+        </Route>
+
+        {/* Admin routes */}
+        <Route element={<RoleRoute role="admin" />}>
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Route>
       </Route>
 

@@ -75,7 +75,6 @@ export function clearAuth() {
 export function saveUserProfile(profile) {
   if (profile && typeof window !== "undefined") {
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
-    console.log("GLOBAL USER PROFILE SAVED:", profile);
   }
 }
 
@@ -127,7 +126,7 @@ export function getDashboardPath(role) {
     case "company":
       return "/company/profile";
     case "admin":
-      return "/";
+      return "/admin/dashboard";
     default:
       return "/login";
   }

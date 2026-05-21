@@ -17,6 +17,27 @@ export {
   deleteOldNotifications,
 } from './notificationsService';
 
+// Project notifications
+export {
+  notifyProjectStatusChange,
+  notifyProjectStatusChangeWithFetch,
+  fetchProjectTeamMembers,
+} from './projectNotifications';
+
+// Automatic notification triggers (primary API for creating notifications)
+export {
+  notifyDevelopersInvited,
+  triggerMessageNotifications,
+  triggerMissedCallNotification,
+  triggerProjectStatusNotifications,
+  // Re-exports from chat notifications
+  notifyMessageRecipients,
+  notifyMentions,
+  notifyMissedCall,
+  setActiveConversationForNotifications,
+  getActiveConversationForNotifications,
+} from './notificationTriggers';
+
 // Hooks
 export { useNotifications, default } from './useNotifications';
 

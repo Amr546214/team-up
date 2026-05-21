@@ -23,6 +23,7 @@ const ICONS = {
   CheckCircle: 'CheckCircle',
   AlertCircle: 'AlertCircle',
   Info: 'Info',
+  PhoneMissed: 'PhoneMissed',
 };
 
 /**
@@ -106,6 +107,23 @@ const NOTIFICATION_TYPES = {
   },
 
   /**
+   * Missed audio/video call
+   */
+  call_missed: {
+    icon: ICONS.PhoneMissed,
+    color: 'red',
+    label: 'Missed Call',
+    getRedirectPath: (metadata) => {
+      if (metadata?.redirectTo) return metadata.redirectTo;
+      if (metadata?.conversationId) {
+        return `/dev/chat-test?conversation=${metadata.conversationId}`;
+      }
+      return '/dev/chat-test';
+    },
+    priority: 'high',
+  },
+
+  /**
    * Team invitation accepted
    */
   team_accepted: {
@@ -121,14 +139,35 @@ const NOTIFICATION_TYPES = {
 
   /**
    * Project status changed (started, completed, on-hold, etc.)
+   * Status-specific styling:
+   * - completed => success/green
+   * - cancelled => danger/red
+   * - paused => warning/yellow
+   * - active/in_progress/pending => info/blue
    */
   project_status_changed: {
     icon: ICONS.Folder,
-    color: 'yellow',
+    getColor: (metadata) => {
+      const status = metadata?.status?.toLowerCase?.() || '';
+      switch (status) {
+        case 'completed':
+          return 'green'; // success
+        case 'cancelled':
+          return 'red'; // danger
+        case 'paused':
+          return 'yellow'; // warning
+        case 'active':
+        case 'in_progress':
+        case 'pending':
+        default:
+          return 'blue'; // info
+      }
+    },
     label: 'Project Update',
     getRedirectPath: (metadata) => {
-      if (metadata?.projectId) return `/project/${metadata.projectId}`;
-      return '/projects';
+      if (metadata?.redirectTo) return metadata.redirectTo;
+      if (metadata?.projectId) return `/developer/projects/${metadata.projectId}`;
+      return '/developer/projects';
     },
     priority: 'medium',
   },
@@ -172,24 +211,33 @@ const NOTIFICATION_TYPES = {
 
 /**
  * Get notification configuration by type
- * 
+ *
  * @param {string} type - The notification type
+ * @param {Object} metadata - Optional metadata for dynamic config (e.g., status-specific colors)
  * @returns {Object} Configuration object with icon, color, label, getRedirectPath, priority
  */
-export function getNotificationConfig(type) {
+export function getNotificationConfig(type, metadata = null) {
   const config = NOTIFICATION_TYPES[type];
-  
+
   if (!config) {
     console.warn(`[notificationMapper] Unknown notification type: "${type}". Using default.`);
     return DEFAULT_CONFIG;
   }
-  
+
+  // Support dynamic color based on metadata (e.g., project_status_changed)
+  if (metadata && config.getColor) {
+    return {
+      ...config,
+      color: config.getColor(metadata),
+    };
+  }
+
   return config;
 }
 
 /**
  * Get notification icon by type
- * 
+ *
  * @param {string} type - The notification type
  * @returns {string} Icon name
  */
@@ -199,12 +247,14 @@ export function getNotificationIcon(type) {
 
 /**
  * Get notification color by type
- * 
+ *
  * @param {string} type - The notification type
+ * @param {Object} metadata - Optional metadata for dynamic colors
  * @returns {string} Color name
  */
-export function getNotificationColor(type) {
-  return getNotificationConfig(type).color;
+export function getNotificationColor(type, metadata = null) {
+  const config = getNotificationConfig(type, metadata);
+  return config.color;
 }
 
 /**
@@ -241,15 +291,17 @@ export function getNotificationPriority(type) {
 
 /**
  * Get full notification display data
- * 
+ *
  * @param {Object} notification - The notification object
  * @returns {Object} Complete display configuration
  */
 export function mapNotification(notification) {
   if (!notification) return null;
 
-  const config = getNotificationConfig(notification.type);
-  
+  const metadata = notification.data || {};
+  // Pass metadata for dynamic color support (e.g., project_status_changed)
+  const config = getNotificationConfig(notification.type, metadata);
+
   return {
     id: notification.id,
     type: notification.type,
@@ -258,14 +310,14 @@ export function mapNotification(notification) {
     isRead: notification.is_read,
     createdAt: notification.created_at,
     actorId: notification.actor_id,
-    metadata: notification.data || {},
-    
+    metadata,
+
     // UI properties
     icon: config.icon,
     color: config.color,
     label: config.label,
     priority: config.priority,
-    redirectPath: config.getRedirectPath(notification.data || {}),
+    redirectPath: config.getRedirectPath(metadata),
   };
 }
 

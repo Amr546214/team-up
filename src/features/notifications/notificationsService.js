@@ -125,7 +125,10 @@ export async function createNotification({
   actorId = null,
 }) {
   try {
+    console.log('[Notification Trigger] createNotification called:', { userId, type, title, actorId });
+
     if (!userId || !type || !title) {
+      console.error('[Notification Trigger] missing required fields:', { userId, type, title });
       return { data: null, error: 'userId, type, and title are required' };
     }
 
@@ -144,24 +147,27 @@ export async function createNotification({
       .single();
 
     if (error) {
-      console.error('[Notifications] Create failed:', error);
+      console.error('[Notification Trigger] create failed:', error);
       return { data: null, error: error.message };
     }
 
-    console.log('[Notifications] Created:', data.id);
+    console.log('[Notification Trigger] created successfully:', data?.id);
     return { data, error: null };
   } catch (err) {
-    console.error('[Notifications] Unexpected error:', err);
+    console.error('[Notification Trigger] unexpected error:', err);
     return { data: null, error: err?.message || 'Failed to create notification' };
   }
 }
 
 /**
  * Subscribe to realtime notifications for a user
- * 
+ *
  * Uses Supabase Realtime to listen for new notifications.
  * Returns an unsubscribe function for cleanup.
- * 
+ *
+ * IMPORTANT: Channel name must be unique to avoid conflicts when multiple
+ * components subscribe. Use Date.now() to ensure uniqueness.
+ *
  * @param {string} userId - The user ID to subscribe to
  * @param {Function} callback - Function to call when new notification arrives
  * @returns {Function} Unsubscribe cleanup function
@@ -172,10 +178,11 @@ export function subscribeToNotifications(userId, callback) {
     return () => {};
   }
 
-  console.log('[Notifications] Subscribing to realtime for user:', userId);
+  // Use unique channel name to prevent conflicts when multiple components subscribe
+  const channelName = `notifications:${userId}:${Date.now()}`;
 
   const channel = supabase
-    .channel(`notifications:${userId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -185,17 +192,13 @@ export function subscribeToNotifications(userId, callback) {
         filter: `recipient_id=eq.${userId}`,
       },
       (payload) => {
-        console.log('[Notifications Realtime] New notification:', payload.new);
-        callback(payload.new);
+        callback?.(payload.new);
       }
     )
-    .subscribe((status) => {
-      console.log('[Notifications Realtime] Subscription status:', status);
-    });
+    .subscribe();
 
   // Return cleanup function
   return () => {
-    console.log('[Notifications] Unsubscribing from realtime');
     supabase.removeChannel(channel);
   };
 }
@@ -231,7 +234,6 @@ export async function deleteOldNotifications(userId, daysToKeep = 30) {
       return { success: false, count: 0, error: error.message };
     }
 
-    console.log('[Notifications] Cleaned up', count, 'old notifications');
     return { success: true, count: count || 0, error: null };
   } catch (err) {
     console.error('[Notifications] Cleanup error:', err);

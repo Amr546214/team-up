@@ -28,8 +28,6 @@ const Home = () => {
   const { t } = useTranslation();
 
   const handleGetStarted = () => {
-    console.log("DASHBOARD CLICK ROLE:", userRole);
-    console.log("DASHBOARD CLICK PATH:", getDashboardPath(userRole));
     if (isAuthenticated && userRole) {
       navigate(getDashboardPath(userRole));
     } else {
@@ -40,8 +38,6 @@ const Home = () => {
   const handleSignUp = (role) => {
     if (isAuthenticated && userRole) {
       // Already logged in, go to dashboard
-      console.log("DASHBOARD CLICK ROLE:", userRole);
-      console.log("DASHBOARD CLICK PATH:", getDashboardPath(userRole));
       navigate(getDashboardPath(userRole));
     } else {
       navigate(`/register?role=${role}`);
