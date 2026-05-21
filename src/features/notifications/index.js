@@ -17,6 +17,13 @@ export {
   deleteOldNotifications,
 } from './notificationsService';
 
+// Project notifications
+export {
+  notifyProjectStatusChange,
+  notifyProjectStatusChangeWithFetch,
+  fetchProjectTeamMembers,
+} from './projectNotifications';
+
 // Hooks
 export { useNotifications, default } from './useNotifications';
 

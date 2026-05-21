@@ -41,8 +41,6 @@ function Avatar({
   const baseClasses = "rounded-full object-cover overflow-hidden shrink-0";
   const sizeClass = sizeClasses[size] || sizeClasses.md;
 
-  console.log("[Avatar Component] render", { src, avatarSrc, name: userName, imageError, initials });
-
   // Show initials fallback if no src or image failed to load
   if (!avatarSrc || imageError) {
     return (
@@ -62,7 +60,6 @@ function Avatar({
       alt={alt}
       className={`${baseClasses} ${sizeClass} ${className}`}
       onError={() => {
-        console.warn("[Avatar Component] image failed, switching to fallback", avatarSrc);
         setImageError(true);
       }}
     />

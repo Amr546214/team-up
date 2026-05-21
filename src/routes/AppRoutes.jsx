@@ -44,14 +44,6 @@ function AppRoutes() {
   const onLocalhost = isLocalhost();
   const showDeploymentPage = shouldShowDeploymentPage();
 
-  console.log("[Routing]", {
-    mode: import.meta.env.MODE,
-    hostname: window.location.hostname,
-    isLocalhost: onLocalhost,
-    showDeploymentPage,
-    viteShowFlag: import.meta.env.VITE_SHOW_DEPLOYMENT_PAGE,
-  });
-
   // Show DeploymentPage only on production (not localhost) when enabled
   if (showDeploymentPage && !onLocalhost) {
     return <DeploymentPage />;

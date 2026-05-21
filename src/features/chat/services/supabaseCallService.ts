@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabase';
+import { notifyMissedCall } from './chatNotifications';
 
 export interface CallSession {
   id: string;
@@ -139,10 +140,10 @@ export async function markCallMissed(callId: string): Promise<{ error: string | 
   try {
     console.log('[Calls] marking call missed', callId);
 
-    // Only mark as missed if still ringing
+    // Only mark as missed if still ringing - fetch full details for notification
     const { data: currentCall, error: fetchError } = await supabase
       .from('call_sessions')
-      .select('status')
+      .select('status, caller_id, receiver_id, conversation_id, type')
       .eq('id', callId)
       .single();
 
@@ -170,6 +171,22 @@ export async function markCallMissed(callId: string): Promise<{ error: string | 
     }
 
     console.log('[Calls] marked missed', callId);
+
+    // Fire-and-forget: send missed call notification to the receiver
+    // The receiver is the one who missed the call (not the caller)
+    // TODO: In the future, save call history to a call_history table here
+    (async () => {
+      await notifyMissedCall(
+        callId,
+        currentCall.caller_id,
+        currentCall.receiver_id,
+        currentCall.conversation_id,
+        currentCall.type
+      );
+    })().catch((err) => {
+      console.error('[Calls] failed to send missed call notification', err);
+    });
+
     return { error: null };
   } catch (err: any) {
     console.error('[Calls] unexpected error marking missed', err);

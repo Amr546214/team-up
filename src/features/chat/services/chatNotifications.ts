@@ -330,6 +330,96 @@ export async function notifyMessageRecipients(
 }
 
 // ---------------------------------------------------------------------------
+// Missed Call Notifications
+// ---------------------------------------------------------------------------
+// Track which calls have already triggered missed call notifications
+const _missedCallNotifiedIds = new Set<string>();
+const MAX_MISSED_CALL_CACHE = 100;
+
+function markMissedCallNotified(callId: string) {
+  _missedCallNotifiedIds.add(callId);
+  if (_missedCallNotifiedIds.size > MAX_MISSED_CALL_CACHE) {
+    const entries = [..._missedCallNotifiedIds];
+    _missedCallNotifiedIds.clear();
+    entries.slice(-50).forEach((id) => _missedCallNotifiedIds.add(id));
+  }
+}
+
+function wasMissedCallAlreadyNotified(callId: string): boolean {
+  return _missedCallNotifiedIds.has(callId);
+}
+
+/**
+ * Send a missed call notification to the receiver.
+ * Called when a call times out or is marked as missed.
+ *
+ * @param callId - The call session ID (used for dedup)
+ * @param callerId - The user who initiated the call
+ * @param receiverId - The user who missed the call (notification recipient)
+ * @param conversationId - The conversation the call was in
+ * @param callType - 'audio' | 'video'
+ *
+ * TODO: In the future, save call history to a call_history table here.
+ *       This would enable call logs, analytics, and detailed call records.
+ */
+export async function notifyMissedCall(
+  callId: string,
+  callerId: string,
+  receiverId: string,
+  conversationId: string,
+  callType: 'audio' | 'video',
+): Promise<void> {
+  try {
+    // --- Guard: dedup ---
+    if (wasMissedCallAlreadyNotified(callId)) {
+      console.log('[ChatNotif] Missed call notification already sent for', callId);
+      return;
+    }
+
+    // --- Get caller profile for display name ---
+    const { data: callerProfile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', callerId)
+      .single();
+
+    const callerName = callerProfile?.full_name || 'Someone';
+
+    // --- Build notification body ---
+    const body = `${callerName} tried to call you`;
+
+    // --- Create notification ---
+    // Suppress if local user has conversation open
+    if (receiverId === _getLocalUserId() && _activeConversationId === conversationId) {
+      console.log('[ChatNotif] Missed call suppressed — user has conversation open');
+      markMissedCallNotified(callId);
+      return;
+    }
+
+    const result = await createNotification({
+      userId: receiverId,
+      type: 'call_missed',
+      title: 'Missed call',
+      body,
+      metadata: {
+        callerId,
+        conversationId,
+        callType,
+        redirectTo: `/dev/chat-test?conversation=${conversationId}`,
+      },
+      actorId: callerId,
+    });
+
+    if (result.data) {
+      console.log(`[ChatNotif] Missed call notification created for call ${callId}`);
+      markMissedCallNotified(callId);
+    }
+  } catch (err) {
+    console.error('[ChatNotif] Error sending missed call notification:', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 

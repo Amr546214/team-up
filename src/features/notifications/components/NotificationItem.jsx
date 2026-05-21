@@ -46,7 +46,8 @@ function formatTimeAgo(dateString) {
  * and unread highlight. On click: marks as read, navigates, closes dropdown.
  */
 function NotificationItem({ notification, onClick }) {
-  const config = getNotificationConfig(notification.type);
+  // Pass notification data for dynamic color support (e.g., project_status_changed)
+  const config = getNotificationConfig(notification.type, notification.data);
   const colors = getColorClasses(config.color);
   const IconComponent = ICON_MAP[config.icon] || BellIcon;
 

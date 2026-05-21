@@ -69,7 +69,6 @@ export function useNotifications(userId, options = {}) {
     setNotifications(data || []);
     setLoading(false);
     initialLoadDoneRef.current = true;
-    console.log('[useNotifications] Loaded', data?.length || 0, 'notifications');
   }, [userId, limit]);
 
   /**
@@ -82,11 +81,9 @@ export function useNotifications(userId, options = {}) {
     setNotifications(prev => {
       // Prevent duplicates
       if (prev.some(n => n.id === newNotification.id)) {
-        console.log('[useNotifications] Duplicate ignored:', newNotification.id);
         return prev;
       }
 
-      console.log('[useNotifications] Realtime notification added:', newNotification.id);
       // Prepend new notification (newest first)
       return [newNotification, ...prev];
     });

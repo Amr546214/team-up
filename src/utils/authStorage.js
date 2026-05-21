@@ -75,7 +75,6 @@ export function clearAuth() {
 export function saveUserProfile(profile) {
   if (profile && typeof window !== "undefined") {
     localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
-    console.log("GLOBAL USER PROFILE SAVED:", profile);
   }
 }
 
