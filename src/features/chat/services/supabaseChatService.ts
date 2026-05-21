@@ -531,10 +531,15 @@ export async function sendTextMessage(
     // Mentioned users get priority notification and are excluded from generic message notification
     // TODO: Attach push notifications / mobile notifications here in the future
     // TODO: In the future, add autocomplete mention picker in the UI
+    console.log('[Message Send] Triggering notifications for message:', mapped.id);
     (async () => {
-      const mentionedIds = await notifyMentions(mapped.id, conversationId, user.id, content.trim());
-      await notifyMessageRecipients(mapped.id, conversationId, user.id, mentionedIds);
-    })().catch(() => {});
+      try {
+        const mentionedIds = await notifyMentions(mapped.id, conversationId, user.id, content.trim());
+        await notifyMessageRecipients(mapped.id, conversationId, user.id, mentionedIds);
+      } catch (err) {
+        console.error('[Message Send] Notification error:', err);
+      }
+    })();
 
     return { message: mapped, error: null };
   } catch (err: any) {

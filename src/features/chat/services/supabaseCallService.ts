@@ -175,17 +175,20 @@ export async function markCallMissed(callId: string): Promise<{ error: string | 
     // Fire-and-forget: send missed call notification to the receiver
     // The receiver is the one who missed the call (not the caller)
     // TODO: In the future, save call history to a call_history table here
+    console.log('[Calls] Triggering missed call notification for receiver:', currentCall.receiver_id);
     (async () => {
-      await notifyMissedCall(
-        callId,
-        currentCall.caller_id,
-        currentCall.receiver_id,
-        currentCall.conversation_id,
-        currentCall.type
-      );
-    })().catch((err) => {
-      console.error('[Calls] failed to send missed call notification', err);
-    });
+      try {
+        await notifyMissedCall(
+          callId,
+          currentCall.caller_id,
+          currentCall.receiver_id,
+          currentCall.conversation_id,
+          currentCall.type
+        );
+      } catch (err) {
+        console.error('[Calls] failed to send missed call notification', err);
+      }
+    })();
 
     return { error: null };
   } catch (err: any) {

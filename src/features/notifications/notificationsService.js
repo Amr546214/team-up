@@ -125,7 +125,10 @@ export async function createNotification({
   actorId = null,
 }) {
   try {
+    console.log('[Notification Trigger] createNotification called:', { userId, type, title, actorId });
+
     if (!userId || !type || !title) {
+      console.error('[Notification Trigger] missing required fields:', { userId, type, title });
       return { data: null, error: 'userId, type, and title are required' };
     }
 
@@ -144,13 +147,14 @@ export async function createNotification({
       .single();
 
     if (error) {
-      console.error('[Notifications] Create failed:', error);
+      console.error('[Notification Trigger] create failed:', error);
       return { data: null, error: error.message };
     }
 
+    console.log('[Notification Trigger] created successfully:', data?.id);
     return { data, error: null };
   } catch (err) {
-    console.error('[Notifications] Unexpected error:', err);
+    console.error('[Notification Trigger] unexpected error:', err);
     return { data: null, error: err?.message || 'Failed to create notification' };
   }
 }

@@ -241,8 +241,11 @@ export async function notifyMessageRecipients(
   excludeUserIds: string[] = [],
 ): Promise<void> {
   try {
+    console.log('[Notification Trigger] message_received', { messageId, conversationId, senderId, excludeUserIds });
+
     // --- Guard: dedup ---
     if (wasAlreadyNotified(messageId)) {
+      console.log('[Notification Trigger] message already notified, skipping');
       return;
     }
     markAsNotified(messageId);
@@ -294,14 +297,17 @@ export async function notifyMessageRecipients(
     // NOTE: We can only suppress for the LOCAL user's active conversation.
     // For other recipients on different devices, suppression happens client-side
     // (the dropdown/toast already handles dedup by notification id).
+    console.log('[Notification Trigger] creating notifications for recipients:', recipientIds);
+
     const results = await Promise.allSettled(
       recipientIds.map((recipientId) => {
         // Suppress if this recipient is the local user AND the conversation is open
         if (recipientId === _getLocalUserId() && _activeConversationId === conversationId) {
-          console.log('[ChatNotif] Suppressed — recipient has conversation open');
+          console.log('[Notification Trigger] suppressed — recipient has conversation open');
           return Promise.resolve({ data: null, error: null });
         }
 
+        console.log('[Notification Trigger] creating notification for recipient:', recipientId);
         return createNotification({
           userId: recipientId,
           type: 'message_received',
@@ -320,12 +326,12 @@ export async function notifyMessageRecipients(
     const sent = results.filter(
       (r) => r.status === 'fulfilled' && (r.value as any)?.data,
     ).length;
-    if (sent > 0) {
-      console.log(`[ChatNotif] ${sent} notification(s) created for message ${messageId}`);
-    }
+    const failed = results.length - sent;
+
+    console.log(`[Notification Trigger] message notification results: ${sent} sent, ${failed} failed`);
   } catch (err) {
     // Never let notification errors propagate to the send flow
-    console.error('[ChatNotif] Error sending notifications:', err);
+    console.error('[Notification Trigger] failed', err);
   }
 }
 
@@ -370,9 +376,11 @@ export async function notifyMissedCall(
   callType: 'audio' | 'video',
 ): Promise<void> {
   try {
+    console.log('[Notification Trigger] call_missed', { callId, callerId, receiverId, conversationId, callType });
+
     // --- Guard: dedup ---
     if (wasMissedCallAlreadyNotified(callId)) {
-      console.log('[ChatNotif] Missed call notification already sent for', callId);
+      console.log('[Notification Trigger] call already notified, skipping');
       return;
     }
 
@@ -391,11 +399,12 @@ export async function notifyMissedCall(
     // --- Create notification ---
     // Suppress if local user has conversation open
     if (receiverId === _getLocalUserId() && _activeConversationId === conversationId) {
-      console.log('[ChatNotif] Missed call suppressed — user has conversation open');
+      console.log('[Notification Trigger] suppressed — user has conversation open');
       markMissedCallNotified(callId);
       return;
     }
 
+    console.log('[Notification Trigger] creating missed call notification for receiver:', receiverId);
     const result = await createNotification({
       userId: receiverId,
       type: 'call_missed',
@@ -411,11 +420,13 @@ export async function notifyMissedCall(
     });
 
     if (result.data) {
-      console.log(`[ChatNotif] Missed call notification created for call ${callId}`);
+      console.log('[Notification Trigger] missed call notification created:', result.data.id);
       markMissedCallNotified(callId);
+    } else {
+      console.error('[Notification Trigger] failed to create missed call notification:', result.error);
     }
   } catch (err) {
-    console.error('[ChatNotif] Error sending missed call notification:', err);
+    console.error('[Notification Trigger] failed', err);
   }
 }
 
