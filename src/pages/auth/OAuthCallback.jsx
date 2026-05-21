@@ -41,17 +41,38 @@ function OAuthCallback() {
           provider: session.user?.app_metadata?.provider,
         });
 
-        // Get role from localStorage (set during sign-in)
-        const pendingRole = localStorage.getItem("pendingAuthRole");
-        const role = pendingRole || session.user?.user_metadata?.role || "client";
-
-        console.log("[OAuthCallback] Role:", role);
-
         // Clear pending auth data
         localStorage.removeItem("pendingAuthRole");
         localStorage.removeItem("pendingAuthSource");
         localStorage.removeItem("pendingOAuthAttemptId");
         localStorage.removeItem("pendingOAuthStartedAt");
+
+        // Fetch actual role from public.profiles (priority over metadata/localStorage)
+        let role = "client"; // default
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", session.user.id)
+            .single();
+
+          if (profileError) {
+            console.error("[OAuthCallback] Failed to fetch profile role:", profileError);
+          } else if (profile?.role) {
+            role = profile.role;
+            console.log("[OAuthCallback] Role from profiles:", role);
+          }
+        } catch (profileErr) {
+          console.error("[OAuthCallback] Error fetching profile:", profileErr);
+        }
+
+        // Fallback to user_metadata if profile fetch failed
+        if (role === "client" && session.user?.user_metadata?.role) {
+          role = session.user.user_metadata.role;
+          console.log("[OAuthCallback] Role from metadata fallback:", role);
+        }
+
+        console.log("[OAuthCallback] Final role:", role);
 
         // Map roles to dashboard paths
         const roleRedirects = {

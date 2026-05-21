@@ -138,6 +138,17 @@ function Header({ profileImage }) {
                   >
                     {t("navigation.dashboard")}
                   </button>
+                  {userRole === "admin" && (
+                    <button
+                      onClick={() => {
+                        navigate("/admin/dashboard");
+                        setOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-blue-600 font-medium"
+                    >
+                      Admin Dashboard
+                    </button>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
