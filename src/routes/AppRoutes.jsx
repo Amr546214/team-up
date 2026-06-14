@@ -27,7 +27,7 @@ import MyJobPosts from "../pages/client/job-post/MyJobPosts";
 import ClientJobDetails from "../pages/client/ClientJobDetails";
 // NEW
 import ClientApplicants from "../pages/client/job-post/Applicants";
-import ClientPostJobDetails from "../pages/client/job-post/JobDetails";
+// import ClientPostJobDetails from "../pages/client/job-post/JobDetails";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
 
@@ -59,7 +59,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes - Real app for Netlify and localhost */}
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Home/>} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
 
@@ -93,7 +93,7 @@ function AppRoutes() {
           <Route path="/client/job-post" element={<PostNewJob />} />
           <Route path="/client/my-jobs" element={<MyJobPosts />} />
 
-          <Route path="/client/job/:id" element={<ClientPostJobDetails />} />
+          <Route path="/client/job/:id" element={<ClientJobDetails />} />
           <Route path="/client/job/:id/applicants" element={<ClientApplicants />}/>
           <Route path="/client/build-team" element={<BuildTeam />} />
           <Route path="/client/project/:id" element={<ProjectDetails />} />
