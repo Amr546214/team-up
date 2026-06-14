@@ -22,8 +22,14 @@ export default function RoleRoute({ role }) {
   }
 
   // Fallback to session-based auth check
-  if (!session?.email || !session?.role) return <Navigate to="/login" replace />;
-  if (session.role !== role) return <Navigate to="/login" replace />;
+  if (!session?.email || !session?.role) {
+    console.log("[RoleRoute] Redirect to /login - missing session data:", { email: session?.email, role: session?.role, requiredRole: role });
+    return <Navigate to="/login" replace />;
+  }
+  if (session.role !== role) {
+    console.log("[RoleRoute] Redirect to /login - role mismatch:", { sessionRole: session.role, requiredRole: role });
+    return <Navigate to="/login" replace />;
+  }
 
   // Critical rule: developer pages require completed quiz (cannot be bypassed)
   if (role === "developer" && !hasCompletedQuiz(session.id)) {
