@@ -16,8 +16,6 @@ export default function RoleRoute({ role }) {
   // Use effective role from context or localStorage
   const effectiveRole = userRole || backendRole || session?.role;
 
-  console.log("RoleRoute check:", { requiredRole: role, effectiveRole, isAuthenticated, hasBackendToken });
-
   // Allow access if backend token exists and role matches (for client, developer, company)
   if (hasBackendToken && effectiveRole === role) {
     return <Outlet />;

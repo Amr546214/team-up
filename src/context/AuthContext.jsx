@@ -33,7 +33,7 @@ const ROLE_REDIRECTS = {
   client: "/client/profile",
   developer: "/developer/dashboard",
   company: "/company/profile",
-  admin: "/",
+  admin: "/admin/dashboard",
 };
 
 /**

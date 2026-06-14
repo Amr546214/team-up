@@ -18,7 +18,24 @@ function DeveloperProjectDetails() {
 
   /* =========================
      Fake API Data (Data only)
-  ========================== */
+
+     TODO: When implementing real project status updates:
+     1. Import { notifyProjectStatusChange } from '../../features/notifications'
+     2. After successful status update, call:
+        await notifyProjectStatusChange({
+          projectId: id,
+          newStatus: updatedStatus,
+          previousStatus: currentStatus,
+          projectName: projectData.title,
+          actorId: currentUserId,
+          teamMemberIds: teamData.map(m => m.id)
+        });
+
+     TODO: Future integrations:
+     - Email notifications: Send to offline team members
+     - Push notifications: Mobile push for team members
+     - Activity timeline: Save to project_activity table
+     ========================== */
   const [projectData] = useState({
     id: id || "1",
     title: "E-commerce API Integration",

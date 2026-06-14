@@ -1,4 +1,6 @@
 import { notifyAcceptedTeamDevelopers } from "../../lib/developerInvites";
+import { useAuth } from "../../hooks/useAuth";
+import { notifyDevelopersInvited } from "../../features/notifications";
 
 function safeJsonParse(value) {
   if (typeof value !== "string") return value;
@@ -196,6 +198,9 @@ function extractTeam(response) {
 }
 
 function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
+  const { supabaseSession } = useAuth();
+  const clientUserId = supabaseSession?.user?.id || null;
+
   const isSuccess = job.n8nStatus === "success";
 
   const rawResponse = job?.n8nResponse;
@@ -249,6 +254,20 @@ function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
 
   const canAcceptTeam = selectedTeam.length > 0 && !isOverBudget;
 
+  /**
+   * Send automatic Supabase notifications to invited developers.
+   * Fire-and-forget — does not block the accept flow.
+   */
+  const sendSupabaseNotifications = async (acceptedJob) => {
+    // Use the automatic notification trigger
+    await notifyDevelopersInvited({
+      selectedTeam: normalizedTeam,
+      actorId: clientUserId,
+      jobId: acceptedJob?.id,
+      projectId: null, // Can be added when project is created from job
+    });
+  };
+
   const handleAcceptTeam = () => {
     if (!canAcceptTeam) return;
 
@@ -262,9 +281,11 @@ function PublishResultModal({ job, onAcceptTeam, onRejectTeam }) {
       budgetStatus,
     };
 
-    // Notify matched developers and create invites
-    const { matched, unmatched } = notifyAcceptedTeamDevelopers(acceptedJob, normalizedTeam);
-    console.log("[AcceptTeam] Matched developers:", matched.length, "Unmatched:", unmatched.length);
+    // Notify matched developers and create invites (localStorage / fakeApi)
+    notifyAcceptedTeamDevelopers(acceptedJob, normalizedTeam);
+
+    // Send automatic Supabase notifications (fire-and-forget, non-blocking)
+    sendSupabaseNotifications(acceptedJob);
 
     onAcceptTeam(acceptedJob);
   };

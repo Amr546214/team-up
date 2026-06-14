@@ -28,10 +28,6 @@ function Header({ profileImage }) {
   const avatarUrl = profileImage || userProfile?.avatarUrl || session?.avatar || "";
   const avatarInitial = displayName.charAt(0).toUpperCase();
 
-  console.log("Header auth state:", { isAuthenticated, userRole, effectiveRole });
-  console.log("NAVBAR AVATAR PROFILE:", userProfile);
-  console.log("GLOBAL USER PROFILE:", userProfile);
-
   const [open, setOpen] = useState(false);
   const menuRef = useRef();
 
@@ -135,8 +131,6 @@ function Header({ profileImage }) {
                   </div>
                   <button
                     onClick={() => {
-                      console.log("DASHBOARD CLICK ROLE:", effectiveRole);
-                      console.log("DASHBOARD CLICK PATH:", getDashboardPath(effectiveRole));
                       navigate(getDashboardPath(effectiveRole));
                       setOpen(false);
                     }}
@@ -144,6 +138,17 @@ function Header({ profileImage }) {
                   >
                     {t("navigation.dashboard")}
                   </button>
+                  {userRole === "admin" && (
+                    <button
+                      onClick={() => {
+                        navigate("/admin/dashboard");
+                        setOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-blue-600 font-medium"
+                    >
+                      Admin Dashboard
+                    </button>
+                  )}
                   <button
                     onClick={handleLogout}
                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"

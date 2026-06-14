@@ -78,6 +78,7 @@ const Home = () => {
 
   const handleSignUp = (role) => {
     if (isAuthenticated && userRole) {
+      // Already logged in, go to dashboard
       navigate(getDashboardPath(userRole));
     } else {
       navigate(`/register?role=${role}`);
