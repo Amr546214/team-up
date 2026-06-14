@@ -32,6 +32,7 @@ function CompanySidebar() {
     { id: 4, label: "Hired Developers", value: 24, color: "bg-[#9333EA]" },
   ];
 
+  // ✅ REMOVED: developers / notifications / settings
   const menuItemsData = [
     {
       id: 1,
@@ -63,24 +64,6 @@ function CompanySidebar() {
       name: "Post New Job",
       path: "/company/post-job",
     },
-    {
-      id: 6,
-      key: "developers",
-      name: "Suggested Developers",
-      path: "/developers",
-    },
-    {
-      id: 7,
-      key: "notifications",
-      name: "Notifications",
-      path: "/company/dashboard#notifications",
-    },
-    {
-      id: 8,
-      key: "settings",
-      name: "Settings",
-      path: "/company/settings",
-    },
   ];
 
   const getMenuItemIcon = (key) => {
@@ -95,12 +78,6 @@ function CompanySidebar() {
         return CalendarDays;
       case "postJob":
         return PlusCircle;
-      case "developers":
-        return UserSearch;
-      case "notifications":
-        return Bell;
-      case "settings":
-        return Settings;
       default:
         return LayoutDashboard;
     }
@@ -110,7 +87,6 @@ function CompanySidebar() {
     if (path.includes("#")) {
       return location.pathname + location.hash === path;
     }
-
     return location.pathname === path;
   };
 
@@ -134,7 +110,7 @@ function CompanySidebar() {
         </button>
 
         <div>
-          {/* Logo + Name */}
+          {/* Logo */}
           <div className="px-4 pt-4 pb-6">
             <div
               className={`flex items-center ${
