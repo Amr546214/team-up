@@ -42,7 +42,7 @@ export async function ensureUserProfile(authUser, maxRetries = 2) {
     avatar_url: meta.avatar_url || meta.picture || null,
     provider: user.app_metadata?.provider || "unknown",
     role,
-    updated_at: new Date().toISOString(),
+    // Note: updated_at removed - column does not exist in profiles table
   };
 
   console.log("[ensureUserProfile] profile data", {
@@ -118,6 +118,24 @@ export async function ensureUserProfile(authUser, maxRetries = 2) {
 }
 
 /**
+ * Get OAuth redirect URL - always use current origin with /auth/callback path
+ * This ensures OAuth returns to the same domain where login started.
+ *
+ * IMPORTANT: This URL must be added to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs.
+ * If not listed there, Supabase will ignore it and redirect to the Site URL (production) instead.
+ */
+function getOAuthRedirectUrl() {
+  const origin = window.location.origin;
+  const redirectUrl = `${origin}/auth/callback`;
+
+  if (import.meta.env.DEV) {
+    console.log("[OAuth] redirectTo:", redirectUrl, "| origin:", origin);
+  }
+
+  return redirectUrl;
+}
+
+/**
  * Sign in with an OAuth provider via Supabase.
  * Stores the selected role in localStorage so the app can redirect correctly after OAuth callback.
  * @param {"google" | "github" | "linkedin_oidc"} provider
@@ -137,13 +155,17 @@ export async function signInWithProvider(provider, role, source, attemptId) {
     }
 
     const options = {
-      redirectTo: window.location.origin,
+      redirectTo: getOAuthRedirectUrl(),
     };
 
     if (provider === "google") {
       options.queryParams = {
         prompt: "select_account",
       };
+    }
+
+    if (import.meta.env.DEV) {
+      console.log(`[OAuth] Starting ${provider} sign-in`, { redirectTo: options.redirectTo });
     }
 
     const { data, error } = await supabase.auth.signInWithOAuth({

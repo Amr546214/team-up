@@ -1,24 +1,41 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../components/common/Header";
+import { apiRequest } from "../../lib/api.js";
+
 import {
   ArrowLeft,
   CalendarDays,
-  Users,
-  DollarSign,
-  Clock,
   CheckCircle2,
   AlertCircle,
   MessageSquare,
+  Clock,
+  Plus,
 } from "lucide-react";
-
 function ProjectDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
 
   /* =========================
      Fake API Data (Data only)
-  ========================== */
+
+     TODO: When implementing real project status updates (client side):
+     1. Import { notifyProjectStatusChange } from '../../features/notifications'
+     2. After successful status update, call:
+        await notifyProjectStatusChange({
+          projectId: id,
+          newStatus: updatedStatus,
+          previousStatus: currentStatus,
+          projectName: project.title,
+          actorId: currentUserId,
+          teamMemberIds: teamMembers.map(m => m.id)
+        });
+
+     TODO: Future integrations:
+     - Email notifications: Send to offline team members
+     - Push notifications: Mobile push for team members
+     - Activity timeline: Save to project_activity table
+     ========================== */
   const [project] = useState({
     id: id || "1",
     title: "E-commerce Platform Redesign",

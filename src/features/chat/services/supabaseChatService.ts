@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import type { Conversation, Message, ChatUser, MessageReaction } from '../types';
+import { notifyMessageRecipients, notifyMentions } from './chatNotifications';
 
 /**
  * Get or create a direct conversation between the current user and a target user.
@@ -21,7 +22,6 @@ export async function getOrCreateDirectConversation(
     }
 
     const currentUserId = user.id;
-    console.log('[Chat] current user', currentUserId, '→ target', targetUserId);
 
     // 2. Check if a direct conversation already exists between these two users
     // Step A: Get all conversation_ids where current user is a participant
@@ -67,7 +67,6 @@ export async function getOrCreateDirectConversation(
 
         if (targetParticipations && targetParticipations.length > 0) {
           const existingConvId = targetParticipations[0].conversation_id;
-          console.log('[Chat] existing conversation found', existingConvId);
           return { conversationId: existingConvId, isNew: false, error: null };
         }
       }
@@ -102,7 +101,6 @@ export async function getOrCreateDirectConversation(
       return { conversationId: null, isNew: false, error: participantsError.message };
     }
 
-    console.log('[Chat] new conversation created', newConvoId);
     return { conversationId: newConvoId, isNew: true, error: null };
   } catch (err: any) {
     console.error('[Chat] start chat failed', err);
@@ -216,7 +214,6 @@ export async function getCurrentUserProfile(): Promise<{
       status: 'online',
     };
 
-    console.log('[Chat] loaded current user profile', chatUser.id, chatUser.name);
     return { user: chatUser, error: null };
   } catch (err: any) {
     console.error('[Chat] getCurrentUserProfile failed', err);
@@ -337,8 +334,6 @@ export async function getConversationMessages(
   conversationId: string
 ): Promise<{ messages: Message[]; error: string | null }> {
   try {
-    console.log('[Messages Debug] getConversationMessages called', conversationId);
-
     // 1. Fetch messages from public.messages (including reply fields)
     const { data, error } = await supabase
       .from('messages')
@@ -356,8 +351,6 @@ export async function getConversationMessages(
       console.error('[Messages Debug] messages fetch error', error);
       return { messages: [], error: error.message };
     }
-
-    console.log('[DeleteForMe] total messages', data?.length || 0);
 
     if (!data || data.length === 0) {
       return { messages: [], error: null };
@@ -389,8 +382,6 @@ export async function getConversationMessages(
       return { messages: mapped, error: null };
     }
 
-    console.log('[DeleteForMe] actions', actions);
-
     // 4. Build a map of actions by message_id for fast lookup
     const actionsByMessageId = new Map(
       (actions || []).map((a) => [a.message_id, a])
@@ -403,12 +394,8 @@ export async function getConversationMessages(
         .map((a) => a.message_id)
     );
 
-    console.log('[DeleteForMe] hidden ids', Array.from(hiddenIds));
-
     // 6. Filter messages - exclude hidden ones
     const visibleMessages = data.filter((m) => !hiddenIds.has(m.id));
-
-    console.log('[DeleteForMe] visible messages', visibleMessages.length);
 
     // 7. Fetch sender profiles for visible messages
     const senderIds = [...new Set(visibleMessages.map((m) => m.sender_id))];
@@ -418,8 +405,6 @@ export async function getConversationMessages(
       .in('id', senderIds);
 
     const profilesMap = new Map((profilesData || []).map((p) => [p.id, p]));
-    console.log('[Avatar Debug] sender profiles', profilesData);
-
     // 8. Collect media paths for signed URL generation
     const mediaPaths = visibleMessages
       .filter((m) => ['image', 'file', 'voice'].includes(m.type) && m.media_url)
@@ -476,9 +461,6 @@ export async function getConversationMessages(
       return msg;
     });
 
-    console.log('[Star Debug] mapped starred states', mapped.map((m) => ({ id: m.id, isStarred: m.isStarred })));
-    console.log('[DeleteEveryone] loaded deleted states', mapped.map((m) => ({ id: m.id, content: m.content, deletedAt: m.deletedAt, deleteScope: m.deleteScope })));
-    console.log('[Chat] loaded messages', mapped.length, 'for', conversationId);
     return { messages: mapped, error: null };
   } catch (err: any) {
     console.error('[Messages Debug] messages fetch error', err);
@@ -526,8 +508,6 @@ export async function sendTextMessage(
       insertData.reply_to_message_type = replyTo.messageType;
     }
 
-    console.log("[SEND MESSAGE PAYLOAD]", insertData);
-
     const { data, error } = await supabase
       .from('messages')
       .insert(insertData)
@@ -546,7 +526,21 @@ export async function sendTextMessage(
     }
 
     const mapped = rowToMessage(data);
-    console.log('[MESSAGE SEND] inserted message', mapped);
+
+    // Fire-and-forget: detect mentions and notify mentioned users first (priority)
+    // Mentioned users get priority notification and are excluded from generic message notification
+    // TODO: Attach push notifications / mobile notifications here in the future
+    // TODO: In the future, add autocomplete mention picker in the UI
+    console.log('[Message Send] Triggering notifications for message:', mapped.id);
+    (async () => {
+      try {
+        const mentionedIds = await notifyMentions(mapped.id, conversationId, user.id, content.trim());
+        await notifyMessageRecipients(mapped.id, conversationId, user.id, mentionedIds);
+      } catch (err) {
+        console.error('[Message Send] Notification error:', err);
+      }
+    })();
+
     return { message: mapped, error: null };
   } catch (err: any) {
     console.error('[Chat] send real message failed', err);
@@ -578,8 +572,6 @@ export async function uploadChatMedia(
     const safeFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const path = `${user.id}/${conversationId}/${Date.now()}-${safeFileName}`;
 
-    console.log('[Media Upload] uploading to storage', { path, fileType });
-
     // Upload to bucket
     const { error: uploadError } = await supabase.storage
       .from('chat-media')
@@ -603,7 +595,6 @@ export async function uploadChatMedia(
       return { path, signedUrl: '', error: signedUrlError.message };
     }
 
-    console.log('[Media Upload] success', { path });
     return { path, signedUrl: signedUrlData.signedUrl, error: null };
   } catch (err: any) {
     console.error('[Media Upload] failed', err);
@@ -701,7 +692,10 @@ export async function sendMediaMessage({
     (mapped as any).mediaUrl = signedUrl; // Use signed URL for immediate rendering
     (mapped as any).mediaPath = path; // Keep path for future reference
 
-    console.log('[Media Message] sent', mapped.id);
+    // Fire-and-forget: create in-app notifications for recipients
+    // TODO: Attach push notifications / mobile notifications here in the future
+    notifyMessageRecipients(mapped.id, conversationId, user.id).catch(() => {});
+
     return { message: mapped, error: null };
   } catch (err: any) {
     console.error('[Media Message] failed', err);
@@ -728,7 +722,6 @@ export async function createGroupConversation({
     if (!user) return { conversationId: null, error: 'Not authenticated' };
 
     const currentUserId = user.id;
-    console.log('[Group Chat] creating group', { title, memberIds, currentUserId });
 
     // 2. Create the group conversation
     const { data: convo, error: convoError } = await supabase
@@ -772,7 +765,6 @@ export async function createGroupConversation({
       return { conversationId: null, error: partError.message };
     }
 
-    console.log('[Group Chat] group created', conversationId);
     return { conversationId, error: null };
   } catch (err: any) {
     console.error('[Group Chat] create error', err);
@@ -852,7 +844,6 @@ export async function getMyConversations(): Promise<{
         .select('id, email, full_name, avatar_url, role')
         .in('id', otherUserIds);
 
-      console.log('[Avatar Debug] profiles used for conversations', profiles);
       (profiles || []).forEach((p) => profilesMap.set(p.id, p));
     }
 
@@ -899,10 +890,8 @@ export async function getMyConversations(): Promise<{
       // Build participants array with profiles
       const participants: ChatUser[] = otherParticipants.map((p) => {
         const profile = profilesMap.get(p.user_id);
-        console.log('[Avatar Debug] other participant profile', { userId: p.user_id, profile, avatar_url: profile?.avatar_url });
         if (profile) {
           const chatUser = profileToChatUser(profile);
-          console.log('[Avatar Debug] mapped ChatUser', { id: chatUser.id, name: chatUser.name, avatar: chatUser.avatar });
           return chatUser;
         }
         // Fallback for missing profile
@@ -936,13 +925,6 @@ export async function getMyConversations(): Promise<{
         return true;
       }).length;
 
-      console.log('[Unread] conversation count', {
-        conversationId: convo.id,
-        lastReadAt,
-        unreadCount,
-        totalMessages: convoMessages.length,
-      });
-
       const conversation: Conversation = {
         id: convo.id,
         type: convo.type || 'direct',
@@ -968,7 +950,6 @@ export async function getMyConversations(): Promise<{
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
-    console.log('[Chat] loaded conversations', conversations.length);
     return { conversations, currentUserId, error: null };
   } catch (err: any) {
     console.error('[Chat] load real conversations failed', err);
@@ -988,8 +969,6 @@ export async function markConversationAsRead(
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated' };
-
-    console.log('[Unread] mark read', conversationId);
 
     const { error } = await supabase
       .from('conversation_participants')
@@ -1023,60 +1002,8 @@ export async function markConversationMessagesAsRead(
   currentUserId: string
 ): Promise<{ success: boolean; data: any[] | null; error: string | null }> {
   try {
-    console.log('[Read Receipts Debug] marking messages as read', {
-      conversationId,
-      currentUserId,
-      currentUserIdType: typeof currentUserId,
-    });
-
-    // Step 1: Debug - fetch all messages in conversation to understand the data
-    const { data: debugMessages, error: debugError } = await supabase
-      .from('messages')
-      .select('id, conversation_id, sender_id, content, read_at, created_at')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
-
-    console.log('[Read Receipts Debug] all messages in conversation', {
-      conversationId,
-      currentUserId,
-      debugError: debugError?.message,
-      messageCount: debugMessages?.length || 0,
-      debugMessages: debugMessages?.map(m => ({
-        id: m.id,
-        sender_id: m.sender_id,
-        sender_id_type: typeof m.sender_id,
-        read_at: m.read_at,
-        content_preview: m.content?.substring(0, 30),
-      })),
-    });
-
-    if (debugError) {
-      console.error('[Read Receipts Debug] failed to fetch debug messages', debugError);
-    }
-
-    // Step 2: Calculate unread incoming in JS for debugging
-    const unreadIncomingDebug = (debugMessages || []).filter((message) => {
-      const isFromOther = message.sender_id !== currentUserId;
-      const isUnread = !message.read_at;
-      return isFromOther && isUnread;
-    });
-
-    console.log('[Read Receipts Debug] unread incoming calculated in JS', {
-      currentUserId,
-      unreadCount: unreadIncomingDebug.length,
-      unreadMessages: unreadIncomingDebug.map(m => ({
-        id: m.id,
-        sender_id: m.sender_id,
-        content_preview: m.content?.substring(0, 30),
-      })),
-      allSenderIds: debugMessages?.map(m => m.sender_id),
-    });
-
-    // Step 3: Use RPC to bypass RLS and mark messages as read
+    // Use RPC to bypass RLS and mark messages as read
     // The RPC function handles the update logic server-side with proper permissions
-    console.log('[Read Receipts Debug] calling RPC mark_conversation_messages_read', {
-      conversationId,
-    });
 
     const { data: rpcData, error: rpcError } = await supabase.rpc(
       'mark_conversation_messages_read',
@@ -1085,13 +1012,8 @@ export async function markConversationMessagesAsRead(
       }
     );
 
-    console.log('[Read Receipts Debug] RPC result', {
-      rpcData,
-      rpcError: rpcError?.message,
-    });
-
     if (rpcError) {
-      console.error('[Read Receipts Debug] RPC failed', rpcError);
+      console.error('[Read Receipts] RPC failed', rpcError);
       return { success: false, data: null, error: rpcError.message };
     }
 
@@ -1102,17 +1024,10 @@ export async function markConversationMessagesAsRead(
         .select('id, conversation_id, sender_id, read_at')
         .in('id', rpcData);
 
-      console.log('[Read Receipts Debug] fetched updated messages', {
-        count: updatedMessages?.length || 0,
-        updatedMessages,
-        fetchError: fetchError?.message,
-      });
-
       return { success: true, data: updatedMessages || [], error: null };
     }
 
     // No unread messages to update
-    console.log('[Read Receipts Debug] no unread incoming messages found');
     return { success: true, data: [], error: null };
   } catch (err: any) {
     console.error('[Read Receipts] failed to mark as read', err);
@@ -1272,8 +1187,6 @@ export async function reportUser({
       return { success: false, error: 'Cannot report yourself' };
     }
 
-    console.log('[Report User] submitting', { reportedUserId, conversationId, reason });
-
     // Check for existing report
     const { data: existing } = await supabase
       .from('user_reports')
@@ -1284,7 +1197,6 @@ export async function reportUser({
       .maybeSingle();
 
     if (existing) {
-      console.log('[Report User] already reported, updating', existing.id);
       const { error } = await supabase
         .from('user_reports')
         .update({ reason, details: details || null })
@@ -1314,7 +1226,6 @@ export async function reportUser({
       return { success: false, error: error.message };
     }
 
-    console.log('[Report User] saved', data);
     return { success: true, error: null };
   } catch (err: any) {
     console.error('[Report User] failed', err);
@@ -1335,8 +1246,6 @@ export async function reportMessage(
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated' };
 
-    console.log('[Report Message] submitting', { messageId, reason, userId: user.id });
-
     const { data, error } = await supabase.from('message_user_actions').upsert(
       {
         message_id: messageId,
@@ -1355,7 +1264,6 @@ export async function reportMessage(
       return { success: false, error: error.message };
     }
 
-    console.log('[Report Message] saved', data);
     return { success: true, error: null };
   } catch (err: any) {
     console.error('[Message Actions] report failed', err);
@@ -1376,9 +1284,6 @@ export async function deleteMessageForEveryone(
     } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated' };
 
-    console.log('[DeleteEveryone Service Debug] auth user id', user.id);
-    console.log('[DeleteEveryone Debug] called', { messageId, userId: user.id });
-
     // 1. Fetch the row to verify ownership before update
     const { data: beforeRow, error: beforeError } = await supabase
       .from('messages')
@@ -1391,23 +1296,7 @@ export async function deleteMessageForEveryone(
       return { success: false, error: beforeError.message };
     }
 
-    console.log('[DeleteEveryone Service Debug] before row expanded', {
-      id: beforeRow?.id,
-      sender_id: beforeRow?.sender_id,
-      content: beforeRow?.content,
-      deleted_at: beforeRow?.deleted_at,
-      delete_scope: beforeRow?.delete_scope,
-    });
-
-    console.log('[DeleteEveryone Compare]', {
-      messageId,
-      authUserId: user.id,
-      dbSenderId: beforeRow?.sender_id,
-      canDelete: beforeRow?.sender_id === user.id,
-    });
-
     if (beforeRow.sender_id !== user.id) {
-      console.error('[DeleteEveryone Debug] ownership mismatch', { rowSenderId: beforeRow.sender_id, authUserId: user.id });
       return { success: false, error: 'You can only delete your own messages for everyone.' };
     }
 
@@ -1434,8 +1323,6 @@ export async function deleteMessageForEveryone(
       console.error('[DeleteEveryone Debug] update matched 0 rows', { messageId, userId: user.id });
       return { success: false, error: 'No message was updated. This message may not belong to the current user.' };
     }
-
-    console.log('[DeleteEveryone Debug] update succeeded', data);
 
     // Also unstar the message for the current user
     await supabase
@@ -1477,8 +1364,6 @@ export async function getMyStarredMessages(): Promise<{
   error: string | null;
 }> {
   try {
-    console.log('[Starred] loading starred messages');
-
     // Get current user
     const {
       data: { user },
@@ -1498,7 +1383,6 @@ export async function getMyStarredMessages(): Promise<{
     }
 
     if (!starredActions || starredActions.length === 0) {
-      console.log('[Starred] loaded count', 0);
       return { items: [], error: null };
     }
 
@@ -1507,7 +1391,6 @@ export async function getMyStarredMessages(): Promise<{
     const messageIds = visibleStarred.map((a) => a.message_id);
 
     if (messageIds.length === 0) {
-      console.log('[Starred] loaded count', 0);
       return { items: [], error: null };
     }
 

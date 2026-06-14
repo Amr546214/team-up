@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { sendRequirementsToN8n } from "../../../lib/n8n";
 import PublishingPreloader from "../../../components/common/PublishingPreloader";
 import PublishResultModal from "../../../components/common/PublishResultModal";
+
+const BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
 
 const skillOptions = [
   "JavaScript",
@@ -42,8 +43,33 @@ const skillOptions = [
   "Firebase",
   "AI",
   "Machine Learning",
-  "Data Analysis"
+  "Data Analysis",
 ];
+
+function getToken() {
+  return (
+    localStorage.getItem("teamup_access_token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("token")
+  );
+}
+
+function getDeadlineDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 30);
+  return date.toISOString();
+}
+
+function mapWorkType(value) {
+  if (value === "Full-time Role") return "full-time";
+  return "freelance-contract";
+}
+
+function mapPriority(value) {
+  if (value === "lowest cost") return "low";
+  if (value === "balanced") return "medium";
+  return "high";
+}
 
 function PostNewJob() {
   const navigate = useNavigate();
@@ -67,36 +93,67 @@ function PostNewJob() {
   const validate = () => {
     const newErrors = {};
 
-    if (!jobData.jobTitle.trim()) {
-      newErrors.jobTitle = "Job title is required";
-    }
-
-    if (!jobData.description.trim()) {
-      newErrors.description = "Description is required";
-    }
-
-    if (!jobData.budget.trim()) {
-      newErrors.budget = "Budget is required";
-    }
-
-    if (!jobData.estimatedDuration.trim()) {
-      newErrors.estimatedDuration = "Duration is required";
-    }
-
-    if (!jobData.teamSize || jobData.teamSize < 1) {
-      newErrors.teamSize = "Team size must be at least 1";
-    }
-
-    if (!jobData.priority) {
-      newErrors.priority = "Priority is required";
-    }
-
-    if (skills.length === 0) {
-      newErrors.skills = "At least one skill is required";
-    }
+    if (!jobData.jobTitle.trim()) newErrors.jobTitle = "Job title is required";
+    if (!jobData.description.trim()) newErrors.description = "Description is required";
+    if (!jobData.budget.trim()) newErrors.budget = "Budget is required";
+    if (!jobData.estimatedDuration.trim()) newErrors.estimatedDuration = "Duration is required";
+    if (!jobData.teamSize || jobData.teamSize < 1) newErrors.teamSize = "Team size must be at least 1";
+    if (!jobData.priority) newErrors.priority = "Priority is required";
+    if (skills.length === 0) newErrors.skills = "At least one skill is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+ const buildPayload = () => ({
+  title: jobData.jobTitle.trim(),
+  description: jobData.description.trim(),
+  skills: [...skills],
+  budget: Number(String(jobData.budget).replace(/[^0-9]/g, "")) || 0,
+  estimatedDuration: jobData.estimatedDuration.trim(),
+  workType: mapWorkType(jobData.workType),
+  workMode: "remote",
+});
+
+  const normalizeJobForModal = (apiJob) => ({
+    id: apiJob?.jobId || Date.now(),
+    jobId: apiJob?.jobId,
+    title: apiJob?.title || jobData.jobTitle,
+    location: apiJob?.workMode || "Remote",
+    jobType: apiJob?.workType || jobData.workType,
+    salary: apiJob?.budget ? `$${apiJob.budget}` : jobData.budget,
+    applications: 0,
+    applicationsLabel: "0 Applications",
+    status: apiJob?.status === "closed" ? "Closed" : "Open",
+    posted: "Posted just now",
+    isNew: true,
+    description: apiJob?.description || jobData.description,
+    duration: apiJob?.estimatedDuration || jobData.estimatedDuration,
+    skills: apiJob?.skills || skills,
+    team_size: apiJob?.teamSize || Number(jobData.teamSize) || 1,
+    priority: apiJob?.priority || mapPriority(jobData.priority),
+    publicationStatus: apiJob?.publicationStatus,
+  });
+
+  const apiRequest = async (endpoint, body) => {
+    const token = getToken();
+
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(result?.message || `Request failed with status ${response.status}`);
+    }
+
+    return result?.data || result;
   };
 
   const handleChange = (e) => {
@@ -141,86 +198,43 @@ function PostNewJob() {
     setSkills((prev) => prev.filter((skill) => skill !== skillToRemove));
   };
 
-  const handlePreviewJob = () => {
-    console.log("Preview Job:", {
-      ...jobData,
-      skills,
-    });
-    alert("Preview job data ready!");
-  };
-
-  const handlePublishJob = async () => {
-    // Prevent duplicate submits
-    if (isPublishing) return;
-
+  const handlePreviewJob = async () => {
     if (!validate()) return;
 
     setIsPublishing(true);
 
     try {
-      const requirements = {
-        team_size: Number(jobData.teamSize) || 1,
-        skills: [...skills],
-        budget: Number(jobData.budget.replace(/[^0-9]/g, "")) || 0,
-        priority: jobData.priority,
-      };
+      const payload = buildPayload();
+      const data = await apiRequest("/project/jobs/preview", payload);
 
-      console.log("[n8n DEBUG] API input being sent:", requirements);
+      const previewJob = normalizeJobForModal(data?.job || payload);
+      setPublishedJob(previewJob);
+    } catch (error) {
+      console.error("[PostNewJob] Preview failed:", error);
+      alert(error.message || "Preview failed");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
-      // Initialize n8n fields
-      let n8nResponse = null;
-      let n8nStatus = "pending";
-      let n8nError = null;
-      let n8nSyncedAt = null;
+  const handlePublishJob = async () => {
+    if (isPublishing) return;
+    if (!validate()) return;
 
-      // Send to n8n before saving
-      try {
-        console.log("[n8n DEBUG] Sending request to n8n...");
-        n8nResponse = await sendRequirementsToN8n(requirements);
-        n8nStatus = "success";
-        n8nSyncedAt = new Date().toISOString();
-        console.log("[n8n DEBUG] API response received:", n8nResponse);
-        console.log("[PostNewJob] n8n sync successful:", n8nResponse);
-      } catch (error) {
-        n8nResponse = null;
-        n8nStatus = "failed";
-        n8nError = error?.message || "Unknown error";
-        n8nSyncedAt = null;
-        console.error("[n8n DEBUG] API request failed:", error);
-        console.error("[n8n DEBUG] Error message:", error?.message);
-        console.error("[PostNewJob] n8n sync failed:", error);
-        // Don't block job creation - continue to save the job
-      }
+    setIsPublishing(true);
 
-      const newJob = {
-        id: Date.now(),
-        title: jobData.jobTitle,
-        location: "Remote",
-        jobType: jobData.workType,
-        salary: jobData.budget,
-        applications: 0,
-        applicationsLabel: "0 Applications",
-        status: "Open",
-        posted: "Posted just now",
-        isNew: true,
-        description: jobData.description,
-        duration: jobData.estimatedDuration,
-        skills: [...skills],
-        team_size: requirements.team_size,
-        priority: requirements.priority,
-        requirements,
-        n8nResponse,
-        n8nStatus,
-        n8nError,
-        n8nSyncedAt,
-      };
+    try {
+      const payload = buildPayload();
+      const data = await apiRequest("/project/jobs/publish", payload);
 
-      console.log("[n8n DEBUG] Saved job with n8n fields:", newJob);
+      const apiJob = data?.job || data;
+      const newJob = normalizeJobForModal(apiJob);
 
-      console.log("[PostNewJob] Created job:", newJob);
-
-      // Job is not saved to localStorage yet - will be saved on Accept Team
+      console.log("[PostNewJob] Published job:", newJob);
       setPublishedJob(newJob);
+    } catch (error) {
+      console.error("[PostNewJob] Publish failed:", error);
+      alert(error.message || "Publish failed");
     } finally {
       setIsPublishing(false);
     }
@@ -229,6 +243,7 @@ function PostNewJob() {
   return (
     <>
       {isPublishing && <PublishingPreloader />}
+
       {publishedJob && (
         <PublishResultModal
           job={publishedJob}
@@ -249,23 +264,24 @@ function PostNewJob() {
           }}
         />
       )}
-      <div className="min-h-screen bg-[#F5FAFA] px-6 py-10">
+
+      <div className="min-h-screen bg-[#F5FAFA] px-4 sm:px-6 py-10 overflow-x-hidden">
         <div className="max-w-[880px] mx-auto">
           <div className="flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => navigate("/client/profile")}
-              className="text-[#111827] hover:opacity-80"
+              className="text-[#111827] hover:opacity-80 shrink-0"
             >
               <ArrowLeft size={18} />
             </button>
 
-            <h1 className="text-[32px] font-semibold text-[#111827]">
+            <h1 className="text-[24px] sm:text-[32px] font-semibold text-[#111827] text-center">
               Create a New Job Post
             </h1>
           </div>
 
-          <p className="mt-3 text-center text-[16px] text-[#6B7280]">
+          <p className="mt-3 text-center text-[15px] sm:text-[16px] text-[#6B7280]">
             Fill in the details below to publish your new opportunity.
           </p>
 
@@ -356,14 +372,14 @@ function PostNewJob() {
                       className="w-full h-[48px] rounded-[10px] border border-[#D1D5DB] px-4 text-[15px] outline-none focus:border-[#0B6B63] placeholder:text-[#A3A3A3]"
                     />
 
-                    {/* Dropdown */}
                     {newSkill.trim() && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#D1D5DB] rounded-[10px] shadow-lg z-50 max-h-[240px] overflow-y-auto">
                         {(() => {
                           const query = newSkill.trim().toLowerCase();
                           const filtered = skillOptions.filter((skill) => {
                             const alreadySelected = skills.some(
-                              (selected) => selected.toLowerCase() === skill.toLowerCase()
+                              (selected) =>
+                                selected.toLowerCase() === skill.toLowerCase()
                             );
                             return (
                               !alreadySelected &&
@@ -408,7 +424,7 @@ function PostNewJob() {
                     type="button"
                     onClick={handleAddSkill}
                     disabled={!newSkill.trim()}
-                    className="min-w-[170px] h-[48px] rounded-[10px] bg-[#0B6B63] text-white text-[15px] font-medium flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full md:w-auto min-w-[170px] h-[48px] rounded-[10px] bg-[#0B6B63] text-white text-[15px] font-medium flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus size={18} />
                     Add Skill
@@ -581,7 +597,7 @@ function PostNewJob() {
               type="button"
               onClick={handlePreviewJob}
               disabled={isPublishing}
-              className="min-w-[170px] h-[56px] rounded-[10px] border border-[#E5E7EB] bg-white text-[#0B6B63] text-[17px] font-medium hover:bg-[#F8FAFA] transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto min-w-[170px] h-[56px] rounded-[10px] border border-[#E5E7EB] bg-white text-[#0B6B63] text-[17px] font-medium hover:bg-[#F8FAFA] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Preview Job
             </button>
@@ -590,7 +606,7 @@ function PostNewJob() {
               type="button"
               onClick={handlePublishJob}
               disabled={isPublishing}
-              className="min-w-[170px] h-[56px] rounded-[10px] bg-[#0B6B63] text-white text-[17px] font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto min-w-[170px] h-[56px] rounded-[10px] bg-[#0B6B63] text-white text-[17px] font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isPublishing ? "Publishing..." : "Publish Job"}
             </button>

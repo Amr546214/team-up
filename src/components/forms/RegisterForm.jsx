@@ -397,7 +397,7 @@ const RegisterForm = () => {
       client: "/client/profile",
       developer: "/skill-quiz", // Developers need to complete quiz first
       company: "/company/profile",
-      admin: "/",
+      admin: "/admin/dashboard",
     };
     const targetRoute = roleRedirects[activeRole] || "/";
 
