@@ -2,12 +2,14 @@ import DeveloperSidebar from "../components/common/DeveloperSidebar";
 
 function DeveloperLayout({ children }) {
   return (
-    <div className="flex">
-      <DeveloperSidebar />
-
-      <div className="flex-1">
-        {children}
+    <div className="min-h-screen bg-[#F5F9F9]">
+      <div className="hidden lg:block">
+        <DeveloperSidebar />
       </div>
+
+      <main className="w-full">
+        {children}
+      </main>
     </div>
   );
 }

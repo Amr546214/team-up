@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
+import ForgotPassword from "../pages/auth/ForgotPassword";
 import OAuthCallback from "../pages/auth/OAuthCallback";
 import Home from "../pages/public/Home";
 import DeploymentPage from "../pages/public/DeploymentPage";
@@ -61,6 +62,7 @@ function AppRoutes() {
       {/* Public only routes - redirect authenticated users to their dashboard */}
       <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
       <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/callback" element={<OAuthCallback />} />
 
       <Route path="/skill-quiz" element={<SkillQuiz />} />

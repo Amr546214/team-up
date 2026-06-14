@@ -2,8 +2,14 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, Plus, X, Save, Loader2 } from "lucide-react";
 import Header from "../../../components/common/Header";
-import { getCurrentUser } from "../../../services/fakeApi";
-import { saveUserProfile, dispatchAuthChanged, getUserProfile } from "../../../utils/authStorage";
+import {
+  getAccessToken,
+  getUserRole,
+  saveUserProfile,
+  dispatchAuthChanged,
+} from "../../../utils/authStorage";
+
+const BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
 
 const TRACK_OPTIONS = [
   "Frontend Developer",
@@ -54,58 +60,71 @@ const DevProfile = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // Lazy initialization from localStorage to avoid setState in useEffect
-  const [currentUser] = useState(() => {
-    const user = getCurrentUser();
-    if (user?.role !== "developer") return null;
-    return user;
-  });
-
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errors, setErrors] = useState({});
+  const [imageFile, setImageFile] = useState(null);
 
-  const [formData, setFormData] = useState(() => {
-    const user = getCurrentUser();
-    if (!user || user.role !== "developer") {
-      return {
-        image: "",
-        name: "",
-        track: "",
-        experience: "",
-        skills: [],
-        portfolio: "",
-        hourlyRate: "",
-        hoursPerWeek: "",
-        availability: "Yes",
-      };
-    }
-    const devProfile = user.developerProfile || {};
-    return {
-      image: devProfile.image || "",
-      name: user.name || "",
-      track: devProfile.track || "",
-      experience: devProfile.experience || "",
-      skills: devProfile.skills || [],
-      portfolio: devProfile.portfolio || "",
-      hourlyRate: devProfile.hour_rate_usd?.toString() || "",
-      hoursPerWeek: devProfile.hours_per_week?.toString() || "",
-      availability: devProfile.available === false ? "No" : "Yes",
-    };
+  const [formData, setFormData] = useState({
+    image: "",
+    name: "",
+    track: "",
+    experience: "",
+    skills: [],
+    portfolio: "",
+    hourlyRate: "",
+    hoursPerWeek: "",
+    availability: "Yes",
   });
 
   const [newSkill, setNewSkill] = useState("");
   const [showSkillDropdown, setShowSkillDropdown] = useState(false);
 
-  // Redirect if not a developer (runs once on mount)
   useEffect(() => {
-    const user = getCurrentUser();
-    if (!user || user.role !== "developer") {
-      navigate(user ? "/" : "/login");
-      return;
-    }
-    setIsLoading(false);
+    const loadProfile = async () => {
+      const token = getAccessToken();
+      const role = getUserRole();
+
+      if (!token || role !== "developer") {
+        navigate("/login");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${BASE_URL}/developer/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to load profile");
+        }
+
+        const response = await res.json();
+        const profile = response?.data || response;
+
+        setFormData({
+          image: profile?.profileImage || profile?.image || profile?.avatarUrl || "",
+          name: profile?.fullName || "",
+          track: profile?.title || "",
+          experience: profile?.bio || "",
+          skills: profile?.skills || [],
+          portfolio: profile?.githubUrl || "",
+          hourlyRate: "",
+          hoursPerWeek: "",
+          availability: profile?.availability === "unavailable" ? "No" : "Yes",
+        });
+      } catch (error) {
+        console.log(error);
+        setErrors({ submit: "Failed to load profile" });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
   }, [navigate]);
 
   const handleImageChange = (e) => {
@@ -116,6 +135,8 @@ const DevProfile = () => {
       setErrors((prev) => ({ ...prev, image: "Please select an image file" }));
       return;
     }
+
+    setImageFile(file);
 
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -143,6 +164,7 @@ const DevProfile = () => {
       ...prev,
       skills: [...prev.skills, trimmed],
     }));
+
     setNewSkill("");
     setShowSkillDropdown(false);
     setErrors((prev) => ({ ...prev, skills: "" }));
@@ -170,16 +192,6 @@ const DevProfile = () => {
       newErrors.skills = "At least one skill is required";
     }
 
-    const hourlyRate = Number(formData.hourlyRate);
-    if (!formData.hourlyRate || hourlyRate <= 0) {
-      newErrors.hourlyRate = "Hourly rate must be greater than 0";
-    }
-
-    const hoursPerWeek = Number(formData.hoursPerWeek);
-    if (!formData.hoursPerWeek || hoursPerWeek <= 0) {
-      newErrors.hoursPerWeek = "Hours per week must be greater than 0";
-    }
-
     if (formData.portfolio && !/^https?:\/\/.+/.test(formData.portfolio)) {
       newErrors.portfolio = "Please enter a valid URL";
     }
@@ -188,67 +200,93 @@ const DevProfile = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const uploadProfileImage = async (token) => {
+    if (!imageFile) return;
+
+    const formDataImage = new FormData();
+    formDataImage.append("image", imageFile);
+
+    const res = await fetch(`${BASE_URL}/developer/profile-image`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formDataImage,
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to upload profile image");
+    }
+
+    return res.json();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
+    const token = getAccessToken();
+
+    if (!token) {
+      setErrors({ submit: "You must login first" });
+      navigate("/login");
+      return;
+    }
+
     setIsSaving(true);
     setSuccessMessage("");
+    setErrors({});
 
     try {
-      const usersRaw = window.localStorage.getItem("teamup_users");
-      const users = usersRaw ? JSON.parse(usersRaw) : [];
-
-      const userIndex = users.findIndex((u) => u.id === currentUser.id);
-      if (userIndex === -1) {
-        setErrors({ submit: "User not found" });
-        return;
-      }
-
-      const updatedUser = {
-        ...users[userIndex],
-        name: formData.name.trim(),
-        track: formData.track,
-        skills: formData.skills,
-        hour_rate_usd: Number(formData.hourlyRate),
-        hours_per_week: Number(formData.hoursPerWeek),
-        available: formData.availability === "Yes",
-        developerProfile: {
-          ...users[userIndex].developerProfile,
-          image: formData.image,
-          name: formData.name.trim(),
-          track: formData.track,
-          experience: formData.experience,
-          skills: formData.skills,
-          portfolio: formData.portfolio,
-          hour_rate_usd: Number(formData.hourlyRate),
-          hours_per_week: Number(formData.hoursPerWeek),
-          available: formData.availability === "Yes",
-          completedAt: new Date().toISOString(),
+      const profileResponse = await fetch(`${BASE_URL}/developer/profile`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      };
+        body: JSON.stringify({
+          fullName: formData.name.trim(),
+          bio: formData.experience,
+          title: formData.track,
+          githubUrl: formData.portfolio,
+          availability: formData.availability === "Yes" ? "available" : "unavailable",
+          isOnline: true,
+        }),
+      });
 
-      users[userIndex] = updatedUser;
-      window.localStorage.setItem("teamup_users", JSON.stringify(users));
-
-      const { password: _password, ...safeUser } = updatedUser;
-      window.localStorage.setItem("teamup_current_user", JSON.stringify(safeUser));
-
-      // Sync photo to global user profile for Navbar avatar
-      if (formData.image) {
-        const existingProfile = getUserProfile() || {};
-        saveUserProfile({
-          ...existingProfile,
-          avatarUrl: formData.image,
-          name: formData.name.trim() || existingProfile.name,
-        });
-        dispatchAuthChanged();
-        console.log("DEV PROFILE PHOTO SYNCED TO GLOBAL STORAGE");
+      if (!profileResponse.ok) {
+        throw new Error("Failed to update profile");
       }
+
+      const skillsResponse = await fetch(`${BASE_URL}/developer/skills`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          skills: formData.skills,
+        }),
+      });
+
+      if (!skillsResponse.ok) {
+        throw new Error("Failed to update skills");
+      }
+
+      await uploadProfileImage(token);
+
+      saveUserProfile({
+        name: formData.name.trim(),
+        role: "developer",
+        avatarUrl: formData.image,
+      });
+
+      dispatchAuthChanged();
 
       setSuccessMessage("Profile saved successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
-    } catch {
+    } catch (error) {
+      console.log(error);
       setErrors({ submit: "Failed to save profile. Please try again." });
     } finally {
       setIsSaving(false);
@@ -261,7 +299,7 @@ const DevProfile = () => {
       !formData.skills.some((s) => s.toLowerCase() === skill.toLowerCase())
   );
 
-  if (isLoading || !currentUser) {
+  if (isLoading) {
     return (
       <>
         <Header />
@@ -301,7 +339,6 @@ const DevProfile = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Profile Image */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Profile Image
@@ -322,6 +359,7 @@ const DevProfile = () => {
                       <Camera className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-gray-400" />
                     )}
                   </button>
+
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -329,16 +367,14 @@ const DevProfile = () => {
                     hidden
                     onChange={handleImageChange}
                   />
+
                   <div className="text-sm text-gray-500">
                     <p>Click to upload a profile picture</p>
-                    {errors.image && (
-                      <p className="text-red-500">{errors.image}</p>
-                    )}
+                    {errors.image && <p className="text-red-500">{errors.image}</p>}
                   </div>
                 </div>
               </div>
 
-              {/* Full Name */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Full Name <span className="text-red-500">*</span>
@@ -351,12 +387,9 @@ const DevProfile = () => {
                   placeholder="Enter your full name"
                   className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
                 />
-                {errors.name && (
-                  <p className="mt-1 text-sm text-red-500">{errors.name}</p>
-                )}
+                {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
               </div>
 
-              {/* Track */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Track <span className="text-red-500">*</span>
@@ -374,31 +407,28 @@ const DevProfile = () => {
                     </option>
                   ))}
                 </select>
-                {errors.track && (
-                  <p className="mt-1 text-sm text-red-500">{errors.track}</p>
-                )}
+                {errors.track && <p className="mt-1 text-sm text-red-500">{errors.track}</p>}
               </div>
 
-              {/* Experience */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Experience
+                  Bio / Experience
                 </label>
                 <input
                   type="text"
                   name="experience"
                   value={formData.experience}
                   onChange={handleChange}
-                  placeholder="e.g. 2 years"
+                  placeholder="e.g. Frontend developer with 2 years experience"
                   className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
                 />
               </div>
 
-              {/* Skills */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Skills <span className="text-red-500">*</span>
                 </label>
+
                 <div className="mb-3 flex flex-wrap gap-2">
                   {formData.skills.map((skill) => (
                     <span
@@ -416,6 +446,7 @@ const DevProfile = () => {
                     </span>
                   ))}
                 </div>
+
                 <div className="relative">
                   <div className="flex gap-2">
                     <input
@@ -429,6 +460,7 @@ const DevProfile = () => {
                       placeholder="Search and add skills..."
                       className="h-12 flex-1 rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
                     />
+
                     <button
                       type="button"
                       onClick={() => addSkill(newSkill)}
@@ -438,6 +470,7 @@ const DevProfile = () => {
                       Add
                     </button>
                   </div>
+
                   {showSkillDropdown && newSkill && filteredSkills.length > 0 && (
                     <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
                       {filteredSkills.slice(0, 6).map((skill) => (
@@ -453,22 +486,20 @@ const DevProfile = () => {
                     </div>
                   )}
                 </div>
-                {errors.skills && (
-                  <p className="mt-1 text-sm text-red-500">{errors.skills}</p>
-                )}
+
+                {errors.skills && <p className="mt-1 text-sm text-red-500">{errors.skills}</p>}
               </div>
 
-              {/* Portfolio */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Portfolio URL
+                  GitHub / Portfolio URL
                 </label>
                 <input
                   type="url"
                   name="portfolio"
                   value={formData.portfolio}
                   onChange={handleChange}
-                  placeholder="https://yourportfolio.com"
+                  placeholder="https://github.com/yourname"
                   className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
                 />
                 {errors.portfolio && (
@@ -476,51 +507,6 @@ const DevProfile = () => {
                 )}
               </div>
 
-              {/* Hourly Rate */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Hourly Rate (USD) <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    name="hourlyRate"
-                    value={formData.hourlyRate}
-                    onChange={handleChange}
-                    placeholder="50"
-                    min="1"
-                    className="h-12 w-full rounded-xl border border-gray-200 pl-8 pr-4 outline-none focus:border-[#0f766e]"
-                  />
-                </div>
-                {errors.hourlyRate && (
-                  <p className="mt-1 text-sm text-red-500">{errors.hourlyRate}</p>
-                )}
-              </div>
-
-              {/* Hours Per Week */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Hours Per Week <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  name="hoursPerWeek"
-                  value={formData.hoursPerWeek}
-                  onChange={handleChange}
-                  placeholder="40"
-                  min="1"
-                  max="168"
-                  className="h-12 w-full rounded-xl border border-gray-200 px-4 outline-none focus:border-[#0f766e]"
-                />
-                {errors.hoursPerWeek && (
-                  <p className="mt-1 text-sm text-red-500">{errors.hoursPerWeek}</p>
-                )}
-              </div>
-
-              {/* Availability */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Available for Projects
@@ -536,7 +522,6 @@ const DevProfile = () => {
                 </select>
               </div>
 
-              {/* Submit Button */}
               <div className="pt-4">
                 <button
                   type="submit"

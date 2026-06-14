@@ -9,6 +9,8 @@ import { upsertUserProfile, ensureUserProfile } from "../lib/supabaseAuth";
 import { clearAuth, dispatchAuthChanged, getUserProfile } from "../utils/authStorage";
 
 const AuthContext = createContext(null);
+// لينك ال api لبيدج اللوجين 
+const BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
 
 function clearAllAuthStorage() {
   localStorage.removeItem("pendingAuthRole");
@@ -20,7 +22,11 @@ function clearAllAuthStorage() {
   localStorage.removeItem("joinUserAvatar");
   localStorage.removeItem("showJoinSuccess");
   localStorage.removeItem("teamup_demo_session_v1");
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
   sessionStorage.removeItem("teamup_demo_session_v1");
+  sessionStorage.removeItem("access_token");
+  sessionStorage.removeItem("refresh_token"); 
 }
 
 const ROLE_REDIRECTS = {
@@ -81,6 +87,7 @@ function mapSupabaseUser(supabaseUser, profile = null) {
   const meta = supabaseUser.user_metadata || {};
   const pendingRole = localStorage.getItem("pendingAuthRole");
   const role = pendingRole || profile?.role || meta.role || "client";
+
   return {
     id: supabaseUser.id,
     email: profile?.email || supabaseUser.email,
@@ -176,7 +183,6 @@ export function AuthProvider({ children }) {
   const authInitStartedRef = useRef(false);
   const profileRecoveryInProgressRef = useRef(false);
 
-  // Listen for Supabase auth state changes (OAuth redirect callback)
   useEffect(() => {
     async function handleSupabaseSession(sbSession, event = "INITIAL_SESSION") {
       if (event === "SIGNED_OUT") {
@@ -411,41 +417,36 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  const login = useCallback((email, password, role, rememberMe) => {
+  const login = useCallback((email, password, role) => {
     const result = loginUser(email, password);
     if (!result.success) {
       if (result.requiresQuiz) {
         return { ok: false, reason: "skill_quiz_required", userId: result.userId };
       }
-      if (result.message === "Invalid email or password") {
-        return { ok: false, reason: "invalid_credentials" };
-      }
-      return { ok: false, reason: "unknown", message: result.message };
-    }
-    // Store in localStorage with rememberMe option
-    if (typeof window !== "undefined") {
-      const payload = JSON.stringify({ email: result.data.email, role: result.data.role });
-      window.sessionStorage.setItem("teamup_demo_session_v1", payload);
-      if (rememberMe) {
-        window.localStorage.setItem("teamup_demo_session_v1", payload);
-      } else {
-        window.localStorage.removeItem("teamup_demo_session_v1");
-      }
-    }
-    setSession(result.data);
-
-    // Developer logged in but hasn't completed profile yet
-    if (result.requiresProfile) {
-      return { ok: true, account: result.data, requiresProfile: true };
+      return { ok: false, reason: result.reason, message: result.message };
     }
 
-    return { ok: true, account: result.data };
+    const userSession = {
+      ...result.user,
+      role,
+    };
+
+    setSession(userSession);
+
+    return { ok: true, account: userSession };
   }, []);
 
   const logout = useCallback(async () => {
     logoutUser();
-    // Sign out of Supabase too
-    try { await supabase.auth.signOut(); } catch { /* ignore */ }
+
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch {
+      // ignore
+    }
+
     clearAllAuthStorage();
     clearAuth(); // Clear backend tokens and role
     dispatchAuthChanged(); // Notify all components of logout
