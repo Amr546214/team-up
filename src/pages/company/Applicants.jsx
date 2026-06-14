@@ -4,8 +4,6 @@ import Header from "../../components/common/Header";
 import {
   ArrowLeft,
   Search,
-  Filter,
-  ChevronDown,
   Eye,
   CheckCircle2,
   XCircle,
@@ -13,14 +11,14 @@ import {
   Mail,
   Star,
   CalendarDays,
-  Users,
+
 } from "lucide-react";
 
 function Applicants() {
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  // const [showFilters, setShowFilters] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState({
     skills: "All",
     rank: "All",
@@ -30,39 +28,7 @@ function Applicants() {
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  const [applicants] = useState([
-    {
-      id: 1,
-      name: "Sara Ahmed",
-      email: "sara@example.com",
-      role: "Frontend Developer",
-      job: "Senior React Developer",
-      skills: ["React", "TypeScript", "Tailwind"],
-      rating: 4.8,
-      rank: "Gold",
-      status: "shortlisted",
-      experience: "Senior",
-      appliedDate: "Feb 5, 2026",
-      coverLetter: "I have 5+ years of experience in React development...",
-      cvLink: "#",
-    },
-    {
-      id: 2,
-      name: "Omar Essam",
-      email: "omar@example.com",
-      role: "UI/UX Designer",
-      job: "UI/UX Designer",
-      skills: ["Figma", "Adobe XD", "Prototyping"],
-      rating: 4.5,
-      rank: "Silver",
-      status: "new",
-      experience: "Mid-Level",
-      appliedDate: "Feb 6, 2026",
-      coverLetter: "Passionate designer with a focus on user-centered design...",
-      cvLink: "#",
-    },
-    // باقي applicants...
-  ]);
+  const [applicants] = useState([ { id: 1, name: "Sara Ahmed", email: "sara@example.com", role: "Frontend Developer", job: "Senior React Developer", skills: ["React", "TypeScript", "Tailwind"], rating: 4.8, rank: "Gold", status: "shortlisted", appliedDate: "Feb 5, 2026", coverLetter: "I have 5+ years of experience in React development...", }, { id: 2, name: "Omar Essam", email: "omar@example.com", role: "UI/UX Designer", job: "UI/UX Designer", skills: ["Figma", "Adobe XD", "Prototyping"], rating: 4.5, rank: "Silver", status: "new", appliedDate: "Feb 6, 2026", coverLetter: "Passionate designer with a focus on user-centered design...", }, { id: 3, name: "Hanan Muhammed", email: "hanan@example.com", role: "Backend Developer", job: "Senior React Developer", skills: ["Node.js", "Python", "MongoDB"], rating: 4.9, rank: "Gold", status: "interviewed", appliedDate: "Feb 3, 2026", coverLetter: "Experienced backend developer specializing in scalable APIs...", }, { id: 4, name: "Youssef Khaled", email: "youssef@example.com", role: "Fullstack Developer", job: "Backend Node.js", skills: ["React", "Node.js", "AWS"], rating: 4.7, rank: "Gold", status: "rejected", appliedDate: "Feb 1, 2026", coverLetter: "Fullstack developer with cloud infrastructure experience...", }, { id: 5, name: "Eman Ali", email: "eman@example.com", role: "DevOps Engineer", job: "Backend Node.js", skills: ["Docker", "Kubernetes", "CI/CD"], rating: 4.4, rank: "Silver", status: "new", appliedDate: "Feb 7, 2026", coverLetter: "DevOps engineer with experience in cloud-native architectures...", }, ]);
 
   const skillsOptions = ["All", "React", "Node.js", "UI/UX", "Python", "AWS"];
   const rankOptions = ["All", "Gold", "Silver", "Bronze"];
