@@ -63,7 +63,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes - Real app for Netlify and localhost */}
-      <Route path="/" element={<ClientApplicants />} />
+      <Route path="/" element={<Home />} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
 
