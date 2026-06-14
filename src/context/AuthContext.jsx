@@ -80,7 +80,18 @@ function mapSupabaseUser(supabaseUser, profile = null) {
   if (!supabaseUser) return null;
   const meta = supabaseUser.user_metadata || {};
   const pendingRole = localStorage.getItem("pendingAuthRole");
-  const role = pendingRole || profile?.role || meta.role || "client";
+  
+  // Role priority: profile.role (db) > pendingRole (for new registrations) > metadata.role > "client"
+  const role = profile?.role || pendingRole || meta.role || "client";
+  
+  console.log("[mapSupabaseUser] Role resolution:", {
+    finalRole: role,
+    profileRole: profile?.role,
+    pendingRole,
+    metadataRole: meta.role,
+    userId: supabaseUser.id,
+  });
+  
   return {
     id: supabaseUser.id,
     email: profile?.email || supabaseUser.email,
@@ -326,8 +337,10 @@ export function AuthProvider({ children }) {
           await upsertUserProfile(sbSession);
           localStorage.removeItem("pendingAuthRole");
 
-          const target = ROLE_REDIRECTS[pendingRole] || "/";
-          console.log("[Auth] Redirecting to:", target);
+          // Use the ACTUAL resolved role from the mapped user (which prioritizes profile.role)
+          const actualRole = mapped?.role || pendingRole || "client";
+          const target = ROLE_REDIRECTS[actualRole] || "/";
+          console.log("[AuthContext] Redirect after OAuth - resolved role:", actualRole, "target:", target);
           window.location.replace(target);
         }
       } finally {
