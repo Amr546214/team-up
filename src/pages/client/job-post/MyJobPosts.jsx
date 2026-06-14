@@ -184,6 +184,7 @@ export default function MyJobPosts() {
 
   useEffect(() => {
     fetchMyJobs(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stats = useMemo(

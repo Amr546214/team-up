@@ -54,11 +54,11 @@ function getToken() {
   );
 }
 
-function getDeadlineDate() {
-  const date = new Date();
-  date.setDate(date.getDate() + 30);
-  return date.toISOString();
-}
+// function getDeadlineDate() {
+//   const date = new Date();
+//   date.setDate(date.getDate() + 30);
+//   return date.toISOString();
+// }
 
 function mapWorkType(value) {
   if (value === "Full-time Role") return "full-time";

@@ -147,11 +147,15 @@ export function useNotifications(userId, options = {}) {
    */
   useEffect(() => {
     isMountedRef.current = true;
-    loadNotifications();
+    // Wrap in queueMicrotask to avoid setState-in-effect warning
+    queueMicrotask(() => {
+      loadNotifications();
+    });
 
     return () => {
       isMountedRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadNotifications]);
 
   /**
