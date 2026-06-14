@@ -1,0 +1,23 @@
+export const applicantsFake = {
+  totalPending: 18,
+  applicants: [
+    { id: 1, name: "Hanan Muhammed", rank: "4.9", budget: "$4,500", badge: "Top Rated", badgeType: "top", skills: ["UI/UX", "Figma", "Prototyping"] },
+    { id: 2, name: "Sara Muhammed", rank: "4", budget: "$3,000", badge: null, badgeType: null, skills: ["React", "Node.js", "TypeScript"] },
+    { id: 3, name: "Sela Nady", rank: "No Rank", budget: "$2,500", badge: "New", badgeType: "new", skills: ["SEO", "Copywriting"] },
+    { id: 4, name: "Mona Ali", rank: "4.7", budget: "$3,800", badge: "Top Rated", badgeType: "top", skills: ["React", "Tailwind", "API"] },
+    { id: 5, name: "Nour Ahmed", rank: "4.2", budget: "$2,900", badge: null, badgeType: null, skills: ["Vue", "UI", "Figma"] },
+    { id: 6, name: "Omar Khaled", rank: "No Rank", budget: "$2,200", badge: "New", badgeType: "new", skills: ["HTML", "CSS", "JS"] },
+    { id: 7, name: "Laila Samy", rank: "4.8", budget: "$4,100", badge: "Top Rated", badgeType: "top", skills: ["UX", "Research", "Wireframe"] },
+    { id: 8, name: "Yara Adel", rank: "4.1", budget: "$3,100", badge: null, badgeType: null, skills: ["Node.js", "MongoDB", "Express"] },
+    { id: 9, name: "Karim Tarek", rank: "No Rank", budget: "$2,000", badge: "New", badgeType: "new", skills: ["Testing", "QA", "Docs"] },
+    { id: 10, name: "Nada Hesham", rank: "4.6", budget: "$3,700", badge: "Top Rated", badgeType: "top", skills: ["Next.js", "React", "SEO"] },
+    { id: 11, name: "Ali Mostafa", rank: "4.3", budget: "$3,200", badge: null, badgeType: null, skills: ["Python", "AI", "API"] },
+    { id: 12, name: "Mai Ashraf", rank: "No Rank", budget: "$2,400", badge: "New", badgeType: "new", skills: ["Content", "SEO"] },
+    { id: 13, name: "Heba Gamal", rank: "4.9", budget: "$4,800", badge: "Top Rated", badgeType: "top", skills: ["Design", "Figma"] },
+    { id: 14, name: "Ziad Hassan", rank: "4", budget: "$3,000", badge: null, badgeType: null, skills: ["React", "Redux"] },
+    { id: 15, name: "Farah Nabil", rank: "No Rank", budget: "$2,100", badge: "New", badgeType: "new", skills: ["Copywriting", "Ads"] },
+    { id: 16, name: "Salma Adel", rank: "4.5", budget: "$3,600", badge: null, badgeType: null, skills: ["UI/UX", "Prototype"] },
+    { id: 17, name: "Tamer Said", rank: "4.4", budget: "$3,300", badge: null, badgeType: null, skills: ["Backend", "API"] },
+    { id: 18, name: "Reem Fouad", rank: "No Rank", budget: "$2,700", badge: "New", badgeType: "new", skills: ["Marketing", "SEO"] },
+  ],
+};

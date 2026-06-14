@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
+import ForgotPassword from "../pages/auth/ForgotPassword";
 import OAuthCallback from "../pages/auth/OAuthCallback";
 import Home from "../pages/public/Home";
 import DeploymentPage from "../pages/public/DeploymentPage";
@@ -24,8 +25,12 @@ import ClientProfile from "../pages/client/dashboard/ClientProfile";
 import PostNewJob from "../pages/client/job-post/PostNewJob";
 import MyJobPosts from "../pages/client/job-post/MyJobPosts";
 import ClientJobDetails from "../pages/client/ClientJobDetails";
+// NEW
+import ClientApplicants from "../pages/client/job-post/Applicants";
+import ClientPostJobDetails from "../pages/client/job-post/JobDetails";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
+
 
 import CompanyProfile from "../pages/company/dashboard/CompanyProfile";
 import CompanyDashboard from "../pages/company/CompanyDashboard";
@@ -61,6 +66,7 @@ function AppRoutes() {
       {/* Public only routes - redirect authenticated users to their dashboard */}
       <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
       <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/callback" element={<OAuthCallback />} />
 
       <Route path="/skill-quiz" element={<SkillQuiz />} />
@@ -86,7 +92,9 @@ function AppRoutes() {
           <Route path="/client/profile" element={<ClientProfile />} />
           <Route path="/client/job-post" element={<PostNewJob />} />
           <Route path="/client/my-jobs" element={<MyJobPosts />} />
-          <Route path="/client/job/:id" element={<ClientJobDetails />} />
+
+          <Route path="/client/job/:id" element={<ClientPostJobDetails />} />
+          <Route path="/client/job/:id/applicants" element={<ClientApplicants />}/>
           <Route path="/client/build-team" element={<BuildTeam />} />
           <Route path="/client/project/:id" element={<ProjectDetails />} />
         </Route>
