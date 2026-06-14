@@ -24,8 +24,6 @@ import CompleteProfile from "../pages/developer/CompleteProfile";
 import ClientProfile from "../pages/client/dashboard/ClientProfile";
 import PostNewJob from "../pages/client/job-post/PostNewJob";
 import MyJobPosts from "../pages/client/job-post/MyJobPosts";
-import ClientJobDetails from "../pages/client/ClientJobDetails";
-// NEW
 import ClientApplicants from "../pages/client/job-post/Applicants";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
