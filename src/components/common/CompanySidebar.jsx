@@ -5,9 +5,7 @@ import {
   Users,
   CalendarDays,
   PlusCircle,
-  UserSearch,
-  Bell,
-  Settings,
+  Sparkles,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -60,6 +58,12 @@ function CompanySidebar() {
     },
     {
       id: 5,
+      key: "autoSuggestTeam",
+      name: "Auto Suggest Team",
+      path: "/company/auto-suggest-team",
+    },
+    {
+      id: 6,
       key: "postJob",
       name: "Post New Job",
       path: "/company/post-job",
@@ -76,6 +80,8 @@ function CompanySidebar() {
         return Users;
       case "interviews":
         return CalendarDays;
+      case "autoSuggestTeam":
+        return Sparkles;
       case "postJob":
         return PlusCircle;
       default:
