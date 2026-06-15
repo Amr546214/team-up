@@ -27,7 +27,6 @@ import MyJobPosts from "../pages/client/job-post/MyJobPosts";
 import ClientJobDetails from "../pages/client/ClientJobDetails";
 // NEW
 import ClientApplicants from "../pages/client/job-post/Applicants";
-// import ClientPostJobDetails from "../pages/client/job-post/JobDetails";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
 
@@ -38,6 +37,7 @@ import PostJob from "../pages/company/PostJob";
 import JobManagement from "../pages/company/JobManagement";
 import Applicants from "../pages/company/Applicants";
 import Interviews from "../pages/company/Interviews";
+import AutoSuggestTeam from "../pages/company/AutoSuggestTeam";
 
 import TeamDashboard from "../pages/team-leader/TeamDashboard";
 import Team from "../pages/team-leader/Team";
@@ -60,7 +60,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes - Real app for Netlify and localhost */}
-      <Route path="/" element={<JobManagement/>} />
+      <Route path="/" element={<Home/>} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
 
@@ -108,6 +108,7 @@ function AppRoutes() {
           <Route path="/company/post-job" element={<PostJob />} />
           <Route path="/company/applicants" element={<Applicants />} />
           <Route path="/company/interviews" element={<Interviews />} />
+          <Route path="/company/auto-suggest-team" element={<AutoSuggestTeam />} />
         </Route>
 
         {/* Team Leader routes */}
