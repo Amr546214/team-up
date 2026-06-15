@@ -35,6 +35,7 @@ import ProjectDetails from "../pages/client/ProjectDetails";
 import CompanyProfile from "../pages/company/dashboard/CompanyProfile";
 import CompanyDashboard from "../pages/company/CompanyDashboard";
 import PostJob from "../pages/company/PostJob";
+import JobManagement from "../pages/company/JobManagement";
 import Applicants from "../pages/company/Applicants";
 import Interviews from "../pages/company/Interviews";
 
@@ -59,7 +60,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes - Real app for Netlify and localhost */}
-      <Route path="/" element={<Home/>} />
+      <Route path="/" element={<JobManagement/>} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
 
@@ -103,6 +104,7 @@ function AppRoutes() {
         <Route element={<RoleRoute role="company" />}>
           <Route path="/company/profile" element={<CompanyProfile />} />
           <Route path="/company/dashboard" element={<CompanyDashboard />} />
+          <Route path="/company/jobs" element={<JobManagement />} />
           <Route path="/company/post-job" element={<PostJob />} />
           <Route path="/company/applicants" element={<Applicants />} />
           <Route path="/company/interviews" element={<Interviews />} />
