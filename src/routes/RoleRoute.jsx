@@ -4,7 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { hasCompletedQuiz } from "../services/fakeApi";
 
 export default function RoleRoute({ role }) {
-  const { session, isAuthenticated, userRole } = useAuth();
+  const { session, userRole } = useAuth();
 
   // Check for backend access token and role from localStorage
   const hasBackendToken = typeof window !== "undefined" &&
