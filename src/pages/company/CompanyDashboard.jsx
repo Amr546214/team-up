@@ -8,36 +8,19 @@ import {
   FileText,
   TrendingUp,
   Plus,
-  Eye,
   Clock,
-  CheckCircle2,
   XCircle,
   CalendarDays,
-  Bell,
-  MessageSquare,
-  Settings,
   ExternalLink,
   Star,
-  MapPin,
-  Video,
   UserPlus,
-  MoreVertical,
   Edit,
-  Trash2,
 } from "lucide-react";
 
 function CompanyDashboard() {
   const navigate = useNavigate();
 
-  // 1. Company Info
-  const companyInfo = {
-    name: "TeamUp Solutions",
-    type: "Software House",
-    logo: "/teamup-logo.png", // Using the logo from public folder
-    unreadNotifications: 5,
-  };
-
-  // 2. Quick Stats
+  // 1. Quick Stats
   const [stats] = useState([
     {
       id: 1,
@@ -77,7 +60,7 @@ function CompanyDashboard() {
     },
   ]);
 
-  // 3. Job Posts Overview
+  // 2. Job Posts Overview
   const [jobPosts] = useState([
     {
       id: 1,
@@ -102,27 +85,7 @@ function CompanyDashboard() {
     },
   ]);
 
-  // 4. Applicants Overview
-  const [applicants] = useState([
-    {
-      id: 1,
-      name: "Sara Ahmed",
-      role: "Frontend Developer",
-      job: "Senior React Developer",
-      skills: ["React", "TypeScript", "Tailwind"],
-      appliedDate: "2 days ago",
-    },
-    {
-      id: 2,
-      name: "Omar Essam",
-      role: "UI/UX Designer",
-      job: "UI/UX Designer",
-      skills: ["Figma", "Adobe XD"],
-      appliedDate: "3 days ago",
-    },
-  ]);
-
-  // 5. Interviews Preview
+  // 4. Interviews Preview
   const [interviews] = useState([
     {
       id: 1,
@@ -144,7 +107,7 @@ function CompanyDashboard() {
     },
   ]);
 
-  // 7. Recent Activity
+  // 5. Recent Activity
   const [activity] = useState([
     {
       id: 1,
@@ -172,7 +135,7 @@ function CompanyDashboard() {
     },
   ]);
 
-  // 8. Suggested Developers
+  // 6. Suggested Developers
   const [suggestedDevs] = useState([
     {
       id: 1,
@@ -191,6 +154,61 @@ function CompanyDashboard() {
       availability: "In 2 weeks",
     },
   ]);
+
+  const [interviewResults, setInterviewResults] = useState([
+    {
+      id: 1,
+      developerName: "Sarah Connor",
+      jobTitle: "Senior DevOps Engineer",
+      date: "Feb 05, 2026",
+      status: "Pending",
+      note: "",
+    },
+    {
+      id: 2,
+      developerName: "John Doe",
+      jobTitle: "Fullstack Engineer",
+      date: "Feb 04, 2026",
+      status: "Accepted",
+      note: "Excellent communication skills.",
+    },
+    {
+      id: 3,
+      developerName: "Alice Smith",
+      jobTitle: "Data Scientist",
+      date: "Feb 03, 2026",
+      status: "Rejected",
+      note: "",
+    },
+  ]);
+
+  const handleMarkAccepted = (id) => {
+    setInterviewResults((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "Accepted" } : item
+      )
+    );
+  };
+
+  const handleMarkRejected = (id) => {
+    setInterviewResults((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "Rejected" } : item
+      )
+    );
+  };
+
+  const handleAddNotes = (id) => {
+    const item = interviewResults.find((i) => i.id === id);
+    const newNote = prompt("Enter note for this interview:", item ? item.note : "");
+    if (newNote !== null) {
+      setInterviewResults((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, note: newNote } : item
+        )
+      );
+    }
+  };
 
   const getStatusStyle = (status) => {
     switch (status.toLowerCase()) {
@@ -215,53 +233,10 @@ function CompanyDashboard() {
 
         <div className="pt-20 px-4 md:px-8 pb-10">
           <div className="max-w-[1400px] mx-auto">
-            
-            {/* 1) Company Header Section */}
-            <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB] mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-5">
-                <div className="w-16 h-16 rounded-2xl bg-[#F3F4F6] flex items-center justify-center overflow-hidden border border-[#E5E7EB]">
-                  <img src={companyInfo.logo} alt="Company Logo" className="w-10 h-10 object-contain" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h1 className="text-[24px] font-bold text-[#111827]">
-                      {companyInfo.name}
-                    </h1>
-                    <span className="px-2.5 py-0.5 rounded-full text-[12px] font-medium bg-[#E6F4F4] text-[#0B6F6C]">
-                      {companyInfo.type}
-                    </span>
-                  </div>
-                  <p className="text-[14px] text-[#6B7280] mt-1">
-                    Manage your hiring activity and track progress.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button className="p-2.5 rounded-xl border border-[#E5E7EB] text-[#6B7280] hover:bg-gray-50 transition relative">
-                  <Bell size={20} />
-                  <span className="absolute top-2 right-2 w-4 h-4 bg-[#EF4444] text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white">
-                    {companyInfo.unreadNotifications}
-                  </span>
-                </button>
-                <button className="p-2.5 rounded-xl border border-[#E5E7EB] text-[#6B7280] hover:bg-gray-50 transition">
-                  <MessageSquare size={20} />
-                </button>
-                <button className="p-2.5 rounded-xl border border-[#E5E7EB] text-[#6B7280] hover:bg-gray-50 transition">
-                  <Settings size={20} />
-                </button>
-                <div className="w-10 h-10 rounded-full bg-[#0B6F6C] text-white flex items-center justify-center font-bold ml-2">
-                  TS
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
-              {/* Left Column (Main content) */}
-              <div className="lg:col-span-8 space-y-6">
-                
-                {/* 2) Quick Stats Cards */}
+              {/* 1) Quick Stats Cards */}
+              <div className="lg:col-span-12">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {stats.map((stat) => {
                     const Icon = stat.icon;
@@ -288,8 +263,12 @@ function CompanyDashboard() {
                     );
                   })}
                 </div>
+              </div>
 
-                {/* 3) Job Posts Overview Section */}
+              {/* Left Column (Main content) */}
+              <div className="lg:col-span-8 space-y-6">
+                
+                {/* 2) Job Posts Overview Section */}
                 <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB]">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-[18px] font-bold text-[#111827]">
@@ -314,9 +293,13 @@ function CompanyDashboard() {
                             {job.title}
                           </h3>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="text-[13px] text-[#6B7280]">{job.type}</span>
+                            <span className="text-[13px] text-[#6B7280]">
+                              {job.type}
+                            </span>
                             <span className="w-1 h-1 rounded-full bg-[#D1D5DB]"></span>
-                            <span className="text-[13px] text-[#6B7280]">{job.applicants} Applicants</span>
+                            <span className="text-[13px] text-[#6B7280]">
+                              {job.applicants} Applicants
+                            </span>
                           </div>
                         </div>
 
@@ -346,80 +329,161 @@ function CompanyDashboard() {
                   </div>
                 </div>
 
-                {/* 4) Applicants Overview Section */}
+                {/* 6) Interviews Hub Section */}
                 <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB]">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-[18px] font-bold text-[#111827]">
-                      Applicants Overview
+                  <div className="flex items-center justify-between mb-5">
+                    <h2 className="text-[17px] font-bold text-[#111827]">
+                      Interviews Hub
                     </h2>
                     <button
-                      onClick={() => navigate("/company/applicants")}
-                      className="text-sm text-[#0B6F6C] font-semibold hover:underline"
+                      onClick={() => navigate("/company/interviews")}
+                      className="text-[13px] text-[#0B6F6C] font-semibold hover:underline"
                     >
                       View All
                     </button>
                   </div>
 
-                  <div className="space-y-4">
-                    {applicants.map((applicant) => (
-                      <div
-                        key={applicant.id}
-                        className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5E7EB]"
-                      >
-                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-full bg-[#D1D5DB] flex items-center justify-center text-[#4B5563] font-bold text-lg">
-                              {applicant.name.charAt(0)}
+                  <div className="upcomingInterviews" id="upcomingInterviews">
+                    <h3 className="text-[15px] font-bold text-[#111827] mb-4">
+                      Upcoming Interviews
+                    </h3>
+                    <div className="space-y-4">
+                      {interviews.map((interview) => (
+                        <div
+                          key={interview.id}
+                          className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5E7EB]"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyle(interview.status)}`}
+                            >
+                              {interview.status}
+                            </span>
+                          </div>
+                          <h3 className="text-[14px] font-bold text-[#111827]">
+                            {interview.candidate}
+                          </h3>
+                          <p className="text-[12px] text-[#6B7280] mb-3 truncate">
+                            {interview.job}
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-2 mb-4">
+                            <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280]">
+                              <CalendarDays size={14} className="text-[#9CA3AF]" />
+                              {interview.date}
                             </div>
-                            <div>
-                              <h3 className="text-[15px] font-bold text-[#111827]">
-                                {applicant.name}
-                              </h3>
-                              <p className="text-[13px] text-[#6B7280]">Applied for: {applicant.job}</p>
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {applicant.skills.map((skill, idx) => (
-                                  <span key={idx} className="px-2 py-0.5 rounded-md bg-white border border-[#E5E7EB] text-[11px] text-[#6B7280]">
-                                    {skill}
-                                  </span>
-                                ))}
-                              </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280]">
+                              <Clock size={14} className="text-[#9CA3AF]" />
+                              {interview.time}
                             </div>
                           </div>
-                          
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button className="flex items-center gap-1.5 text-[12px] font-medium text-[#0B6F6C] hover:underline px-2 py-1">
-                              <ExternalLink size={14} />
-                              CV / Portfolio
-                            </button>
+
+                          <div className="flex items-center gap-2 pt-2 border-t border-[#E5E7EB]">
                             <button 
-                              onClick={() => navigate("/developer/profile")}
-                              className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-[12px] font-medium text-[#111827] hover:bg-gray-50"
+                              onClick={() => navigate("/company/interviews")}
+                              className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-[#111827] hover:bg-gray-50"
                             >
-                              View Profile
+                              View Details
                             </button>
                             <button 
                               onClick={() => navigate("/company/interviews")}
-                              className="px-3 py-1.5 rounded-lg bg-[#0B6F6C] text-white text-[12px] font-medium hover:bg-[#095c5a]"
+                              className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-[#111827] hover:bg-gray-50"
                             >
-                              Schedule Interview
-                            </button>
-                            <button className="px-3 py-1.5 rounded-lg bg-white border border-[#E5E7EB] text-[12px] font-medium text-[#EF4444] hover:bg-red-50">
-                              Reject
+                              Reschedule
                             </button>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                      <button 
+                        onClick={() => navigate("/company/interviews")}
+                        className="w-full py-2.5 rounded-xl border-2 border-dashed border-[#D1D5DB] text-[#6B7280] text-[13px] font-medium hover:border-[#0B6F6C] hover:text-[#0B6F6C] transition flex items-center justify-center gap-2"
+                      >
+                        <Plus size={16} />
+                        Schedule Interview
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Interview Results Section */}
+                  <div className="mt-8 pt-6 border-t border-[#E5E7EB]">
+                    <h3 className="text-[15px] font-bold text-[#111827] mb-4">
+                      Interview Results
+                    </h3>
+                    <div className="space-y-4">
+                      {interviewResults.map((result) => (
+                        <div
+                          key={result.id}
+                          className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5E7EB]"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-[14px] font-bold text-[#111827]">
+                              {result.developerName}
+                            </h4>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                result.status === "Accepted"
+                                  ? "bg-[#EAF8EE] text-[#22C55E]"
+                                  : result.status === "Rejected"
+                                  ? "bg-[#FDECEC] text-[#DC2626]"
+                                  : "bg-[#FEF3C7] text-[#B45309]"
+                              }`}
+                            >
+                              {result.status}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[#6B7280] mb-1">
+                            {result.jobTitle}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280] mb-3">
+                            <CalendarDays size={14} className="text-[#9CA3AF]" />
+                            {result.date}
+                          </div>
+
+                          {result.note && (
+                            <div className="mb-3 p-2.5 rounded-xl bg-white border border-[#E5E7EB] text-[11px] text-[#4B5563] break-words">
+                              <span className="font-semibold text-[#111827]">Note: </span>
+                              {result.note}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-2 border-t border-[#E5E7EB]">
+                            <button
+                              onClick={() => handleMarkAccepted(result.id)}
+                              className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-[#22C55E] hover:bg-emerald-50 transition"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleMarkRejected(result.id)}
+                              className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-red-600 hover:bg-red-50 transition"
+                            >
+                              Reject
+                            </button>
+                            <button
+                              onClick={() => handleAddNotes(result.id)}
+                              className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-[#6B7280] hover:bg-gray-50 transition"
+                            >
+                              {result.note ? "Edit Note" : "Add Note"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* 8) Suggested Developers Section */}
+              </div>
+
+              {/* Right Column */}
+              <div className="lg:col-span-4 space-y-6">
+                
+                {/* 4) Suggested Developers Section */}
                 <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB]">
                   <h2 className="text-[18px] font-bold text-[#111827] mb-6">
                     Suggested Developers
                   </h2>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
                     {suggestedDevs.map((dev) => (
                       <div
                         key={dev.id}
@@ -431,14 +495,18 @@ function CompanyDashboard() {
                               {dev.name.charAt(0)}
                             </div>
                             <div>
-                              <h3 className="text-[14px] font-bold text-[#111827]">{dev.name}</h3>
+                              <h3 className="text-[14px] font-bold text-[#111827]">
+                                {dev.name}
+                              </h3>
                               <div className="flex items-center gap-2">
                                 <span className="text-[11px] font-medium text-[#B45309] bg-[#FEF3C7] px-1.5 py-0.5 rounded">
                                   {dev.rank}
                                 </span>
                                 <div className="flex items-center gap-0.5 text-[#F59E0B]">
                                   <Star size={12} fill="currentColor" />
-                                  <span className="text-[11px] font-bold">{dev.rating}</span>
+                                  <span className="text-[11px] font-bold">
+                                    {dev.rating}
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -447,7 +515,10 @@ function CompanyDashboard() {
 
                         <div className="flex flex-wrap gap-1.5 mb-4">
                           {dev.skills.map((skill, idx) => (
-                            <span key={idx} className="px-2 py-0.5 rounded bg-white border border-[#E5E7EB] text-[10px] text-[#6B7280]">
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded bg-white border border-[#E5E7EB] text-[10px] text-[#6B7280]"
+                            >
                               {skill}
                             </span>
                           ))}
@@ -455,7 +526,10 @@ function CompanyDashboard() {
 
                         <p className="text-[12px] text-[#6B7280] mb-5 flex items-center gap-1.5">
                           <Clock size={14} className="text-[#9CA3AF]" />
-                          Availability: <span className="text-[#111827] font-medium">{dev.availability}</span>
+                          Availability:
+                          <span className="text-[#111827] font-medium">
+                            {dev.availability}
+                          </span>
                         </p>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -477,122 +551,6 @@ function CompanyDashboard() {
                   </div>
                 </div>
 
-              </div>
-
-              {/* Right Column (Side widgets) */}
-              <div className="lg:col-span-4 space-y-6">
-                
-                {/* 6) Quick Actions Section */}
-                <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB]">
-                  <h2 className="text-[18px] font-bold text-[#111827] mb-5">
-                    Quick Actions
-                  </h2>
-                  <div className="space-y-3">
-                    <button 
-                      onClick={() => navigate("/company/post-job")}
-                      className="w-full h-12 rounded-xl bg-[#0B6F6C] text-white text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#095c5a] transition"
-                    >
-                      <Plus size={18} />
-                      Post New Job
-                    </button>
-                    <button 
-                      onClick={() => navigate("/company/jobs")}
-                      className="w-full h-12 rounded-xl border border-[#E5E7EB] text-[#111827] text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 transition"
-                    >
-                      <Briefcase size={18} />
-                      View My Job Posts
-                    </button>
-                    <button 
-                      onClick={() => navigate("/company/applicants")}
-                      className="w-full h-12 rounded-xl border border-[#E5E7EB] text-[#111827] text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 transition"
-                    >
-                      <Users size={18} />
-                      View Applicants
-                    </button>
-                    <button 
-                      onClick={() => navigate("/developers")}
-                      className="w-full h-12 rounded-xl border border-[#E5E7EB] text-[#111827] text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 transition"
-                    >
-                      <UserPlus size={18} />
-                      Browse Developers
-                    </button>
-                    <button 
-                      onClick={() => navigate("/company/interviews")}
-                      className="w-full h-12 rounded-xl border border-[#E5E7EB] text-[#111827] text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 transition"
-                    >
-                      <CalendarDays size={18} />
-                      Schedule Interview
-                    </button>
-                  </div>
-                </div>
-
-                {/* 5) Interviews Preview Section */}
-                <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB]">
-                  <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-[17px] font-bold text-[#111827]">
-                      Interviews Preview
-                    </h2>
-                    <button
-                      onClick={() => navigate("/company/interviews")}
-                      className="text-[13px] text-[#0B6F6C] font-semibold hover:underline"
-                    >
-                      View All
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {interviews.map((interview) => (
-                      <div
-                        key={interview.id}
-                        className="p-4 rounded-2xl bg-[#F8FAFC] border border-[#E5E7EB]"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyle(interview.status)}`}>
-                            {interview.status}
-                          </span>
-                        </div>
-                        <h3 className="text-[14px] font-bold text-[#111827]">
-                          {interview.candidate}
-                        </h3>
-                        <p className="text-[12px] text-[#6B7280] mb-3 truncate">{interview.job}</p>
-
-                        <div className="grid grid-cols-2 gap-2 mb-4">
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280]">
-                            <CalendarDays size={14} className="text-[#9CA3AF]" />
-                            {interview.date}
-                          </div>
-                          <div className="flex items-center gap-1.5 text-[11px] text-[#6B7280]">
-                            <Clock size={14} className="text-[#9CA3AF]" />
-                            {interview.time}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-2 border-t border-[#E5E7EB]">
-                          <button 
-                            onClick={() => navigate("/company/interviews")}
-                            className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-[#111827] hover:bg-gray-50"
-                          >
-                            View Details
-                          </button>
-                          <button 
-                            onClick={() => navigate("/company/interviews")}
-                            className="flex-1 py-1.5 rounded-lg border border-[#E5E7EB] bg-white text-[11px] font-semibold text-[#111827] hover:bg-gray-50"
-                          >
-                            Reschedule
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    <button 
-                      onClick={() => navigate("/company/interviews")}
-                      className="w-full py-2.5 rounded-xl border-2 border-dashed border-[#D1D5DB] text-[#6B7280] text-[13px] font-medium hover:border-[#0B6F6C] hover:text-[#0B6F6C] transition flex items-center justify-center gap-2"
-                    >
-                      <Plus size={16} />
-                      Schedule Interview
-                    </button>
-                  </div>
-                </div>
-
                 {/* 7) Recent Activity Section */}
                 <div className="bg-white rounded-2xl p-6 border border-[#E5E7EB]">
                   <h2 className="text-[17px] font-bold text-[#111827] mb-5">
@@ -602,24 +560,30 @@ function CompanyDashboard() {
                     {activity.map((item) => (
                       <div key={item.id} className="flex gap-3">
                         <div className="mt-1">
-                          <div className={`w-2 h-2 rounded-full ${
-                            item.type === 'new' ? 'bg-[#0B6F6C]' : 
-                            item.type === 'update' ? 'bg-[#4F7CFF]' : 
-                            'bg-[#D1D5DB]'
-                          }`}></div>
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              item.type === "new"
+                                ? "bg-[#0B6F6C]"
+                                : item.type === "update"
+                                ? "bg-[#4F7CFF]"
+                                : "bg-[#D1D5DB]"
+                            }`}
+                          ></div>
                         </div>
                         <div>
                           <p className="text-[13px] text-[#111827] leading-tight font-medium">
                             {item.text}
                           </p>
-                          <p className="text-[11px] text-[#9CA3AF] mt-1">{item.time}</p>
+                          <p className="text-[11px] text-[#9CA3AF] mt-1">
+                            {item.time}
+                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-
               </div>
+
             </div>
           </div>
         </div>

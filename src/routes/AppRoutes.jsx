@@ -25,7 +25,6 @@ import ClientProfile from "../pages/client/dashboard/ClientProfile";
 import PostNewJob from "../pages/client/job-post/PostNewJob";
 import MyJobPosts from "../pages/client/job-post/MyJobPosts";
 import ClientApplicants from "../pages/client/job-post/Applicants";
-import ClientPostJobDetails from "../pages/client/job-post/JobDetails";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
 
@@ -33,8 +32,10 @@ import ProjectDetails from "../pages/client/ProjectDetails";
 import CompanyProfile from "../pages/company/dashboard/CompanyProfile";
 import CompanyDashboard from "../pages/company/CompanyDashboard";
 import PostJob from "../pages/company/PostJob";
+import JobManagement from "../pages/company/JobManagement";
 import Applicants from "../pages/company/Applicants";
 import Interviews from "../pages/company/Interviews";
+import AutoSuggestTeam from "../pages/company/AutoSuggestTeam";
 
 import TeamDashboard from "../pages/team-leader/TeamDashboard";
 import Team from "../pages/team-leader/Team";
@@ -57,7 +58,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes - Real app for Netlify and localhost */}
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Home/>} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
 
@@ -91,7 +92,7 @@ function AppRoutes() {
           <Route path="/client/job-post" element={<PostNewJob />} />
           <Route path="/client/my-jobs" element={<MyJobPosts />} />
 
-          <Route path="/client/job/:id" element={<ClientPostJobDetails />} />
+          <Route path="/client/job/:id" element={<ClientJobDetails />} />
           <Route path="/client/job/:id/applicants" element={<ClientApplicants />}/>
           <Route path="/client/build-team" element={<BuildTeam />} />
           <Route path="/client/project/:id" element={<ProjectDetails />} />
@@ -101,9 +102,11 @@ function AppRoutes() {
         <Route element={<RoleRoute role="company" />}>
           <Route path="/company/profile" element={<CompanyProfile />} />
           <Route path="/company/dashboard" element={<CompanyDashboard />} />
+          <Route path="/company/jobs" element={<JobManagement />} />
           <Route path="/company/post-job" element={<PostJob />} />
           <Route path="/company/applicants" element={<Applicants />} />
           <Route path="/company/interviews" element={<Interviews />} />
+          <Route path="/company/auto-suggest-team" element={<AutoSuggestTeam />} />
         </Route>
 
         {/* Team Leader routes */}
