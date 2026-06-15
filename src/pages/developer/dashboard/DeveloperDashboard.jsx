@@ -264,10 +264,10 @@ function DeveloperDashboard() {
             <section>
               <div className="mb-6">
                 <h1 className="text-[18px] md:text-[20px] font-bold text-[#111827]">
-                  {dashboardData?.greeting || `Hello ${userFirstName}, manage your work.`}
+                 {dashboardData?.greeting?.title || `Hello ${userFirstName}, manage your work`}
                 </h1>
                 <p className="mt-1 text-[13px] md:text-[14px] text-[#6B7280]">
-                  {dashboardData?.subtitle || "Track your projects, applications, and performance metrics."}
+                  {dashboardData?.greeting?.subtitle || "Track your projects"}
                 </p>
               </div>
 
