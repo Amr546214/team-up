@@ -17,6 +17,7 @@ import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 import DeveloperDashboard from "../pages/developer/dashboard/DeveloperDashboard";
 import DevProfile from "../pages/developer/dashboard/DevProfile";
 import ProjectsList from "../pages/developer/ProjectsList";
+import ClientJobDetails from "../pages/client/ClientJobDetails";
 import DeveloperProjectDetails from "../pages/developer/DeveloperProjectDetails";
 import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
@@ -38,10 +39,10 @@ import Interviews from "../pages/company/Interviews";
 import AutoSuggestTeam from "../pages/company/AutoSuggestTeam";
 
 import TeamDashboard from "../pages/team-leader/TeamDashboard";
-import Team from "../pages/team-leader/Team";
-import Tasks from "../pages/team-leader/Tasks";
-import Progress from "../pages/team-leader/Progress";
-import Reports from "../pages/team-leader/Reports";
+// import Team from "../pages/team-leader/Team";
+// import Tasks from "../pages/team-leader/Tasks";
+// import Progress from "../pages/team-leader/Progress";
+// import Reports from "../pages/team-leader/Reports";
 
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
@@ -112,10 +113,10 @@ function AppRoutes() {
         {/* Team Leader routes */}
         <Route element={<RoleRoute role="team-leader" />}>
           <Route path="/team-leader/dashboard" element={<TeamDashboard />} />
-          <Route path="/team-leader/team" element={<Team />} />
-          <Route path="/team-leader/tasks" element={<Tasks />} />
-          <Route path="/team-leader/progress" element={<Progress />} />
-          <Route path="/team-leader/reports" element={<Reports />} />
+          {/* <Route path="/team-leader/team" element={<Team />} /> */}
+          {/* <Route path="/team-leader/tasks" element={<Tasks />} /> */}
+          {/* <Route path="/team-leader/progress" element={<Progress />} /> */}
+          {/* <Route path="/team-leader/reports" element={<Reports />} /> */}
         </Route>
 
         {/* Admin routes */}
