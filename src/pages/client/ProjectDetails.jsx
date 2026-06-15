@@ -1,16 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../components/common/Header";
-import { apiRequest } from "../../lib/api.js";
 
 import {
   ArrowLeft,
   CalendarDays,
+  MapPin,
+  DollarSign,
+  Users,
   CheckCircle2,
-  AlertCircle,
-  MessageSquare,
   Clock,
-  Plus,
 } from "lucide-react";
 function ProjectDetails() {
   const navigate = useNavigate();
