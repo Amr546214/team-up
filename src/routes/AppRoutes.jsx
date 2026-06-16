@@ -17,7 +17,6 @@ import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 import DeveloperDashboard from "../pages/developer/dashboard/DeveloperDashboard";
 import DevProfile from "../pages/developer/dashboard/DevProfile";
 import ProjectsList from "../pages/developer/ProjectsList";
-import ClientJobDetails from "../pages/client/ClientJobDetails";
 import DeveloperProjectDetails from "../pages/developer/DeveloperProjectDetails";
 import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
@@ -93,7 +92,7 @@ function AppRoutes() {
           <Route path="/client/job-post" element={<PostNewJob />} />
           <Route path="/client/my-jobs" element={<MyJobPosts />} />
 
-          <Route path="/client/job/:id" element={<ClientJobDetails />} />
+          <Route path="/client/job/:id" element={<ProjectDetails />} />
           <Route path="/client/job/:id/applicants" element={<ClientApplicants />}/>
           <Route path="/client/build-team" element={<BuildTeam />} />
           <Route path="/client/project/:id" element={<ProjectDetails />} />

@@ -34,6 +34,7 @@ const ROLE_REDIRECTS = {
   developer: "/developer/dashboard",
   company: "/company/profile",
   admin: "/admin/dashboard",
+  "team-leader": "/team-leader/dashboard",
 };
 
 /**
