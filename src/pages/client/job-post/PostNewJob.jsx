@@ -275,7 +275,7 @@ const buildPayload = () => ({
           <div className="flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={() => navigate("/client/profile")}
+              onClick={() => navigate("/client/dashboard")}
               className="text-[#111827] hover:opacity-80 shrink-0"
             >
               <ArrowLeft size={18} />

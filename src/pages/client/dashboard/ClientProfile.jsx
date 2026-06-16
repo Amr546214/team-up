@@ -85,29 +85,32 @@ function ClientProfile() {
     };
   };
 
-  const apiRequest = async (endpoint, options = {}) => {
-    const headers = {
-      ...getAuthHeaders(),
-      ...(options.body instanceof FormData
-        ? {}
-        : { "Content-Type": "application/json" }),
-      ...options.headers,
-    };
-
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      throw new Error(data?.message || "Request failed");
-    }
-
-    return data;
+const apiRequest = async (endpoint, options = {}) => {
+  const headers = {
+    ...getAuthHeaders(),
+    ...(options.body instanceof FormData
+      ? {}
+      : { "Content-Type": "application/json" }),
+    ...options.headers,
   };
 
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(
+      data?.message ||
+      data?.error_message ||
+      `Request failed with status ${res.status}`
+    );
+  }
+
+  return data?.data || data;
+};
   const normalizePaymentMethods = (data) => {
     const list = data?.data || data?.paymentMethods || data || [];
     if (!Array.isArray(list)) return [];
@@ -167,51 +170,53 @@ function ClientProfile() {
           apiRequest("/rating/client_rating"),
         ]);
 
-      if (profileRes.status === "fulfilled") {
-        const profileData = profileRes.value?.data || profileRes.value || {};
-        const user = profileData.user || {};
-        const clientProfile = profileData.clientProfile || {};
-        const accountSummary = profileData.accountSummary || {};
+ if (profileRes.status === "fulfilled") {
+  const profileData = profileRes.value || {};
+  const user = profileData.user || {};
+  const clientProfile = profileData.clientProfile || profileData.profile || profileData;
+  const accountSummary = profileData.accountSummary || {};
 
-        const loadedProfile = {
-          fullName: clientProfile.fullName || user.fullName || "",
-          userName: clientProfile.userName || "",
-          email: user.email || clientProfile.email || "",
-          phoneNumber: clientProfile.phone || clientProfile.phoneNumber || "",
-          country: clientProfile.country || "Egypt",
-          bio: clientProfile.bio || "",
-          photo:
-            clientProfile.profileImage ||
-            clientProfile.profilePicture ||
-            clientProfile.photo ||
-            "",
-          skills: clientProfile.skills || [],
-          servicesWanted: clientProfile.servicesWanted || [],
-        };
+  const loadedProfile = {
+    fullName: clientProfile.fullName || user.fullName || "",
+    userName: clientProfile.userName || clientProfile.username || "",
+    email: user.email || clientProfile.email || "",
+    phoneNumber: String(clientProfile.phone || clientProfile.phoneNumber || "")
+      .replace(COUNTRY_CODES[clientProfile.country || "Egypt"] || "+20", ""),
+    country: clientProfile.country || "Egypt",
+    bio: clientProfile.bio || "",
+    photo:
+      clientProfile.profileImage ||
+      clientProfile.profilePicture ||
+      clientProfile.photo ||
+      "",
+    skills: clientProfile.skills || [],
+    servicesWanted: clientProfile.servicesWanted || [],
+  };
 
-        setFormData(loadedProfile);
-        setSavedProfile({
-          ...loadedProfile,
-          phoneCode: COUNTRY_CODES[loadedProfile.country] || "+20",
-        });
-        setPhoneCode(COUNTRY_CODES[loadedProfile.country] || "+20");
-        setIsEditing(false);
+  setFormData(loadedProfile);
+  setSavedProfile({
+    ...loadedProfile,
+    phoneCode: COUNTRY_CODES[loadedProfile.country] || "+20",
+  });
+  setPhoneCode(COUNTRY_CODES[loadedProfile.country] || "+20");
+  setIsEditing(false);
 
-        setAccountDetails({
-          accountType: "Client",
-          totalTeamsBuilt: accountSummary.totalTeamsBuilt || 0,
-          averageRating: accountSummary.averageRating || 0,
-          clientRanking: accountSummary.ranking || "Bronze",
-        });
+  setAccountDetails({
+    accountType: "Client",
+    totalTeamsBuilt: accountSummary.totalTeamsBuilt || 0,
+    averageRating: accountSummary.averageRating || 0,
+    clientRanking: accountSummary.ranking || "Bronze",
+  });
 
-        saveUserProfile({
-          email: loadedProfile.email,
-          role: "client",
-          name: loadedProfile.fullName,
-          avatarUrl: loadedProfile.photo,
-        });
-        dispatchAuthChanged();
-      }
+  saveUserProfile({
+    email: loadedProfile.email,
+    role: "client",
+    name: loadedProfile.fullName,
+    avatarUrl: loadedProfile.photo,
+  });
+
+  dispatchAuthChanged();
+}
 
       if (paymentsRes.status === "fulfilled") {
         setPaymentMethods(normalizePaymentMethods(paymentsRes.value));
@@ -296,16 +301,15 @@ function ClientProfile() {
 
     try {
       await apiRequest("/client/update-profile", {
-        method: "PATCH",
-        body: JSON.stringify({
-          fullName: formData.fullName,
-          userName: formData.userName,
-          phone: `${phoneCode}${formData.phoneNumber}`,
-          country: formData.country,
-          bio: formData.bio,
-          skills: formData.skills || [],
-          servicesWanted: formData.servicesWanted || [],
-        }),
+      method: "PATCH",
+      body: JSON.stringify({
+      fullName: formData.fullName,
+      phone: `${phoneCode}${formData.phoneNumber}`,
+      country: formData.country,
+      bio: formData.bio,
+      servicesWanted: formData.servicesWanted || [],
+      skills: formData.skills || [],
+}),
       });
 
       const imageResponse = await uploadProfileImage();
@@ -492,7 +496,6 @@ function ClientProfile() {
 
     return <CreditCard size={18} className="text-[#667085]" />;
   };
-
   const renderStars = (count, size = 18) => {
     return (
       <div className="flex items-center gap-1">

@@ -22,12 +22,16 @@ import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
 
 import ClientProfile from "../pages/client/dashboard/ClientProfile";
+import ClientDashboard from "../pages/client/dashboard/ClientDashboard";
 import PostNewJob from "../pages/client/job-post/PostNewJob";
 import MyJobPosts from "../pages/client/job-post/MyJobPosts";
 import ClientJobDetails from "../pages/client/ClientJobDetails";
 import ClientApplicants from "../pages/client/job-post/Applicants";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
+import BuildTeamOptions from "../pages/client/BuildTeamOptions";
+import ManualBuildTeam from "../pages/client/ManualBuildTeam";
+import AutoSuggestTeam from "../pages/client/AutoSuggestTeam";
 
 
 import CompanyProfile from "../pages/company/dashboard/CompanyProfile";
@@ -36,7 +40,7 @@ import PostJob from "../pages/company/PostJob";
 import JobManagement from "../pages/company/JobManagement";
 import Applicants from "../pages/company/Applicants";
 import Interviews from "../pages/company/Interviews";
-import AutoSuggestTeam from "../pages/company/AutoSuggestTeam";
+import CompanyAutoSuggestTeam from "../pages/company/AutoSuggestTeam";
 
 import TeamDashboard from "../pages/team-leader/TeamDashboard";
 
@@ -85,13 +89,18 @@ function AppRoutes() {
 
         {/* Client routes */}
         <Route element={<RoleRoute role="client" />}>
+          <Route path="/client/dashboard" element={<ClientDashboard />} />
           <Route path="/client/profile" element={<ClientProfile />} />
           <Route path="/client/job-post" element={<PostNewJob />} />
           <Route path="/client/my-jobs" element={<MyJobPosts />} />
 
-          <Route path="/client/job/:id" element={<ProjectDetails />} />
+         
+          <Route path="/client/job/:id" element={<ClientJobDetails />} />
           <Route path="/client/job/:id/applicants" element={<ClientApplicants />}/>
-          <Route path="/client/build-team" element={<BuildTeam />} />
+          <Route path="/client/build-team" element={<BuildTeamOptions />} />
+          <Route path="/client/build-team/manual" element={<ManualBuildTeam />} />
+          <Route path="/client/build-team/ai" element={<BuildTeam />} />
+          <Route path="/client/build-team/auto" element={<AutoSuggestTeam />} />
           <Route path="/client/project/:id" element={<ProjectDetails />} />
         </Route>
 
@@ -103,7 +112,7 @@ function AppRoutes() {
           <Route path="/company/post-job" element={<PostJob />} />
           <Route path="/company/applicants" element={<Applicants />} />
           <Route path="/company/interviews" element={<Interviews />} />
-          <Route path="/company/auto-suggest-team" element={<AutoSuggestTeam />} />
+          <Route path="/company/auto-suggest-team" element={<CompanyAutoSuggestTeam />} />
         </Route>
 
         {/* Team Leader routes */}
