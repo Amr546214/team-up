@@ -73,16 +73,31 @@ function mapPriority(value) {
 
 function PostNewJob() {
   const navigate = useNavigate();
-
   const [jobData, setJobData] = useState({
-    jobTitle: "",
-    description: "",
-    budget: "",
-    estimatedDuration: "",
-    workType: "Freelance / Contract",
-    teamSize: 1,
-    priority: "best quality",
-  });
+  jobTitle: "",
+  description: "",
+  budget: "",
+  estimatedDuration: "",
+  deadline: "",
+  workType: "Freelance / Contract",
+  teamSize: 1,
+  priority: "best quality",
+});
+
+const buildPayload = () => ({
+  title: jobData.jobTitle.trim(),
+  description: jobData.description.trim(),
+  skills: [...skills],
+  budget: Number(String(jobData.budget).replace(/[^0-9]/g, "")) || 0,
+  estimatedDuration: jobData.estimatedDuration.trim(),
+  deadline: jobData.deadline
+    ? new Date(jobData.deadline).toISOString()
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  workType: mapWorkType(jobData.workType),
+  teamSize: Number(jobData.teamSize) || 1,
+  priority: mapPriority(jobData.priority),
+  workMode: "remote",
+});
 
   const [skills, setSkills] = useState([]);
   const [newSkill, setNewSkill] = useState("");
@@ -104,16 +119,6 @@ function PostNewJob() {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
- const buildPayload = () => ({
-  title: jobData.jobTitle.trim(),
-  description: jobData.description.trim(),
-  skills: [...skills],
-  budget: Number(String(jobData.budget).replace(/[^0-9]/g, "")) || 0,
-  estimatedDuration: jobData.estimatedDuration.trim(),
-  workType: mapWorkType(jobData.workType),
-  workMode: "remote",
-});
 
   const normalizeJobForModal = (apiJob) => ({
     id: apiJob?.jobId || Date.now(),

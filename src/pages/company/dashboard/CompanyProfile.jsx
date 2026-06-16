@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Users,
   MapPin,
@@ -15,6 +15,119 @@ import {
 } from "lucide-react";
 import Header from "../../../components/common/Header";
 import teamupLogo from "../../../assets/logo/teamup-logo.png";
+
+
+const API_BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
+
+const getCompanyToken = () => {
+  const possibleKeys = [
+    "company_access_token",
+    "accessToken",
+    "token",
+    "authToken",
+    "teamup_token",
+    "teamup_access_token",
+    "supabase.auth.token",
+  ];
+
+  for (const key of possibleKeys) {
+    const value = localStorage.getItem(key);
+
+    if (!value) continue;
+
+    try {
+      const parsed = JSON.parse(value);
+
+      if (parsed?.access_token) return parsed.access_token;
+      if (parsed?.session?.access_token) return parsed.session.access_token;
+      if (parsed?.currentSession?.access_token) return parsed.currentSession.access_token;
+    } catch {
+      if (value.split(".").length === 3) return value;
+    }
+  }
+
+  return null;
+};
+
+const apiRequest = async (endpoint, options = {}) => {
+  const token = getCompanyToken();
+
+  const headers = {
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    console.log("API ERROR RESPONSE:", data);
+throw new Error(data?.message || data?.error || JSON.stringify(data) || "Request failed");
+  }
+
+  return data;
+};
+
+const normalizeCompanyProfile = (profile = {}) => ({
+  name: profile.companyName || profile.name || "TeamUP",
+  type: profile.industry || profile.type || "Software house",
+  size: profile.companySize || profile.size || "Medium (50-200 employees)",
+  location: profile.location || "Bani-sueif",
+  website: profile.website || "https://teamup.com",
+  email: profile.contactEmail || profile.email || "contact@teamup.com",
+  logo: profile.logo || profile.logoUrl || profile.image || profile.profileImage || teamupLogo,
+});
+
+const normalizeJob = (job = {}) => ({
+  id: job.id || job._id || Date.now(),
+  title: job.title || "Untitled Job",
+  postedTime: job.postedTime || "Posted recently",
+  type: job.type === "full-time" ? "Full-Time" : job.type === "part-time" ? "Part-Time" : job.type || "Full-Time",
+  workMode: job.workMode === "remote" ? "Remote" : job.workMode === "hybrid" ? "Hybrid" : job.workMode === "onsite" ? "Onsite" : job.workMode || "Remote",
+  applicationsCount: job.applicationsCount || job.applications || job.totalApplications || 0,
+  status: job.status || "active",
+  description: job.description || "",
+  requirements: Array.isArray(job.skills) ? job.skills.join(", ") : job.requirements || "",
+  skills: job.skills || [],
+  location: job.location || "",
+  budgetMin: job.budgetMin || 0,
+  budgetMax: job.budgetMax || 0,
+  estimatedDuration: job.estimatedDuration || "",
+});
+
+const normalizeInterview = (interview = {}) => {
+  const dateObj = interview.scheduledAt ? new Date(interview.scheduledAt) : null;
+  const hasValidDate = dateObj && !Number.isNaN(dateObj.getTime());
+
+  return {
+    id: interview.id || interview._id || Date.now(),
+    candidateName: interview.candidateName || "Candidate",
+    result: interview.status || interview.result || "Passed",
+    title: interview.title || `${interview.interviewType || "Technical"} Interview - ${interview.jobTitle || "Candidate"}`,
+    feedback: interview.feedback || "",
+    date: hasValidDate ? dateObj.toLocaleDateString() : interview.date || "",
+    time: hasValidDate ? dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : interview.time || "",
+    mode: interview.mode || "Onsite",
+    notes: interview.notes || "",
+    meetingLink: interview.meetingLink || "",
+  };
+};
+
+const toApiDate = (date, time) => {
+  const value = `${date || ""} ${time || ""}`.trim();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+};
 
 function CompanyProfile() {
   /* =========================
@@ -42,7 +155,7 @@ function CompanyProfile() {
     ],
   });
 
-  const [companyStats] = useState({
+  const [companyStats, setCompanyStats] = useState({
     activeJobs: 12,
     closedJobs: 12,
     totalApplications: 200,
@@ -187,6 +300,62 @@ function CompanyProfile() {
 
   const fileInputRef = useRef(null);
 
+
+  const loadCompanyDashboard = async () => {
+    try {
+      const data = await apiRequest("/company/my-dashboard");
+      const profile = data?.profile || data?.data?.profile || {};
+      const stats = data?.stats || data?.data?.stats || {};
+      const jobs = data?.postedJobs || data?.data?.postedJobs || [];
+
+      const mappedCompany = normalizeCompanyProfile(profile);
+      setCompany(mappedCompany);
+      setEditProfileForm({ ...mappedCompany, logoFile: null });
+
+      setAboutCompany({
+        description: profile.description || profile.about || aboutCompany.description,
+        projectTypes: profile.projectTypes || aboutCompany.projectTypes,
+      });
+
+      setAboutForm({
+        description: profile.description || profile.about || aboutCompany.description,
+        projectTypes: profile.projectTypes || aboutCompany.projectTypes,
+        newTag: "",
+      });
+
+      setCompanyStats({
+        activeJobs: stats.activeJobs ?? 0,
+        closedJobs: stats.closedJobs ?? 0,
+        totalApplications: stats.totalApplications ?? 0,
+      });
+
+      setPostedJobs(jobs.map(normalizeJob));
+    } catch (error) {
+      console.error("Failed to load company dashboard:", error);
+    }
+  };
+
+  const loadInterviews = async () => {
+    try {
+      const data = await apiRequest("/company/interviews");
+      const upcoming = data?.upcoming || data?.data?.upcoming || [];
+      const past = data?.past || data?.data?.past || [];
+
+      setInterviews({
+        upcoming: upcoming.map(normalizeInterview),
+        past: past.map(normalizeInterview),
+      });
+    } catch (error) {
+      console.error("Failed to load interviews:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadCompanyDashboard();
+    loadInterviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* =========================
      Helpers
   ========================== */
@@ -297,10 +466,10 @@ function CompanyProfile() {
   /* =========================
      Interaction: Save Profile Changes
   ========================== */
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
 
-    setCompany({
+    const updatedCompany = {
       name: editProfileForm.name,
       type: editProfileForm.type,
       size: editProfileForm.size,
@@ -308,9 +477,38 @@ function CompanyProfile() {
       website: editProfileForm.website,
       email: editProfileForm.email,
       logo: editProfileForm.logo,
-    });
+    };
 
+    setCompany(updatedCompany);
     setShowEditProfileModal(false);
+
+    try {
+      await apiRequest("/company/update-profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          companyName: editProfileForm.name,
+          companySize: editProfileForm.size,
+        
+          website: editProfileForm.website,
+          contactEmail: editProfileForm.email,
+          location: editProfileForm.location,
+        }),
+      });
+
+      if (editProfileForm.logoFile) {
+        const formData = new FormData();
+        formData.append("image", editProfileForm.logoFile);
+
+        await apiRequest("/company/update-logo", {
+          method: "PATCH",
+          body: formData,
+        });
+      }
+
+      loadCompanyDashboard();
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+    }
   };
 
   /* =========================
@@ -400,15 +598,27 @@ function CompanyProfile() {
   /* =========================
      Interaction: Save About Changes
   ========================== */
-  const handleSaveAbout = (e) => {
+  const handleSaveAbout = async (e) => {
     e.preventDefault();
 
-    setAboutCompany({
+    const updatedAbout = {
       description: aboutForm.description,
       projectTypes: aboutForm.projectTypes.filter((tag) => tag.trim() !== ""),
-    });
+    };
 
+    setAboutCompany(updatedAbout);
     setShowAboutModal(false);
+
+    try {
+      await apiRequest("/company/update-about", {
+        method: "PATCH",
+        body: JSON.stringify(updatedAbout),
+      });
+
+      loadCompanyDashboard();
+    } catch (error) {
+      console.error("Failed to update about:", error);
+    }
   };
 
   /* =========================
@@ -438,9 +648,16 @@ function CompanyProfile() {
   /* =========================
      Interaction: Open View Job Modal
   ========================== */
-  const handleOpenViewJobModal = (job) => {
+  const handleOpenViewJobModal = async (job) => {
     setSelectedJob(job);
     setShowViewJobModal(true);
+
+    try {
+      const data = await apiRequest(`/company/jobs/${job.id}`);
+      setSelectedJob(normalizeJob(data?.job || data?.data || data));
+    } catch (error) {
+      console.error("Failed to load job details:", error);
+    }
   };
 
   /* =========================
@@ -507,7 +724,7 @@ function CompanyProfile() {
   /* =========================
      Interaction: Save New Job
   ========================== */
-  const handleSaveNewJob = (e) => {
+  const handleSaveNewJob = async (e) => {
     e.preventDefault();
 
     const newJob = {
@@ -517,13 +734,39 @@ function CompanyProfile() {
 
     setPostedJobs((prev) => [newJob, ...prev]);
     setShowPostJobModal(false);
+
+    try {
+      await apiRequest("/company/jobs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: jobForm.title,
+          description: jobForm.description,
+          type: jobForm.type.toLowerCase(),
+          workMode: jobForm.workMode.toLowerCase(),
+          location: jobForm.workMode === "Remote" ? "" : company.location,
+          skills: jobForm.requirements
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter(Boolean),
+          budgetMin: 0,
+          budgetMax: 0,
+          estimatedDuration: "",
+        }),
+      });
+
+      loadCompanyDashboard();
+    } catch (error) {
+      console.error("Failed to create job:", error);
+    }
   };
 
   /* =========================
      Interaction: Save Edited Job
   ========================== */
-  const handleSaveEditedJob = (e) => {
+  const handleSaveEditedJob = async (e) => {
     e.preventDefault();
+
+    const jobId = selectedJob.id;
 
     setPostedJobs((prev) =>
       prev.map((job) =>
@@ -533,19 +776,58 @@ function CompanyProfile() {
 
     setSelectedJob(null);
     setShowEditJobModal(false);
+
+    try {
+      await apiRequest(`/company/jobs/${jobId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: jobForm.title,
+          description: jobForm.description,
+          type: jobForm.type.toLowerCase(),
+          workMode: jobForm.workMode.toLowerCase(),
+          location: jobForm.workMode === "Remote" ? "" : company.location,
+          skills: jobForm.requirements
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter(Boolean),
+          budgetMin: selectedJob.budgetMin || 0,
+          budgetMax: selectedJob.budgetMax || 0,
+          estimatedDuration: selectedJob.estimatedDuration || "",
+        }),
+      });
+
+      loadCompanyDashboard();
+    } catch (error) {
+      console.error("Failed to update job:", error);
+    }
   };
 
   /* =========================
      Interaction: Confirm Close Job
   ========================== */
-  const handleConfirmCloseJob = () => {
+  const handleConfirmCloseJob = async () => {
+    
+    const jobId = selectedJob.jobId || selectedJob.id;
+    const nextStatus = selectedJob.status === "closed" ? "active" : "closed";
+
     setPostedJobs((prev) =>
       prev.map((job) =>
-        job.id === selectedJob.id ? { ...job, status: "closed" } : job
+        job.id === selectedJob.id ? { ...job, status: nextStatus } : job
       )
     );
     setSelectedJob(null);
     setShowCloseJobModal(false);
+
+    try {
+      await apiRequest(`/company/jobs/${jobId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+
+      loadCompanyDashboard();
+    } catch (error) {
+      console.error("Failed to update job status:", error);
+    }
   };
 
   /* =========================
@@ -588,7 +870,7 @@ function CompanyProfile() {
   /* =========================
      Interaction: Save New Interview
   ========================== */
-  const handleSaveInterview = (e) => {
+  const handleSaveInterview = async (e) => {
     e.preventDefault();
 
     const newInterview = {
@@ -608,6 +890,26 @@ function CompanyProfile() {
     }));
 
     setShowScheduleInterviewModal(false);
+
+    try {
+      await apiRequest("/company/interviews", {
+        method: "POST",
+       body: JSON.stringify({
+  candidateName: interviewForm.candidateName,
+  jobTitle: interviewForm.jobTitle,
+  interviewType: interviewForm.interviewType.toLowerCase(),
+  mode:
+    interviewForm.mode.toLowerCase() === "online"
+      ? "remote"
+      : interviewForm.mode.toLowerCase(),
+  scheduledAt: toApiDate(interviewForm.date, interviewForm.time),
+}),
+      });
+
+      loadInterviews();
+    } catch (error) {
+      console.error("Failed to schedule interview:", error);
+    }
   };
 
   /* =========================
@@ -697,10 +999,12 @@ function CompanyProfile() {
   /* =========================
      Interaction: Save Rescheduled Interview
   ========================== */
-  const handleSaveRescheduledInterview = (e) => {
+  const handleSaveRescheduledInterview = async (e) => {
     e.preventDefault();
 
     if (selectedInterview) {
+      const interviewId = selectedInterview.id;
+
       setInterviews((prev) => ({
         ...prev,
         upcoming: prev.upcoming.map((item) =>
@@ -721,6 +1025,22 @@ function CompanyProfile() {
 
       setSelectedInterview(null);
       setShowScheduleInterviewModal(false);
+
+      try {
+        await apiRequest(`/company/interviews/${interviewId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            scheduledAt: toApiDate(interviewForm.date, interviewForm.time),
+            mode: interviewForm.mode.toLowerCase(),
+            interviewType: interviewForm.interviewType.toLowerCase(),
+          }),
+        });
+
+        loadInterviews();
+      } catch (error) {
+        console.error("Failed to update interview:", error);
+      }
+
       return;
     }
 
@@ -949,9 +1269,9 @@ function CompanyProfile() {
           </div>
 
           <div className="mt-4 space-y-3">
-            {postedJobs.map((job) => (
+           {postedJobs.map((job, index) => (
               <div
-                key={job.id}
+               key={`${job.id || job._id || job.jobId || job.title || "job"}-${index}`}
                 className="md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1.4fr] md:gap-4 px-2 py-3 rounded-[10px] hover:bg-[#FAFAFA] transition"
               >
                 <div>
@@ -1015,9 +1335,9 @@ function CompanyProfile() {
                   <button
                     onClick={() => handleOpenCloseJobModal(job)}
                     className="text-[#EF4444] hover:underline disabled:text-[#D1D5DB] disabled:no-underline"
-                    disabled={job.status === "closed"}
+                    
                   >
-                    Close
+                    {job.status === "closed" ? "Open" : "Close"}
                   </button>
                 </div>
               </div>
