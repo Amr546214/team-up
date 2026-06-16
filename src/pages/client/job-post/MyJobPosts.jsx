@@ -93,7 +93,7 @@ export default function MyJobPosts() {
     totalPages: 1,
   });
 
-  const [detailsJob, setDetailsJob] = useState(null);
+  // const [detailsJob, setDetailsJob] = useState(null);
   const [editJob, setEditJob] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
   const [isLoading, setIsLoading] = useState(true);
@@ -259,7 +259,7 @@ export default function MyJobPosts() {
         throw new Error(result?.message || "Failed to delete job");
       }
 
-      if (detailsJob?.jobId === jobId) setDetailsJob(null);
+      // if (detailsJob?.jobId === jobId) setDetailsJob(null);
       if (editJob?.jobId === jobId) closeEditModal();
 
       await fetchMyJobs(pagination.page);
@@ -315,34 +315,34 @@ export default function MyJobPosts() {
     }
   };
 
-  const handleViewDetails = async (job) => {
-    try {
-      const token = getToken();
+  // const handleViewDetails = async (job) => {
+  //   try {
+  //     const token = getToken();
 
-      const response = await fetch(
-        `${BASE_URL}/project/jobs/my-posts/${job.jobId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+  //     const response = await fetch(
+  //       `${BASE_URL}/project/jobs/my-posts/${job.jobId}`,
+  //       {
+  //         headers: {
+  //           Authorization: `Bearer ${token}`,
+  //         },
+  //       }
+  //     );
 
-      const result = await response.json().catch(() => null);
+      // const result = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        console.error("Details error:", response.status, result);
-        setDetailsJob(job);
-        return;
-      }
+      // if (!response.ok) {
+      //   console.error("Details error:", response.status, result);
+      //   setDetailsJob(job);
+      //   return;
+      // }
 
-      const data = result?.data || result || {};
-      setDetailsJob(normalizeJob({ ...job.raw, ...data, jobId: job.jobId }));
-    } catch (error) {
-      console.error(error);
-      setDetailsJob(job);
-    }
-  };
+  //     const data = result?.data || result || {};
+  //     setDetailsJob(normalizeJob({ ...job.raw, ...data, jobId: job.jobId }));
+  //   } catch (error) {
+  //     console.error(error);
+  //     setDetailsJob(job);
+  //   }
+  // };
 
   const goToPage = (nextPage) => {
     if (nextPage < 1 || nextPage > pagination.totalPages) return;
@@ -358,7 +358,7 @@ export default function MyJobPosts() {
               <button
                 type="button"
                 aria-label="Go back to profile"
-                onClick={() => navigate("/client/profile")}
+                onClick={() => navigate("/client/dashboard")}
                 className="grid h-[24px] w-[24px] place-items-center bg-transparent p-0 cursor-pointer shrink-0"
               >
                 <ArrowLeftIcon className="h-[21px] w-[21px] stroke-[2] text-[#1b1c1e]" />
@@ -504,17 +504,17 @@ export default function MyJobPosts() {
 
                     <div className="flex w-full lg:w-auto flex-col sm:flex-row lg:flex-nowrap items-stretch sm:items-center gap-[12px]">
                       {job.actions?.canViewDetails !== false && (
-                        <button
-                          onClick={() => handleViewDetails(job)}
-                          type="button"
-                          className={`h-[36px] sm:h-[33px] min-w-[95px] rounded-[6px] px-[14px] text-[13px] font-medium ${
-                            isClosed
-                              ? "border border-transparent bg-[#f9f9fa] text-[#8f97a4]"
-                              : "border border-[#e7efef] bg-white text-[#0e6b67]"
-                          }`}
-                        >
-                          View Details
-                        </button>
+                       <button
+                       onClick={() => navigate(`/client/job/${job.jobId}`)}
+                       type="button"
+                       className={`h-[36px] sm:h-[33px] min-w-[95px] rounded-[6px] px-[14px] text-[13px] font-medium ${
+                         isClosed
+                           ? "border border-transparent bg-[#f9f9fa] text-[#8f97a4]"
+                           : "border border-[#e7efef] bg-white text-[#0e6b67]"
+                       }`}
+                     >
+                       View Details
+                     </button>
                       )}
 
                       {!isClosed && job.actions?.canEdit !== false && (
@@ -680,7 +680,7 @@ export default function MyJobPosts() {
         </div>
       )}
 
-      {detailsJob && (
+      {/* {detailsJob && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.22)] p-4 sm:p-[20px]"
           onClick={() => setDetailsJob(null)}
@@ -728,7 +728,7 @@ export default function MyJobPosts() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
