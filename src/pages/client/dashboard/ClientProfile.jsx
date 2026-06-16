@@ -1011,18 +1011,18 @@ const apiRequest = async (endpoint, options = {}) => {
           <div className="mt-8 border-t border-[#E5E7EB]" />
 
           <div className="pt-8">
-            <h2 className="text-[18px] font-semibold text-[#111827]">
-              Jobs Management
-            </h2>
+          <h2 className="text-[18px] font-semibold text-[#111827]">
+  Go to Dashboard
+</h2>
 
-            <div className="mt-6 flex flex-col sm:flex-row gap-4">
-              <button
-                type="button"
-                onClick={() => navigate("/client/my-jobs")}
-                className="w-full sm:w-auto px-6 h-[44px] rounded-[10px] border border-[#0B6B63] text-[#0B6B63] text-[15px] font-medium hover:bg-[#F5FAFA] transition"
-              >
-                My Jobs
-              </button>
+<div className="mt-6 flex flex-col sm:flex-row gap-4">
+  <button
+    type="button"
+    onClick={() => navigate("/client/dashboard")}
+    className="w-full sm:w-auto px-6 h-[44px] rounded-[10px] border border-[#0B6B63] text-[#0B6B63] text-[15px] font-medium hover:bg-[#F5FAFA] transition"
+  >
+    Dashboard
+  </button>
             </div>
           </div>
 
