@@ -17,7 +17,6 @@ import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 import DeveloperDashboard from "../pages/developer/dashboard/DeveloperDashboard";
 import DevProfile from "../pages/developer/dashboard/DevProfile";
 import ProjectsList from "../pages/developer/ProjectsList";
-import ClientJobDetails from "../pages/client/ClientJobDetails";
 import DeveloperProjectDetails from "../pages/developer/DeveloperProjectDetails";
 import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
