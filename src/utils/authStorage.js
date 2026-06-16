@@ -127,6 +127,8 @@ export function getDashboardPath(role) {
       return "/company/profile";
     case "admin":
       return "/admin/dashboard";
+    case "team-leader":
+      return "/team-leader/dashboard";
     default:
       return "/login";
   }
