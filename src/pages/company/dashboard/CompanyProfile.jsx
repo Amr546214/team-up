@@ -806,7 +806,8 @@ function CompanyProfile() {
      Interaction: Confirm Close Job
   ========================== */
   const handleConfirmCloseJob = async () => {
-    const jobId = selectedJob.id;
+    
+    const jobId = selectedJob.jobId || selectedJob.id;
     const nextStatus = selectedJob.status === "closed" ? "active" : "closed";
 
     setPostedJobs((prev) =>
@@ -893,13 +894,16 @@ function CompanyProfile() {
     try {
       await apiRequest("/company/interviews", {
         method: "POST",
-        body: JSON.stringify({
-          candidateName: interviewForm.candidateName,
-          jobTitle: interviewForm.jobTitle,
-          interviewType: interviewForm.interviewType.toLowerCase(),
-          mode: interviewForm.mode.toLowerCase(),
-          scheduledAt: toApiDate(interviewForm.date, interviewForm.time),
-        }),
+       body: JSON.stringify({
+  candidateName: interviewForm.candidateName,
+  jobTitle: interviewForm.jobTitle,
+  interviewType: interviewForm.interviewType.toLowerCase(),
+  mode:
+    interviewForm.mode.toLowerCase() === "online"
+      ? "remote"
+      : interviewForm.mode.toLowerCase(),
+  scheduledAt: toApiDate(interviewForm.date, interviewForm.time),
+}),
       });
 
       loadInterviews();
