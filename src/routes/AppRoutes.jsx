@@ -17,7 +17,6 @@ import SkillQuiz from "../pages/developer/skill-quiz/SkillQuiz";
 import DeveloperDashboard from "../pages/developer/dashboard/DeveloperDashboard";
 import DevProfile from "../pages/developer/dashboard/DevProfile";
 import ProjectsList from "../pages/developer/ProjectsList";
-import ClientJobDetails from "../pages/client/ClientJobDetails";
 import DeveloperProjectDetails from "../pages/developer/DeveloperProjectDetails";
 import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
@@ -25,6 +24,7 @@ import CompleteProfile from "../pages/developer/CompleteProfile";
 import ClientProfile from "../pages/client/dashboard/ClientProfile";
 import PostNewJob from "../pages/client/job-post/PostNewJob";
 import MyJobPosts from "../pages/client/job-post/MyJobPosts";
+import ClientJobDetails from "../pages/client/ClientJobDetails";
 import ClientApplicants from "../pages/client/job-post/Applicants";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
@@ -39,10 +39,6 @@ import Interviews from "../pages/company/Interviews";
 import AutoSuggestTeam from "../pages/company/AutoSuggestTeam";
 
 import TeamDashboard from "../pages/team-leader/TeamDashboard";
-// import Team from "../pages/team-leader/Team";
-// import Tasks from "../pages/team-leader/Tasks";
-// import Progress from "../pages/team-leader/Progress";
-// import Reports from "../pages/team-leader/Reports";
 
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
