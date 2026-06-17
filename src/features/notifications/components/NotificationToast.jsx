@@ -80,8 +80,10 @@ function NotificationToast() {
       shownIdsRef.current = new Set(entries.slice(-100));
     }
 
-    setIsExiting(false);
-    setToast(latestRealtimeNotification);
+    queueMicrotask(() => {
+  setIsExiting(false);
+  setToast(latestRealtimeNotification);
+});
 
     // Clear any existing timer
     if (timerRef.current) clearTimeout(timerRef.current);

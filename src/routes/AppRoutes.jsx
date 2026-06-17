@@ -25,7 +25,6 @@ import ClientProfile from "../pages/client/dashboard/ClientProfile";
 import PostNewJob from "../pages/client/job-post/PostNewJob";
 import MyJobPosts from "../pages/client/job-post/MyJobPosts";
 import ClientJobDetails from "../pages/client/ClientJobDetails";
-// NEW
 import ClientApplicants from "../pages/client/job-post/Applicants";
 import BuildTeam from "../pages/client/BuildTeam";
 import ProjectDetails from "../pages/client/ProjectDetails";
@@ -40,10 +39,6 @@ import Interviews from "../pages/company/Interviews";
 import AutoSuggestTeam from "../pages/company/AutoSuggestTeam";
 
 import TeamDashboard from "../pages/team-leader/TeamDashboard";
-import Team from "../pages/team-leader/Team";
-import Tasks from "../pages/team-leader/Tasks";
-import Progress from "../pages/team-leader/Progress";
-import Reports from "../pages/team-leader/Reports";
 
 import AdminDashboard from "../pages/admin/AdminDashboard";
 
@@ -94,7 +89,7 @@ function AppRoutes() {
           <Route path="/client/job-post" element={<PostNewJob />} />
           <Route path="/client/my-jobs" element={<MyJobPosts />} />
 
-          <Route path="/client/job/:id" element={<ClientJobDetails />} />
+          <Route path="/client/job/:id" element={<ProjectDetails />} />
           <Route path="/client/job/:id/applicants" element={<ClientApplicants />}/>
           <Route path="/client/build-team" element={<BuildTeam />} />
           <Route path="/client/project/:id" element={<ProjectDetails />} />
@@ -114,10 +109,10 @@ function AppRoutes() {
         {/* Team Leader routes */}
         <Route element={<RoleRoute role="team-leader" />}>
           <Route path="/team-leader/dashboard" element={<TeamDashboard />} />
-          <Route path="/team-leader/team" element={<Team />} />
-          <Route path="/team-leader/tasks" element={<Tasks />} />
-          <Route path="/team-leader/progress" element={<Progress />} />
-          <Route path="/team-leader/reports" element={<Reports />} />
+          {/* <Route path="/team-leader/team" element={<Team />} /> */}
+          {/* <Route path="/team-leader/tasks" element={<Tasks />} /> */}
+          {/* <Route path="/team-leader/progress" element={<Progress />} /> */}
+          {/* <Route path="/team-leader/reports" element={<Reports />} /> */}
         </Route>
 
         {/* Admin routes */}
