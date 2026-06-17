@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/common/Header";
-import CompanySidebar from "../../components/common/CompanySidebar";
+import CompanySidebar from "../../components/common/ClientSidebar";
 import {
   Sparkles,
   Search,

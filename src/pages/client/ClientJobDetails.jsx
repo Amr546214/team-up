@@ -180,10 +180,10 @@ function ClientJobDetails() {
               </div>
 
               <button
-                onClick={() => navigate("/client/build-team")}
+                onClick={() => navigate(`/client/job/${id}/applicants`)}
                 className="w-full mt-4 h-10 rounded-xl bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition"
               >
-                Build Team from Applicants
+                View Applicants
               </button>
             </div>
           </div>
