@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Users,
   MapPin,
@@ -12,11 +13,13 @@ import {
   Plus,
   CalendarDays,
   Monitor,
+  ArrowRight, // add this
 } from "lucide-react";
 import Header from "../../../components/common/Header";
 import teamupLogo from "../../../assets/logo/teamup-logo.png";
 
 function CompanyProfile() {
+  const navigate = useNavigate();
   /* =========================
      Fake API Data (Data only)
   ========================== */
@@ -790,7 +793,14 @@ function CompanyProfile() {
                 </p>
               </div>
             </div>
-
+            <button
+                type="button"
+                onClick={() => navigate("/company/dashboard")}
+                className="h-[38px] px-5 rounded-[8px] bg-[#0B756F] text-white text-[13px] font-medium hover:bg-[#095f5a] transition inline-flex items-center gap-2"
+              >
+                Go to Dashboard
+                <ArrowRight size={14} />
+              </button>
             <button
               onClick={handleOpenEditProfileModal}
               className="self-start h-[38px] px-5 rounded-[8px] bg-[#0B756F] text-white text-[13px] font-medium hover:bg-[#095f5a] transition"
