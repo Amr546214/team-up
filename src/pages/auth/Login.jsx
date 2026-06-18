@@ -8,7 +8,6 @@ import { getDashboardPath } from "../../utils/authStorage";
 function Login() {
   const { isAuthenticated, userRole } = useAuth();
 
-  // Redirect if already logged in
   if (isAuthenticated && userRole) {
     return <Navigate to={getDashboardPath(userRole)} replace />;
   }
@@ -16,10 +15,11 @@ function Login() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
-      <main className="flex-1 flex flex-col md:flex-row">
-        <HeroSection />
-        <LoginForm />
-      </main>
+
+    <main className="flex-1 flex flex-col lg:flex-row">
+  <HeroSection />
+  <LoginForm />
+</main>
     </div>
   );
 }

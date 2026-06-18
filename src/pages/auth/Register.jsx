@@ -49,7 +49,7 @@ const Register = () => {
         <div className="max-w-6xl w-full flex flex-col lg:flex-row gap-10 lg:gap-14">
 
           {/* LEFT TEXT – ثابت ومش هيتحرك */}
-     <section className="flex-1 flex flex-col justify-center h-fit mt-28">
+    <section className="flex-1 flex flex-col justify-center h-fit mt-8 lg:mt-28">
 
 
             <div className="space-y-6 max-w-xl">

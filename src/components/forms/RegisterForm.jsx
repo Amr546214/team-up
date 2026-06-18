@@ -998,7 +998,7 @@ const RegisterForm = () => {
             {t("auth.orContinueWith")}
           </p>
 
-          <div className="mt-6 grid grid-cols-3 gap-7">
+         <div className="mt-6 grid grid-cols-3 gap-3 sm:gap-7">
             <button
               type="button"
               onClick={() => signInWithGoogle(activeRole)}
