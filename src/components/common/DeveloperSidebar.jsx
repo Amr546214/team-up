@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -11,7 +11,7 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
-import { getCurrentUser } from "../../services/fakeApi";
+import { getUserProfile } from "../../utils/authStorage";
 import { getStoredUserAvatar, getUserInitials } from "../../utils/avatar";
 
 function DeveloperSidebar() {
@@ -19,10 +19,19 @@ function DeveloperSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { t } = useTranslation();
 
-  /* =========================
-     Current User from localStorage
-  ========================== */
-  const [currentUser] = useState(() => getCurrentUser());
+  const [currentUser, setCurrentUser] = useState(() => getUserProfile());
+
+  useEffect(() => {
+    const syncUserProfile = () => {
+      setCurrentUser(getUserProfile());
+    };
+
+    window.addEventListener("teamup-auth-changed", syncUserProfile);
+
+    return () => {
+      window.removeEventListener("teamup-auth-changed", syncUserProfile);
+    };
+  }, []);
 
   const activeProjectData = {
     name: "TeamUp Platform",
@@ -56,9 +65,6 @@ function DeveloperSidebar() {
     },
   ];
 
-  /* =========================
-     UI / Design Logic only
-  ========================== */
   const getMenuItemIcon = (key) => {
     switch (key) {
       case "dashboard":
@@ -87,6 +93,11 @@ function DeveloperSidebar() {
     }
   };
 
+  const developerName = currentUser?.name || "Developer";
+  const developerEmail = currentUser?.email || "";
+  const avatarImage =
+    currentUser?.avatarUrl || getStoredUserAvatar(currentUser);
+
   return (
     <aside
       className={`fixed top-0 left-0 h-screen bg-white border-r border-[#E5E7EB] flex flex-col justify-between transition-all duration-300 z-[60] ${
@@ -94,7 +105,6 @@ function DeveloperSidebar() {
       }`}
     >
       <div className="relative h-full flex flex-col">
-        {/* Collapse Button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute -right-3 top-5 w-6 h-6 rounded-full bg-white border border-[#E5E7EB] flex items-center justify-center shadow-sm hover:bg-[#F8FAFC] transition z-10"
@@ -107,7 +117,6 @@ function DeveloperSidebar() {
         </button>
 
         <div>
-          {/* Logo + Name */}
           <div className="px-4 pt-4 pb-6">
             <div
               className={`flex items-center ${
@@ -128,7 +137,6 @@ function DeveloperSidebar() {
             </div>
           </div>
 
-          {/* Menu */}
           <div className="px-3 space-y-3">
             {menuItemsData.map((item) => {
               const Icon = getMenuItemIcon(item.key);
@@ -156,7 +164,6 @@ function DeveloperSidebar() {
             })}
           </div>
 
-          {/* Active Project */}
           {!isCollapsed && (
             <div className="px-6 mt-10">
               <h3 className="text-[12px] font-semibold text-[#B0B7C3] mb-3">
@@ -177,7 +184,6 @@ function DeveloperSidebar() {
           )}
         </div>
 
-        {/* User Info */}
         <div className="px-2 pb-3 mt-auto">
           <Link
             to="/developer/profile"
@@ -186,28 +192,25 @@ function DeveloperSidebar() {
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
-              {(() => {
-                const avatarImage = getStoredUserAvatar(currentUser);
-                return avatarImage ? (
-                  <img
-                    src={avatarImage}
-                    alt={currentUser?.name || "Developer"}
-                    className="w-[28px] h-[28px] rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="w-[28px] h-[28px] rounded-full bg-[#D9D9D9] shrink-0 flex items-center justify-center text-[10px] font-semibold text-[#6B7280]">
-                    {getUserInitials(currentUser?.name)}
-                  </div>
-                );
-              })()}
+              {avatarImage ? (
+                <img
+                  src={avatarImage}
+                  alt={developerName}
+                  className="w-[28px] h-[28px] rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-[28px] h-[28px] rounded-full bg-[#D9D9D9] shrink-0 flex items-center justify-center text-[10px] font-semibold text-[#6B7280]">
+                  {getUserInitials(developerName)}
+                </div>
+              )}
 
               {!isCollapsed && (
                 <div className="min-w-0">
                   <h4 className="text-[11px] font-semibold text-[#4B5563] leading-none truncate">
-                    {currentUser?.name || "Developer"}
+                    {developerName}
                   </h4>
                   <p className="text-[10px] text-[#9CA3AF] mt-1 truncate">
-                    {currentUser?.email || ""}
+                    {developerEmail}
                   </p>
                 </div>
               )}

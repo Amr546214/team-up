@@ -1,5 +1,5 @@
 import type { ChatFilter } from '../types';
-import { chatFilterLabels } from '../data/mockChatData';
+import { chatFilterLabels } from '../utils/chatHelpers';
 
 interface ChatFiltersProps {
   activeFilter: ChatFilter;

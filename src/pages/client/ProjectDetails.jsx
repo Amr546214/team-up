@@ -16,62 +16,13 @@ function ProjectDetails() {
   const { id } = useParams();
 
   /* =========================
-     Fake API Data (Data only)
-
-     TODO: When implementing real project status updates (client side):
-     1. Import { notifyProjectStatusChange } from '../../features/notifications'
-     2. After successful status update, call:
-        await notifyProjectStatusChange({
-          projectId: id,
-          newStatus: updatedStatus,
-          previousStatus: currentStatus,
-          projectName: project.title,
-          actorId: currentUserId,
-          teamMemberIds: teamMembers.map(m => m.id)
-        });
-
-     TODO: Future integrations:
-     - Email notifications: Send to offline team members
-     - Push notifications: Mobile push for team members
-     - Activity timeline: Save to project_activity table
+     Project Data
+     TODO: Fetch real project data from API
      ========================== */
-  const [project] = useState({
-    id: id || "1",
-    title: "E-commerce Platform Redesign",
-    status: "active",
-    description:
-      "Complete redesign and development of the e-commerce platform with modern UI, improved UX, and scalable backend architecture.",
-    budget: "$15,000",
-    startDate: "Sep 01, 2026",
-    endDate: "Dec 15, 2026",
-    progress: 45,
-    teamSize: 4,
-    completedTasks: 8,
-    totalTasks: 18,
-  });
-
-  const [teamMembers] = useState([
-    { id: 1, name: "Hanan Muhammed", role: "Lead Frontend", avatar: "" },
-    { id: 2, name: "Sara Ahmed", role: "Backend Developer", avatar: "" },
-    { id: 3, name: "Omar Essam", role: "UI/UX Designer", avatar: "" },
-    { id: 4, name: "Eman Ali", role: "DevOps Engineer", avatar: "" },
-  ]);
-
-  const [milestones] = useState([
-    { id: 1, title: "Project Setup & Planning", status: "completed", dueDate: "Sep 15, 2026" },
-    { id: 2, title: "UI/UX Design Phase", status: "completed", dueDate: "Oct 01, 2026" },
-    { id: 3, title: "Frontend Development", status: "in_progress", dueDate: "Nov 01, 2026" },
-    { id: 4, title: "Backend Integration", status: "pending", dueDate: "Nov 20, 2026" },
-    { id: 5, title: "Testing & QA", status: "pending", dueDate: "Dec 05, 2026" },
-    { id: 6, title: "Launch", status: "pending", dueDate: "Dec 15, 2026" },
-  ]);
-
-  const [recentActivity] = useState([
-    { id: 1, text: "Hanan completed the homepage layout", time: "2h ago" },
-    { id: 2, text: "Sara pushed API authentication module", time: "5h ago" },
-    { id: 3, text: "Omar uploaded new design mockups", time: "1d ago" },
-    { id: 4, text: "Milestone 'UI/UX Design Phase' marked complete", time: "2d ago" },
-  ]);
+  const [project, setProject] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [milestones, setMilestones] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   /* =========================
      UI Logic

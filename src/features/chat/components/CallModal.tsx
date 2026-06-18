@@ -1,7 +1,7 @@
 import React, { useReducer, useEffect, useRef, useCallback, useState } from 'react';
 import { Phone, Video, Mic, MicOff, Video as VideoIcon, VideoOff, Volume2, X } from 'lucide-react';
 import type { Conversation } from '../types';
-import { getOtherParticipant } from '../data/mockChatData';
+import { getOtherParticipant } from '../utils/chatHelpers';
 import type { CallSession } from '../services/supabaseCallService';
 import { endCall, markCallMissed } from '../services/supabaseCallService';
 import {
@@ -643,7 +643,7 @@ export function CallModal({
                   {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
                 </button>
 
-                {/* Speaker (mock) */}
+                {/* Speaker */}
                 <button
                   onClick={handleToggleSpeaker}
                   className={`p-4 rounded-full transition-colors ${
@@ -796,7 +796,7 @@ export function CallModal({
                 {isCameraOff ? <VideoOff className="w-6 h-6" /> : <VideoIcon className="w-6 h-6" />}
               </button>
 
-              {/* Speaker (mock) */}
+              {/* Speaker */}
               <button
                 onClick={handleToggleSpeaker}
                 className={`p-4 rounded-full transition-colors ${

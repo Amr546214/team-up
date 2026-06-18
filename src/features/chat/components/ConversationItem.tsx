@@ -1,5 +1,5 @@
 import type { Conversation, ChatUser, Message } from '../types';
-import { getOtherParticipant } from '../data/mockChatData';
+import { getOtherParticipant } from '../utils/chatHelpers';
 import {
   getLastMessageForConversation,
   buildMessagePreview,
