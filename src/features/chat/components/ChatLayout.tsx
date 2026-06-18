@@ -297,7 +297,7 @@ export function ChatLayout({ onReady, devRail, allUsers }: ChatLayoutProps = {})
     }
   }, []);
 
-  // Loading state (mock - inactive by default)
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -309,7 +309,7 @@ export function ChatLayout({ onReady, devRail, allUsers }: ChatLayoutProps = {})
     );
   }
 
-  // Error state (mock - inactive by default)
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { ArrowLeft, MoreVertical, Phone, Video, Users } from 'lucide-react';
 import type { Conversation, Message, ChatUser } from '../types';
-import { getOtherParticipant } from '../data/mockChatData';
+import { getOtherParticipant } from '../utils/chatHelpers';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { ImagePreviewModal } from './ImagePreviewModal';
@@ -1174,7 +1174,7 @@ export function ChatWindow({
         title={confirmModal.action === 'delete' ? 'Delete chat?' : 'Clear chat?'}
         description={
           confirmModal.action === 'delete'
-            ? 'This conversation will be removed from the chat list. This action cannot be undone in the current mock session.'
+            ? 'This conversation will be removed from the chat list. This action cannot be undone.'
             : 'All messages in this conversation will be removed.'
         }
         confirmLabel={confirmModal.action === 'delete' ? 'Delete chat' : 'Clear chat'}

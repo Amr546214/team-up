@@ -5,8 +5,6 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 import {
   requestNotificationPermission,
   showUnreadNotification,
-  hasMockNotificationBeenShown,
-  markMockNotificationShown,
   playNotificationSound,
 } from '../../features/chat';
 import { getAvailableProfiles } from '../../features/chat/services/profileService';
@@ -221,28 +219,6 @@ function ChatTest() {
     setTimeout(() => setCopiedId(null), 1500);
   }, []);
 
-  // Auto-show notification on first load (once per session) - uses real unread counts
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (totalUnreadCount === 0) return;
-    if (hasMockNotificationBeenShown()) return;
-
-    // Delay slightly to not be too intrusive
-    const timer = setTimeout(() => {
-      if (Notification.permission === 'granted') {
-        showUnreadNotification(totalUnreadCount, unreadChatsCount, () => {
-          // On notification click, navigate to chat
-          window.focus();
-        });
-        playNotificationSound();
-        markMockNotificationShown();
-      } else if (Notification.permission === 'default') {
-        console.log('[Chat] Notification permission not requested automatically. Click the test button to request.');
-      }
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [totalUnreadCount, unreadChatsCount]);
 
   const handleTestNotification = useCallback(async () => {
     const granted = await requestNotificationPermission();
