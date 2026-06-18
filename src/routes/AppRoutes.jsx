@@ -20,6 +20,7 @@ import ProjectsList from "../pages/developer/ProjectsList";
 import DeveloperProjectDetails from "../pages/developer/DeveloperProjectDetails";
 import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
+import Applications from "../pages/developer/Applications";
 
 import ClientProfile from "../pages/client/dashboard/ClientProfile";
 import ClientDashboard from "../pages/client/dashboard/ClientDashboard";
@@ -81,6 +82,7 @@ function AppRoutes() {
           <Route path="/developer/dashboard" element={<DeveloperDashboard />} />
           <Route path="/developer/profile" element={<DevProfile />} />
           <Route path="/developer/projects" element={<ProjectsList />} />
+          <Route path="/developer/applications" element={<Applications />} />
           <Route path="/developer/project/:id" element={<DeveloperProjectDetails />} />
           <Route path="/developer/jobs/:id" element={<JobDetails />} />
           <Route path="/developer/jobs/:id/apply" element={<JobDetails />} />
