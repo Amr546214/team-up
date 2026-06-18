@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "../../components/common/Header";
 import {
@@ -11,7 +11,56 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
+
+const API_BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
+const PREVIEW_LIMIT = 4;
+
+const getToken = () =>
+  localStorage.getItem("teamup_access_token") ||
+  localStorage.getItem("accessToken") ||
+  localStorage.getItem("token");
+
+const apiRequest = async (endpoint, options = {}) => {
+  const token = getToken();
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message || data?.error_message || data?.error || "Request failed"
+    );
+  }
+
+  return data;
+};
+
+const normalizeApplicantPreview = (item = {}) => ({
+  id: item.applicationId,
+  applicationId: item.applicationId,
+  name: item.developer?.name || "Unknown Developer",
+  role: item.developer?.profile?.title || item.developer?.title || "Developer",
+  status: item.status || "pending",
+  appliedDate: item.submittedAt
+    ? new Date(item.submittedAt).toLocaleDateString()
+    : item.appliedDate || "Recently",
+});
 
 function ClientJobDetails() {
   const navigate = useNavigate();
@@ -36,12 +85,51 @@ function ClientJobDetails() {
     skills: ["React", "TypeScript", "Tailwind CSS", "Redux", "Jest"],
   });
 
-  const [applicants] = useState([
-    { id: 1, name: "Sara Ahmed", role: "Frontend Developer", status: "shortlisted", rating: 4.8, appliedDate: "Feb 5, 2026" },
-    { id: 2, name: "Omar Essam", role: "Frontend Developer", status: "new", rating: 4.5, appliedDate: "Feb 6, 2026" },
-    { id: 3, name: "Hanan Muhammed", role: "Fullstack Developer", status: "interviewed", rating: 4.9, appliedDate: "Feb 3, 2026" },
-    { id: 4, name: "Youssef Khaled", role: "Frontend Developer", status: "rejected", rating: 4.2, appliedDate: "Feb 1, 2026" },
-  ]);
+  const [applicants, setApplicants] = useState([]);
+  const [applicantsLoading, setApplicantsLoading] = useState(true);
+  const [applicantsError, setApplicantsError] = useState("");
+  const [totalApplicants, setTotalApplicants] = useState(0);
+
+  const fetchApplicants = useCallback(async () => {
+    if (!id) {
+      setApplicants([]);
+      setTotalApplicants(0);
+      setApplicantsError("Missing job id");
+      setApplicantsLoading(false);
+      return;
+    }
+
+    try {
+      setApplicantsLoading(true);
+      setApplicantsError("");
+
+      const data = await apiRequest(
+        `/project/jobs/my-posts/${id}/applicants?page=1&limit=${PREVIEW_LIMIT}`
+      );
+
+      const payload = data?.data || {};
+      const list = payload?.applicants || [];
+
+      setApplicants(list.map(normalizeApplicantPreview));
+      setTotalApplicants(
+        payload?.pagination?.totalCount ??
+          payload?.stats?.totalApplicants ??
+          payload?.stats?.totalPending ??
+          list.length
+      );
+    } catch (err) {
+      console.error("Failed to load applicants preview:", err);
+      setApplicants([]);
+      setTotalApplicants(0);
+      setApplicantsError(err.message || "Failed to load applicants");
+    } finally {
+      setApplicantsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchApplicants();
+  }, [fetchApplicants]);
 
   /* =========================
      UI Logic
@@ -53,9 +141,11 @@ function ClientJobDetails() {
   };
 
   const getApplicantStatusStyle = (status) => {
-    switch (status) {
+    switch ((status || "").toLowerCase()) {
+      case "accepted":
       case "shortlisted":
         return { bg: "bg-[#EAF8EE]", text: "text-[#22C55E]", icon: CheckCircle2 };
+      case "pending":
       case "new":
         return { bg: "bg-[#EEF2FF]", text: "text-[#4F46E5]", icon: Clock };
       case "interviewed":
@@ -141,47 +231,86 @@ function ClientJobDetails() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[18px] font-bold text-[#111827]">
                   <Users size={18} className="inline mr-2 text-[#0B6F6C]" />
-                  Applicants ({applicants.length})
+                  Applicants ({applicantsLoading ? "..." : totalApplicants})
                 </h2>
               </div>
 
-              <div className="space-y-3">
-                {applicants.map((applicant) => {
-                  const aStyle = getApplicantStatusStyle(applicant.status);
-                  const StatusIcon = aStyle.icon;
+              {applicantsLoading && (
+                <div className="rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] px-4 py-8 text-center text-sm text-[#6B7280]">
+                  Loading applicants...
+                </div>
+              )}
 
-                  return (
-                    <div key={applicant.id} className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-[#D9D9D9] shrink-0" />
-                          <div>
-                            <p className="text-[14px] font-medium text-[#111827]">{applicant.name}</p>
-                            <p className="text-[12px] text-[#6B7280]">{applicant.role}</p>
+              {!applicantsLoading && applicantsError && (
+                <div className="rounded-xl bg-[#FEF2F2] border border-[#FECACA] px-4 py-4 text-center">
+                  <p className="text-sm text-[#DC2626] mb-3">{applicantsError}</p>
+                  <button
+                    type="button"
+                    onClick={fetchApplicants}
+                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition"
+                  >
+                    <RefreshCw size={14} />
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {!applicantsLoading && !applicantsError && applicants.length === 0 && (
+                <div className="rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] px-4 py-8 text-center text-sm text-[#6B7280]">
+                  No applicants yet
+                </div>
+              )}
+
+              {!applicantsLoading && !applicantsError && applicants.length > 0 && (
+                <div className="space-y-3">
+                  {applicants.map((applicant) => {
+                    const aStyle = getApplicantStatusStyle(applicant.status);
+                    const StatusIcon = aStyle.icon;
+
+                    return (
+                      <div
+                        key={applicant.applicationId || applicant.id}
+                        className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-[#D9D9D9] shrink-0" />
+                            <div>
+                              <p className="text-[14px] font-medium text-[#111827]">{applicant.name}</p>
+                              <p className="text-[12px] text-[#6B7280]">{applicant.role}</p>
+                            </div>
                           </div>
+
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${aStyle.bg} ${aStyle.text}`}
+                          >
+                            <StatusIcon size={10} />
+                            {applicant.status}
+                          </span>
                         </div>
 
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${aStyle.bg} ${aStyle.text}`}>
-                          <StatusIcon size={10} />
-                          {applicant.status}
-                        </span>
+                        <div className="flex items-center justify-between mt-2 text-[12px] text-[#9CA3AF]">
+                          <span>{applicant.appliedDate}</span>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/client/job/${id}/applicants`)}
+                            className="text-[#0B6F6C] font-medium flex items-center gap-1 hover:underline"
+                          >
+                            <Eye size={12} />
+                            View
+                          </button>
+                        </div>
                       </div>
-
-                      <div className="flex items-center justify-between mt-2 text-[12px] text-[#9CA3AF]">
-                        <span>{applicant.appliedDate}</span>
-                        <button className="text-[#0B6F6C] font-medium flex items-center gap-1 hover:underline">
-                          <Eye size={12} />
-                          View
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <button
+                type="button"
                 onClick={() => navigate(`/client/job/${id}/applicants`)}
-                className="w-full mt-4 h-10 rounded-xl bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition"
+                className="w-full mt-4 h-10 rounded-xl bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={applicantsLoading}
               >
                 View Applicants
               </button>
