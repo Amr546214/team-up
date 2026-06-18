@@ -64,6 +64,7 @@ function AutoSuggestTeam() {
   const [error, setError] = useState("");
 
   const generateTeam = async () => {
+    
     try {
       setLoading(true);
       setError("");

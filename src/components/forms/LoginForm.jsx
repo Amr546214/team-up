@@ -183,17 +183,17 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-12">
+   <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-12">
       <div className="main-container">
-        <div className="bg-white rounded-[20px] p-8">
+       <div className="bg-white rounded-[20px] p-4 sm:p-6 md:p-8 w-full max-w-[460px]">
           {/* -------------------- user type tabs -------------------- */}
           <div className="mb-8">
-            <div className="flex items-center justify-between bg-gray-100 rounded-[10px] px-3 py-2">
+            <div className="grid grid-cols-4 gap-2 bg-gray-100 rounded-[10px] p-2">
               {/* client */}
               <button
                 type="button"
                 onClick={() => setUserType("client")}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition ${
+                className={`inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition ${
                   userType === "client"
                     ? "text-white shadow-sm"
                     : "text-gray-900"
@@ -222,7 +222,7 @@ const LoginForm = () => {
               <button
                 type="button"
                 onClick={() => setUserType("developer")}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition ${
+                className={`flex-1 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition ${
                   userType === "developer"
                     ? "text-white shadow-sm"
                     : "text-gray-900"
@@ -251,7 +251,7 @@ const LoginForm = () => {
               <button
                 type="button"
                 onClick={() => setUserType("company")}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition ${
+              className={`inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition ${
                   userType === "company"
                     ? "text-white shadow-sm"
                     : "text-gray-900"
@@ -280,7 +280,7 @@ const LoginForm = () => {
               <button
                 type="button"
                 onClick={() => setUserType("admin")}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl transition ${
+                className={`inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition ${
                   userType === "admin"
                     ? "text-white shadow-sm"
                     : "text-gray-900"
@@ -310,9 +310,9 @@ const LoginForm = () => {
           {/* -------------------- Auth mode -------------------- */}
           <div className="mb-6 flex justify-center">
             <div
-              className="flex items-center justify-between rounded-[10px] px-[10px] w-[420px] h-[50px]"
-              style={{ backgroundColor: "#C7E8E5" }}
-            >
+  className="flex items-center justify-between rounded-[10px] px-[10px] w-full max-w-[420px] h-[50px] mx-auto"
+  style={{ backgroundColor: "#C7E8E5" }}
+>
               <button
                 onClick={() => setAuthMode("login")}
                 type="button"
@@ -351,11 +351,11 @@ const LoginForm = () => {
           )}
 
           {/* -------------------- Form -------------------- */}
-          <form
-            onSubmit={handleSubmit}
-            noValidate
-            className="space-y-5 w-[380px] mx-auto translate-x-[5px]"
-          >
+         <form
+  onSubmit={handleSubmit}
+  noValidate
+  className="space-y-5 w-full max-w-[380px] mx-auto"
+>
             {/* EMAIL */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -455,7 +455,7 @@ const LoginForm = () => {
               type="button"
               onClick={handleLoginClick}
               disabled={isLoading}
-              className="w-[340px] h-[40px] mx-auto bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-[40px] bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Logging in..." : t("auth.loginButton")}
             </button>
@@ -466,7 +466,7 @@ const LoginForm = () => {
                 {t("auth.orContinueWith")}
               </p>
 
-              <div className="mt-6 grid grid-cols-3 gap-7">
+              <div className="mt-6 grid grid-cols-3 gap-3 sm:gap-7">
                 <button
                   type="button"
                   onClick={() => signInWithGoogle(userType)}
