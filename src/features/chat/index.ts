@@ -31,18 +31,6 @@ export { GroupSettingsModal } from './components/GroupSettingsModal';
 export type { ChatUser, Conversation, Message, ChatState, ChatFilter, MessageType, ChatProfile, PinnedMessage } from './types';
 export type { PinnedMessageWithData } from './services/supabaseChatService';
 
-// Mock data for development
-export {
-  mockCurrentUser,
-  mockUsers,
-  mockConversations,
-  mockMessages,
-  chatFilterLabels,
-  groupAvatars,
-  getConversationMessages,
-  getOtherParticipant,
-} from './data/mockChatData';
-
 // Date formatting utilities
 export {
   formatChatDate,
@@ -85,8 +73,6 @@ export {
   isNotificationSupported,
   requestNotificationPermission,
   showUnreadNotification,
-  hasMockNotificationBeenShown,
-  markMockNotificationShown,
 } from './utils/unread';
 
 // Chat storage utilities

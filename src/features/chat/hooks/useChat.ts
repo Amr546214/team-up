@@ -3,11 +3,6 @@ import type { Conversation, Message, ChatUser, MessageReaction } from '../types'
 import type { UploadModalState } from '../components/ChatUploadModal';
 import { useAuth } from '../../../hooks/useAuth';
 import {
-  mockCurrentUser,
-  mockConversations,
-  mockMessages,
-} from '../data/mockChatData';
-import {
   getReadConversationIds,
   addReadConversationId,
   removeReadConversationId,
@@ -112,7 +107,7 @@ interface UseChatState {
 
 export function useChat(): UseChatState {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Record<string, Message[]>>(mockMessages);
+  const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,9 +145,6 @@ export function useChat(): UseChatState {
 
   // Loading state for current user profile
   const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState(true);
-
-  // Use real conversations flag (dev-only, could be disabled for mock fallback)
-  const USE_REAL_CONVERSATIONS = true;
 
   const { session, isAuthReady, isProfileReady } = useAuth();
 
@@ -205,25 +197,6 @@ export function useChat(): UseChatState {
         localStorage.removeItem(PINNED_CHATS_STORAGE_KEY);
       }
     }
-
-    // Only restore mock conversations on mount if not using real conversations
-    // Real conversations are restored in a separate effect after loading
-    if (!USE_REAL_CONVERSATIONS) {
-      const savedId = sessionStorage.getItem(LAST_CONVERSATION_STORAGE_KEY);
-      if (savedId) {
-        const conversationExists = mockConversations.some((c) => c.id === savedId);
-        if (conversationExists) {
-          setActiveConversationId(savedId);
-          setIsMobileChatOpen(true);
-          addReadConversationId(savedId);
-          setConversations((prev) =>
-            prev.map((c) => (c.id === savedId ? { ...c, unreadCount: 0 } : c))
-          );
-        } else {
-          sessionStorage.removeItem(LAST_CONVERSATION_STORAGE_KEY);
-        }
-      }
-    }
   }, []);
 
   // Persist pinned IDs to localStorage
@@ -240,7 +213,7 @@ export function useChat(): UseChatState {
     localStorage.setItem(PINNED_CHATS_STORAGE_KEY, JSON.stringify(pinnedIds));
   }, []);
 
-  // Derived: current user (profile from Supabase, or mock for demo conversations)
+  // Derived: current user (profile from Supabase)
   const currentUser = useMemo((): ChatUser => {
     if (currentUserProfile) {
       return currentUserProfile;
@@ -256,7 +229,14 @@ export function useChat(): UseChatState {
       };
     }
 
-    return mockCurrentUser;
+    // Fallback when profile is not loaded yet
+    return {
+      id: '',
+      name: 'Loading...',
+      role: 'client',
+      avatar: undefined,
+      status: 'offline',
+    };
   }, [activeConversationId, currentUserProfile]);
 
   // Derived state
@@ -408,9 +388,6 @@ export function useChat(): UseChatState {
           console.error('[Read Receipts] mark messages as read failed', err);
         });
       }
-    } else {
-      // Mock fallback: use localStorage
-      addReadConversationId(id);
     }
   }, []);
 
@@ -1545,15 +1522,7 @@ export function useChat(): UseChatState {
   const loadPinnedMessages = useCallback(async (conversationId: string) => {
     console.log('[Pinned Messages] fetch CALLED', {
       conversationId,
-      isRealConversation: realConversationIds.current.has(conversationId),
     });
-
-    if (!realConversationIds.current.has(conversationId)) {
-      // Mock conversations don't support pinned messages
-      console.log('[Pinned Messages] skipping mock conversation');
-      setPinnedMessages([]);
-      return;
-    }
 
     setIsLoadingPinnedMessages(true);
     setPinMessageError(null);

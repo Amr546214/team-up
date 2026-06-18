@@ -94,19 +94,3 @@ export function showUnreadNotification(
     console.error('[Chat] Failed to show notification:', err);
   }
 }
-
-/**
- * Check if mock unread notification has already been shown this session
- */
-export function hasMockNotificationBeenShown(): boolean {
-  if (typeof window === 'undefined') return false;
-  return sessionStorage.getItem('chat:mockUnreadNotificationShown') === 'true';
-}
-
-/**
- * Mark mock unread notification as shown
- */
-export function markMockNotificationShown(): void {
-  if (typeof window === 'undefined') return;
-  sessionStorage.setItem('chat:mockUnreadNotificationShown', 'true');
-}

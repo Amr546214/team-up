@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { Phone, Video, User, Users, X, Settings } from 'lucide-react';
 import type { Conversation, ChatUser } from '../types';
-import { getOtherParticipant } from '../data/mockChatData';
+import { getOtherParticipant } from '../utils/chatHelpers';
 
 interface ChatUserPopoverProps {
   conversation: Conversation;

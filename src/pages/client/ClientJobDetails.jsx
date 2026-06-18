@@ -11,7 +11,7 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
-  RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 const API_BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
@@ -379,9 +379,14 @@ function ClientJobDetails() {
                         </div>
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                ) : (
+                  <div className="text-center py-6">
+                    <Users size={32} className="mx-auto text-[#D1D5DB] mb-2" />
+                    <p className="text-sm text-[#9CA3AF]">No applicants yet</p>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
