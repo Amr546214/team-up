@@ -1,71 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "../../hooks/useAuth";
 import { ChatBubbleLeftEllipsisIcon, XMarkIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import teamupLogo from "../../assets/logo/teamup-logo.png";
 import { getStoredUserAvatar, getUserInitials } from "../../utils/avatar";
-
-const getLaunchDate = () => {
-  const now = new Date();
-  let launch = new Date(now.getFullYear(), 4, 20, 0, 0, 0);
-  if (launch <= now) {
-    launch = new Date(now.getFullYear() + 1, 4, 20, 0, 0, 0);
-  }
-  return launch;
-};
-
-const MotionSpan = motion.span;
-
-const getTimeLeft = () => {
-  const difference = getLaunchDate().getTime() - new Date().getTime();
-  if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-  return {
-    days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-    hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-    minutes: Math.floor((difference / (1000 * 60)) % 60),
-    seconds: Math.floor((difference / 1000) % 60),
-  };
-};
-
-function RollingDigit({ digit }) {
-  const shouldReduceMotion = useReducedMotion();
-
-  if (shouldReduceMotion) {
-    return (
-      <span className="inline-block w-[0.62em] text-center tabular-nums">
-        {digit}
-      </span>
-    );
-  }
-
-  return (
-    <span className="relative inline-block h-[1em] w-[0.62em] overflow-hidden text-center tabular-nums">
-      <AnimatePresence mode="wait" initial={false}>
-        <MotionSpan
-          key={digit}
-          initial={{ y: "100%", opacity: 0 }}
-          animate={{ y: "0%", opacity: 1 }}
-          exit={{ y: "-100%", opacity: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          {digit}
-        </MotionSpan>
-      </AnimatePresence>
-    </span>
-  );
-}
-
-function RollingNumber({ value, minDigits = 2 }) {
-  const paddedValue = String(value).padStart(minDigits, "0");
-  return (
-    <span className="inline-flex items-center tabular-nums">
-      {paddedValue.split("").map((digit, index) => (
-        <RollingDigit key={index} digit={digit} />
-      ))}
-    </span>
-  );
-}
 
 function ChatbotWidget({ forceShow = false }) {
   const { isAuthenticated, session } = useAuth();
@@ -82,8 +19,7 @@ function ChatbotWidget({ forceShow = false }) {
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(getTimeLeft);
+  const [isLoading, setIsLoading] = useState(false);
   const sidebarRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -97,13 +33,6 @@ function ChatbotWidget({ forceShow = false }) {
       scrollToBottom();
     }
   }, [isOpen, messages, scrollToBottom]);
-
-  // Countdown timer
-  useEffect(() => {
-    if (!isLocked) return;
-    const interval = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
-    return () => clearInterval(interval);
-  }, [isLocked]);
 
   // Handle click outside to close
   useEffect(() => {
@@ -160,31 +89,79 @@ function ChatbotWidget({ forceShow = false }) {
     setTimeout(() => setIsAnimating(false), 300);
   };
 
-  // Handle sending a message (mock)
-  const handleSend = () => {
-    if (isLocked || !inputValue.trim()) return;
+  // Handle sending a message to n8n webhook
+  const handleSend = async () => {
+    if (isLoading || !inputValue.trim()) return;
 
+    const userMessageText = inputValue.trim();
+    const userMessageId = Date.now();
+
+    // Add user message to chat
     const userMessage = {
-      id: Date.now(),
+      id: userMessageId,
       role: "user",
-      content: inputValue.trim(),
+      content: userMessageText,
       timestamp: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
+    setIsLoading(true);
 
-    // Mock assistant response
-    setTimeout(() => {
+    try {
+      const webhookUrl = import.meta.env.VITE_N8N_CHATBOT_WEBHOOK_URL ||
+                        "https://amrokasha.app.n8n.cloud/webhook/9fb07c13-e0a6-4472-86a5-ce3b431e44b1";
+
+      console.log("Sending to n8n:", userMessageText);
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessageText,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("n8n response:", data);
+
+      // Use data.reply as bot message - only reply field, no fallbacks
+      const botReply = data?.reply;
+
+      if (!botReply) {
+        throw new Error("No reply field in response");
+      }
+
       const assistantMessage = {
         id: Date.now() + 1,
         role: "assistant",
-        content: `Thanks for your message${userName ? `, ${userName}` : ""}! The chatbot integration is coming soon.`,
+        content: botReply,
         timestamp: new Date().toISOString(),
       };
+
       setMessages((prev) => [...prev, assistantMessage]);
-      setIsLocked(true);
-    }, 1000);
+    } catch (err) {
+      console.error("Chatbot webhook error:", err);
+
+      // Show friendly error message
+      const errorMessage = {
+        id: Date.now() + 1,
+        role: "assistant",
+        content: "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
+        timestamp: new Date().toISOString(),
+        isError: true,
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle input keydown (Enter to send)
@@ -300,24 +277,10 @@ function ChatbotWidget({ forceShow = false }) {
 
         {/* Footer / Input Area */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-gray-700/50 bg-[#0f172a]/95 px-6 py-4 backdrop-blur-xl">
-          {isLocked ? (
-            <div className="flex flex-col items-center justify-center px-4 py-6">
-              <div className="mb-4 flex flex-col items-center">
-                <p className="text-center text-[10px] font-medium uppercase leading-tight tracking-widest text-gray-400">
-                  LAUNCHING<br />MAY 20TH
-                </p>
-                <div className="mt-3 h-10 w-px bg-gray-500/50" />
-              </div>
-              <div className="flex items-center justify-center gap-1 font-light leading-none text-gray-100">
-                <span className="text-[clamp(36px,8vw,64px)]"><RollingNumber value={timeLeft.days} /></span>
-                <span className="text-[clamp(36px,8vw,64px)] text-[#ff2d3d]">:</span>
-                <span className="text-[clamp(36px,8vw,64px)]"><RollingNumber value={timeLeft.hours} /></span>
-                <span className="text-[clamp(36px,8vw,64px)] text-[#ff2d3d]">:</span>
-                <span className="text-[clamp(36px,8vw,64px)]"><RollingNumber value={timeLeft.minutes} /></span>
-                <span className="text-[clamp(36px,8vw,64px)] text-[#ff2d3d]">:</span>
-                <span className="text-[clamp(36px,8vw,64px)]"><RollingNumber value={timeLeft.seconds} /></span>
-              </div>
-              
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 px-4 py-3 text-gray-400">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-[#0B6B63]" />
+              <span className="text-sm">AI is thinking...</span>
             </div>
           ) : (
             <div className="flex items-center gap-3">
@@ -332,7 +295,7 @@ function ChatbotWidget({ forceShow = false }) {
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() || isLoading}
                 className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0B6B63] text-white transition hover:bg-[#0d9488] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Send message"
               >
