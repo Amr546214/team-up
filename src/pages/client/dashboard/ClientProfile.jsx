@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../../components/common/Header";
+import ClientSidebar from "../../../components/common/ClientSidebar";
+
 import {
   getAccessToken,
   saveUserProfile,
@@ -528,9 +530,12 @@ const apiRequest = async (endpoint, options = {}) => {
   return (
     <>
       <Header profileImage={formData.photo} />
-
-      <div className="min-h-screen bg-[#F5FAFA] px-4 sm:px-6 py-6 sm:py-10 mt-[72px]">
-        <div className="w-full max-w-[980px] mx-auto bg-white rounded-[12px] border border-[#E5E7EB] p-4 sm:p-6 md:p-9">
+  
+      <div className="min-h-screen bg-[#F5FAFA] pt-[64px]">
+        <ClientSidebar />
+  
+        <main className="ml-[240px] px-4 sm:px-6 py-6 sm:py-10">
+          <div className="w-full max-w-[980px] mx-auto bg-white rounded-[12px] border border-[#E5E7EB] p-4 sm:p-6 md:p-9">
           <h1 className="text-[18px] font-semibold text-[#111827]">
             Personal Information
           </h1>
@@ -1032,9 +1037,10 @@ const apiRequest = async (endpoint, options = {}) => {
             </div>
           </div>
         </div>
-      </div>
-    </>
-  );
+      </main>
+    </div>
+  </>
+);
 }
 
 export default ClientProfile;

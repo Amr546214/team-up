@@ -303,7 +303,7 @@ function DeveloperDashboard() {
                 <h2 className="text-[18px] font-bold text-[#111827]">Active Projects</h2>
 
                 <Link
-                  to="/developer/project/1"
+                  to="/developer/project/1/dashboard"
                   className="h-[40px] px-4 rounded-[10px] border border-[#E5E7EB] text-[#0B6F6C] text-[14px] font-medium hover:bg-[#F8FAFC] transition inline-flex items-center justify-center"
                 >
                   View All
@@ -317,7 +317,7 @@ function DeveloperDashboard() {
                   return (
                     <div
                       key={project.id}
-                      onClick={() => navigate(`/developer/project/${project.id}`)}
+                      onClick={() => navigate(`/developer/project/${project.id}/dashboard`)}
                       className="border border-[#E5E7EB] rounded-[12px] p-4"
                     >
                       <div className="flex items-center justify-between mb-4">

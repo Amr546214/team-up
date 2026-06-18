@@ -18,6 +18,7 @@ import DeveloperDashboard from "../pages/developer/dashboard/DeveloperDashboard"
 import DevProfile from "../pages/developer/dashboard/DevProfile";
 import ProjectsList from "../pages/developer/ProjectsList";
 import DeveloperProjectDetails from "../pages/developer/DeveloperProjectDetails";
+import DeveloperProjectDashboard from "../pages/developer/DeveloperProjectDashboard";
 import JobDetails from "../pages/developer/jobs/JobDetails";
 import CompleteProfile from "../pages/developer/CompleteProfile";
 import Applications from "../pages/developer/Applications";
@@ -61,7 +62,7 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public routes - Real app for Netlify and localhost */}
-      <Route path="/" element={<Home/>} />
+      <Route path="/" element={<DeveloperProjectDashboard/>} />
       <Route path="/deployment" element={<DeploymentPage />} />
       <Route path="/under-deployment" element={<DeploymentPage />} />
 
@@ -84,6 +85,7 @@ function AppRoutes() {
           <Route path="/developer/projects" element={<ProjectsList />} />
           <Route path="/developer/applications" element={<Applications />} />
           <Route path="/developer/project/:id" element={<DeveloperProjectDetails />} />
+          <Route path="/developer/project/:id/dashboard" element={<DeveloperProjectDashboard />} />
           <Route path="/developer/jobs/:id" element={<JobDetails />} />
           <Route path="/developer/jobs/:id/apply" element={<JobDetails />} />
           <Route path="/developer/proposals/:id" element={<DeveloperProjectDetails />} />

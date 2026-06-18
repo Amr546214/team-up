@@ -11,138 +11,107 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
-  RefreshCw,
+  Loader2,
 } from "lucide-react";
 
-const API_BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
-const PREVIEW_LIMIT = 4;
+const BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
 
-const getToken = () =>
-  localStorage.getItem("teamup_access_token") ||
-  localStorage.getItem("accessToken") ||
-  localStorage.getItem("token");
-
-const apiRequest = async (endpoint, options = {}) => {
-  const token = getToken();
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-
-  let data = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data?.message || data?.error_message || data?.error || "Request failed"
-    );
-  }
-
-  return data;
-};
-
-const normalizeApplicantPreview = (item = {}) => ({
-  id: item.applicationId,
-  applicationId: item.applicationId,
-  name: item.developer?.name || "Unknown Developer",
-  role: item.developer?.profile?.title || item.developer?.title || "Developer",
-  status: item.status || "pending",
-  appliedDate: item.submittedAt
-    ? new Date(item.submittedAt).toLocaleDateString()
-    : item.appliedDate || "Recently",
-});
+function getToken() {
+  return (
+    localStorage.getItem("teamup_access_token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("token")
+  );
+}
 
 function ClientJobDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  /* =========================
-     Fake API Data (Data only)
-  ========================== */
-  const [job] = useState({
-    id: id || "1",
-    title: "Senior React Developer",
-    status: "active",
-    type: "Full-Time",
-    workMode: "Remote",
-    location: "Remote",
-    salary: "$80K - $120K",
-    posted: "5 days ago",
-    deadline: "Mar 15, 2026",
-    description:
-      "We are looking for a senior React developer to lead our frontend team. You will be responsible for building scalable, maintainable UI components, mentoring junior developers, and collaborating closely with the design and backend teams.",
-    requirements: "5+ years of React experience, TypeScript, state management (Redux/Zustand), testing frameworks.",
-    skills: ["React", "TypeScript", "Tailwind CSS", "Redux", "Jest"],
+  const [job, setJob] = useState(null);
+  const [applicants, setApplicants] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const normalizeJob = (data) => {
+    return {
+      id: data.jobId || data.id,
+      title: data.title || "Untitled Job",
+      status: data.status || "active",
+      type: data.workType || data.jobType || "Full-Time",
+      workMode: data.workMode || data.location || "Remote",
+      location: data.location || data.workMode || "Remote",
+      salary: data.budgetLabel || (data.budget ? `$${data.budget}` : "N/A"),
+      posted: data.posted || (data.createdAt ? new Date(data.createdAt).toLocaleDateString() : "Recently"),
+      deadline: data.deadline || "Not specified",
+      description: data.description || "",
+      requirements: data.requirements || "No specific requirements listed.",
+      skills: Array.isArray(data.skills) ? data.skills : [],
+    };
+  };
+
+  const normalizeApplicant = (item) => ({
+    id: item.applicationId,
+    name: item.developer?.name || "Unknown Developer",
+    role: item.developer?.profile?.title || "Developer",
+    status: item.status || "new",
+    rating: item.developer?.rankScore || 0,
+    appliedDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "Recently",
   });
 
-  const [applicants, setApplicants] = useState([]);
-  const [applicantsLoading, setApplicantsLoading] = useState(true);
-  const [applicantsError, setApplicantsError] = useState("");
-  const [totalApplicants, setTotalApplicants] = useState(0);
-
-  const fetchApplicants = useCallback(async () => {
-    if (!id) {
-      setApplicants([]);
-      setTotalApplicants(0);
-      setApplicantsError("Missing job id");
-      setApplicantsLoading(false);
-      return;
-    }
-
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setApplicantsLoading(true);
-      setApplicantsError("");
+      const token = getToken();
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
 
-      const data = await apiRequest(
-        `/project/jobs/my-posts/${id}/applicants?page=1&limit=${PREVIEW_LIMIT}`
-      );
+      // Fetch Job Details
+      const jobRes = await fetch(`${BASE_URL}/project/jobs/my-posts/${id}`, { headers });
+      const jobResult = await jobRes.json().catch(() => null);
 
-      const payload = data?.data || {};
-      const list = payload?.applicants || [];
+      if (!jobRes.ok) {
+        throw new Error(jobResult?.message || "Failed to load job details");
+      }
+      setJob(normalizeJob(jobResult?.data || jobResult));
 
-      setApplicants(list.map(normalizeApplicantPreview));
-      setTotalApplicants(
-        payload?.pagination?.totalCount ??
-          payload?.stats?.totalApplicants ??
-          payload?.stats?.totalPending ??
-          list.length
-      );
+      // Fetch Applicants (limited to 5 for summary)
+      const appRes = await fetch(`${BASE_URL}/project/jobs/my-posts/${id}/applicants?limit=5`, { headers });
+      const appResult = await appRes.json().catch(() => null);
+
+      if (appRes.ok) {
+        const appList = appResult?.data?.applicants || appResult?.applicants || [];
+        setApplicants(appList.map(normalizeApplicant));
+      }
     } catch (err) {
-      console.error("Failed to load applicants preview:", err);
-      setApplicants([]);
-      setTotalApplicants(0);
-      setApplicantsError(err.message || "Failed to load applicants");
+      console.error("Error fetching job details:", err);
+      setError(err.message);
     } finally {
-      setApplicantsLoading(false);
+      setIsLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    fetchApplicants();
-  }, [fetchApplicants]);
+    if (id) {
+      fetchData();
+    }
+  }, [id, fetchData]);
 
   /* =========================
      UI Logic
   ========================== */
   const getJobStatusStyle = (status) => {
-    return status === "active"
+    const s = status?.toLowerCase();
+    return s === "active" || s === "open"
       ? { bg: "bg-[#EAF8EE]", text: "text-[#22C55E]", dot: "bg-[#22C55E]", label: "Active" }
       : { bg: "bg-[#F3F4F6]", text: "text-[#6B7280]", dot: "bg-[#9CA3AF]", label: "Closed" };
   };
 
   const getApplicantStatusStyle = (status) => {
-    switch ((status || "").toLowerCase()) {
-      case "accepted":
+    const s = status?.toLowerCase();
+    switch (s) {
       case "shortlisted":
         return { bg: "bg-[#EAF8EE]", text: "text-[#22C55E]", icon: CheckCircle2 };
       case "pending":
@@ -152,10 +121,61 @@ function ClientJobDetails() {
         return { bg: "bg-[#FEF3C7]", text: "text-[#D97706]", icon: CalendarDays };
       case "rejected":
         return { bg: "bg-[#FEE2E2]", text: "text-[#DC2626]", icon: XCircle };
+      case "accepted":
+        return { bg: "bg-[#EAF8EE]", text: "text-[#22C55E]", icon: CheckCircle2 };
       default:
         return { bg: "bg-[#F3F4F6]", text: "text-[#6B7280]", icon: Clock };
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F5F9F9] flex flex-col">
+        <Header />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="w-10 h-10 text-[#0B6F6C] animate-spin" />
+          <p className="text-[#6B7280] font-medium">Loading job details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#F5F9F9] flex flex-col">
+        <Header />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <div className="bg-red-50 text-red-600 px-6 py-4 rounded-2xl border border-red-100 max-w-md text-center">
+            <h3 className="font-bold text-lg mb-1">Failed to load job</h3>
+            <p className="text-sm opacity-90">{error}</p>
+          </div>
+          <button
+            onClick={fetchData}
+            className="px-6 h-11 bg-[#0B6F6C] text-white rounded-xl font-medium hover:bg-[#095c5a] transition"
+          >
+            Retry Loading
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-[#F5F9F9] flex flex-col">
+        <Header />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p className="text-[#6B7280] font-medium">Job not found</p>
+          <button
+            onClick={() => navigate("/client/my-jobs")}
+            className="px-6 h-11 bg-[#0B6F6C] text-white rounded-xl font-medium"
+          >
+            Back to My Jobs
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const statusStyle = getJobStatusStyle(job.status);
 
@@ -210,19 +230,23 @@ function ClientJobDetails() {
                 </div>
 
                 <h2 className="text-[18px] font-bold text-[#111827] mb-3">Description</h2>
-                <p className="text-[15px] leading-7 text-[#6B7280]">{job.description}</p>
+                <p className="text-[15px] leading-7 text-[#6B7280] whitespace-pre-wrap">{job.description}</p>
 
                 <h2 className="text-[18px] font-bold text-[#111827] mt-6 mb-3">Requirements</h2>
-                <p className="text-[15px] leading-7 text-[#6B7280]">{job.requirements}</p>
+                <p className="text-[15px] leading-7 text-[#6B7280] whitespace-pre-wrap">{job.requirements}</p>
 
-                <h2 className="text-[18px] font-bold text-[#111827] mt-6 mb-3">Required Skills</h2>
-                <div className="flex flex-wrap gap-2">
-                  {job.skills.map((skill) => (
-                    <span key={skill} className="px-4 py-2 rounded-xl bg-[#F3F4F6] text-[14px] text-[#4B5563] font-medium">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
+                {job.skills && job.skills.length > 0 && (
+                  <>
+                    <h2 className="text-[18px] font-bold text-[#111827] mt-6 mb-3">Required Skills</h2>
+                    <div className="flex flex-wrap gap-2">
+                      {job.skills.map((skill) => (
+                        <span key={skill} className="px-4 py-2 rounded-xl bg-[#F3F4F6] text-[14px] text-[#4B5563] font-medium">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -231,47 +255,18 @@ function ClientJobDetails() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[18px] font-bold text-[#111827]">
                   <Users size={18} className="inline mr-2 text-[#0B6F6C]" />
-                  Applicants ({applicantsLoading ? "..." : totalApplicants})
+                  {/* Applicants ({applicantsLoading ? "..." : totalApplicants}) */}
                 </h2>
               </div>
 
-              {applicantsLoading && (
-                <div className="rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] px-4 py-8 text-center text-sm text-[#6B7280]">
-                  Loading applicants...
-                </div>
-              )}
-
-              {!applicantsLoading && applicantsError && (
-                <div className="rounded-xl bg-[#FEF2F2] border border-[#FECACA] px-4 py-4 text-center">
-                  <p className="text-sm text-[#DC2626] mb-3">{applicantsError}</p>
-                  <button
-                    type="button"
-                    onClick={fetchApplicants}
-                    className="inline-flex items-center gap-2 h-9 px-4 rounded-lg bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition"
-                  >
-                    <RefreshCw size={14} />
-                    Retry
-                  </button>
-                </div>
-              )}
-
-              {!applicantsLoading && !applicantsError && applicants.length === 0 && (
-                <div className="rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] px-4 py-8 text-center text-sm text-[#6B7280]">
-                  No applicants yet
-                </div>
-              )}
-
-              {!applicantsLoading && !applicantsError && applicants.length > 0 && (
-                <div className="space-y-3">
-                  {applicants.map((applicant) => {
+              <div className="space-y-3">
+                {applicants.length > 0 ? (
+                  applicants.map((applicant) => {
                     const aStyle = getApplicantStatusStyle(applicant.status);
                     const StatusIcon = aStyle.icon;
 
                     return (
-                      <div
-                        key={applicant.applicationId || applicant.id}
-                        className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]"
-                      >
+                      <div key={applicant.id} className="p-3 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB]">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-[#D9D9D9] shrink-0" />
@@ -281,9 +276,7 @@ function ClientJobDetails() {
                             </div>
                           </div>
 
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${aStyle.bg} ${aStyle.text}`}
-                          >
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium capitalize ${aStyle.bg} ${aStyle.text}`}>
                             <StatusIcon size={10} />
                             {applicant.status}
                           </span>
@@ -292,7 +285,6 @@ function ClientJobDetails() {
                         <div className="flex items-center justify-between mt-2 text-[12px] text-[#9CA3AF]">
                           <span>{applicant.appliedDate}</span>
                           <button
-                            type="button"
                             onClick={() => navigate(`/client/job/${id}/applicants`)}
                             className="text-[#0B6F6C] font-medium flex items-center gap-1 hover:underline"
                           >
@@ -302,15 +294,20 @@ function ClientJobDetails() {
                         </div>
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                ) : (
+                  <div className="text-center py-6">
+                    <Users size={32} className="mx-auto text-[#D1D5DB] mb-2" />
+                    <p className="text-sm text-[#9CA3AF]">No applicants yet</p>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
                 onClick={() => navigate(`/client/job/${id}/applicants`)}
                 className="w-full mt-4 h-10 rounded-xl bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition disabled:opacity-60 disabled:cursor-not-allowed"
-                disabled={applicantsLoading}
+                // disabled={applicantsLoading}
               >
                 View Applicants
               </button>
