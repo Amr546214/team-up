@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Briefcase,
@@ -7,19 +7,39 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
 } from "lucide-react";
 import { NavLink, Link } from "react-router-dom";
-// import teamupLogo from "../../assets/logo/teamup-logo.png";
+import { getUserProfile } from "../../utils/authStorage";
 
 function ClientSidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [profile, setProfile] = useState(() => getUserProfile());
 
-  const clientData = {
-    name: "Client Account",
-    type: "Business Owner",
-    initials: "CA",
-  };
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      setProfile(getUserProfile());
+    };
+
+    window.addEventListener("teamup-auth-changed", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("teamup-auth-changed", handleProfileUpdate);
+    };
+  }, []);
+
+  const clientName = profile?.name || "Client Account";
+  const clientAvatar = profile?.avatarUrl || "";
+  const clientType = "Business Owner";
+
+  const initials =
+    clientName
+      .split(" ")
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "CA";
 
   const menuItems = [
     {
@@ -61,7 +81,6 @@ function ClientSidebar() {
       }`}
     >
       <div className="relative h-full flex flex-col">
-        {/* Collapse Button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute -right-3 top-5 w-6 h-6 rounded-full bg-white border border-[#E5E7EB] flex items-center justify-center shadow-sm hover:bg-[#F8FAFC] transition z-10"
@@ -74,7 +93,6 @@ function ClientSidebar() {
         </button>
 
         <div className="pt-6">
-          {/* Menu */}
           <div className="px-3 space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -93,12 +111,18 @@ function ClientSidebar() {
                     }`
                   }
                 >
-                  <Icon size={20} strokeWidth={isActive => isActive ? 2.5 : 2} className="shrink-0" />
+                  {({ isActive }) => (
+                    <>
+                      <Icon
+                        size={20}
+                        strokeWidth={isActive ? 2.5 : 2}
+                        className="shrink-0"
+                      />
 
-                  {!isCollapsed && (
-                    <span className="text-[14px]">
-                      {item.name}
-                    </span>
+                      {!isCollapsed && (
+                        <span className="text-[14px]">{item.name}</span>
+                      )}
+                    </>
                   )}
                 </NavLink>
               );
@@ -106,7 +130,6 @@ function ClientSidebar() {
           </div>
         </div>
 
-        {/* Client Info */}
         <div className="px-3 pb-6 mt-auto">
           <Link
             to="/client/profile"
@@ -114,21 +137,29 @@ function ClientSidebar() {
               isCollapsed ? "justify-center" : "gap-3"
             }`}
           >
-            <div className="w-[36px] h-[36px] rounded-full bg-[#0B6F6C] shrink-0 flex items-center justify-center text-[12px] font-bold text-white shadow-sm">
-              {clientData.initials}
+            <div className="w-[36px] h-[36px] rounded-full bg-[#0B6F6C] shrink-0 overflow-hidden flex items-center justify-center text-[12px] font-bold text-white shadow-sm">
+              {clientAvatar ? (
+                <img
+                  src={clientAvatar}
+                  alt={clientName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                initials
+              )}
             </div>
 
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
                 <h4 className="text-[13px] font-semibold text-[#374151] leading-none truncate">
-                  {clientData.name}
+                  {clientName}
                 </h4>
                 <p className="text-[11px] text-[#9CA3AF] mt-1 truncate">
-                  {clientData.type}
+                  {clientType}
                 </p>
               </div>
             )}
-            
+
             {!isCollapsed && (
               <ArrowRight size={14} className="text-[#D1D5DB]" />
             )}

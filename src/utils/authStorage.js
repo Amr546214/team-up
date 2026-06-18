@@ -120,7 +120,7 @@ export function dispatchAuthChanged() {
 export function getDashboardPath(role) {
   switch (role) {
     case "client":
-      return "/client/profile";
+      return "/client/dashboard";
     case "developer":
       return "/developer/dashboard";
     case "company":

@@ -1,11 +1,13 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../../components/common/Header";
 import ClientSidebar from "../../components/common/ClientSidebar";
 import { Users, Sparkles, Zap, ArrowLeft } from "lucide-react";
 
 const BuildTeamOptions = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+const publishedJob = location.state?.job;
 
   const options = [
     {
@@ -71,7 +73,14 @@ const BuildTeamOptions = () => {
                     {option.description}
                   </p>
                   <button
-                    onClick={() => navigate(option.path)}
+onClick={() =>
+  navigate(option.path, {
+    state: {
+      job: publishedJob,
+      source: "build-team-options",
+    },
+  })
+}
                     className="w-full py-3 px-4 bg-[#0B6F6C] text-white rounded-xl font-semibold hover:bg-[#095c5a] transition duration-200"
                   >
                     {option.buttonText}
