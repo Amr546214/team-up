@@ -235,8 +235,16 @@ const buildPayload = () => ({
       const apiJob = data?.job || data;
       const newJob = normalizeJobForModal(apiJob);
 
-      console.log("[PostNewJob] Published job:", newJob);
-      setPublishedJob(newJob);
+      // console.log("[PostNewJob] Published job:", newJob);
+      // setPublishedJob(newJob);
+console.log("[PostNewJob] Published job:", newJob);
+
+navigate("/client/build-team", {
+  state: {
+    source: "post-new-job",
+    job: newJob,
+  },
+});
     } catch (error) {
       console.error("[PostNewJob] Publish failed:", error);
       alert(error.message || "Publish failed");
