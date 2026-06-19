@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../../components/common/Header";
 import {
   ArrowLeft,
@@ -14,8 +14,18 @@ import {
 
 const BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
 
-function ManualBuildTeam() {
+const ManualBuildTeam = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  console.log("MANUAL location.state:", location.state);
+  console.log("MANUAL job:", location.state?.job);
+  console.log(
+    "MANUAL jobId:",
+    location.state?.job?.jobId || location.state?.job?.id
+  );
+  const job = location.state?.job;
+  const jobId = job?.jobId || job?.id;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSkill, setSelectedSkill] = useState("");
@@ -24,14 +34,17 @@ function ManualBuildTeam() {
   const [showFilters, setShowFilters] = useState(false);
 
   const [developers, setDevelopers] = useState([]);
+  const [allApplicants, setAllApplicants] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const token = localStorage.getItem("teamup_access_token");
   const role = localStorage.getItem("teamup_user_role") || "client";
   const apiRole = role === "company" ? "company" : "client";
 
   const getDevId = (dev) =>
+    dev?.applicationId ||
     dev?._id ||
     dev?.userId ||
     dev?.developerId ||
@@ -49,45 +62,105 @@ function ManualBuildTeam() {
     try {
       setLoading(true);
 
-      const selectedDeveloperIds = selectedMembers
-        .map((dev) => getDevId(dev))
-        .filter(Boolean)
-        .join(",");
+      if (jobId) {
+        const res = await fetch(
+          `${BASE_URL}/project/jobs/my-posts/${jobId}/applicants?page=1&limit=3`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        const data = await res.json();
 
-      const params = new URLSearchParams({
-        page: "1",
-        limit: "10",
-        search: searchQuery,
-        skill: selectedSkill,
-        rank: selectedRank,
-        availability,
-        selectedDeveloperIds,
-      });
-
-      const res = await fetch(
-        `${BASE_URL}/${apiRole}/team-builder/developers?${params}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        if (!res.ok) {
+          console.error("Failed to fetch applicants:", data);
+          setDevelopers([]);
+          setAllApplicants([]);
+          return;
         }
-      );
 
-      const data = await res.json();
+        const fetched = data?.data?.applicants || data?.applicants || [];
+        let list = fetched.map((item) => ({
+          applicationId: item.applicationId,
+          _id: item.applicationId,
+          name: item.developer?.name || "Unknown Developer",
+          role: item.developer?.profile?.title || item.developer?.title || "Developer",
+          skills: item.developer?.skills || [],
+          rating: item.developer?.rankScore || 0,
+          rank: item.developer?.rank || "Bronze",
+          hourlyRate: `$${item.proposedBudget || 0}/hr`,
+          availability: "available",
+          available: true,
+          avatar: item.developer?.profilePicture || item.developer?.avatar || "",
+          developer: item.developer,
+        }));
 
-      if (!res.ok) {
-        console.error("Failed developers response:", data);
-        setDevelopers([]);
-        return;
+        setAllApplicants(list);
+
+        // Apply filters locally
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase().trim();
+          list = list.filter(
+            (dev) =>
+              dev.name.toLowerCase().includes(query) ||
+              dev.role.toLowerCase().includes(query) ||
+              dev.skills.some((s) => s.toLowerCase().includes(query))
+          );
+        }
+        if (selectedSkill.trim()) {
+          const skillQuery = selectedSkill.toLowerCase().trim();
+          list = list.filter((dev) =>
+            dev.skills.some((s) => s.toLowerCase().includes(skillQuery))
+          );
+        }
+        if (selectedRank) {
+          const rankQuery = selectedRank.toLowerCase();
+          list = list.filter((dev) => dev.rank.toLowerCase() === rankQuery);
+        }
+
+        setDevelopers(list);
+      } else {
+        const selectedDeveloperIds = selectedMembers
+          .map((dev) => getDevId(dev))
+          .filter(Boolean)
+          .join(",");
+
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "10",
+          search: searchQuery,
+          skill: selectedSkill,
+          rank: selectedRank,
+          availability,
+          selectedDeveloperIds,
+        });
+
+        const res = await fetch(
+          `${BASE_URL}/${apiRole}/team-builder/developers?${params}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("Failed developers response:", data);
+          setDevelopers([]);
+          return;
+        }
+
+        const list =
+          data?.data?.developers ||
+          data?.developers ||
+          data?.data ||
+          [];
+
+        setDevelopers(Array.isArray(list) ? list : []);
       }
-
-      const list =
-        data?.data?.developers ||
-        data?.developers ||
-        data?.data ||
-        [];
-
-      setDevelopers(Array.isArray(list) ? list : []);
     } catch (error) {
       console.error("Failed to fetch developers:", error);
       setDevelopers([]);
@@ -125,45 +198,127 @@ function ManualBuildTeam() {
   };
 
   const handleConfirmTeam = async () => {
+    const selectedIds = selectedMembers
+      .map((dev) => getDevId(dev))
+      .filter(Boolean);
+
+    if (selectedIds.length === 0) {
+      alert("Please select developers first");
+      return;
+    }
+
     try {
-      const developerIds = selectedMembers
-        .map((dev) => getDevId(dev))
-        .filter(Boolean);
+      setConfirmLoading(true);
 
-      if (developerIds.length === 0) {
-        alert("Please select developers first");
-        return;
+      if (jobId) {
+        const unselectedIds = allApplicants
+          .map((app) => app.applicationId)
+          .filter((id) => !selectedIds.includes(id));
+
+        console.log("Job-specific build team confirm:");
+        console.log("Selected IDs:", selectedIds);
+        console.log("Unselected IDs:", unselectedIds);
+
+        // 1. PATCH status of selected applicants to "accepted"
+        const acceptPromises = selectedIds.map(async (appId) => {
+          const res = await fetch(
+            `${BASE_URL}/project/jobs/my-posts/${jobId}/applicants/${appId}/status`,
+            {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ status: "accepted" }),
+            }
+          );
+          if (!res.ok) {
+            const errData = await res.json().catch(() => null);
+            throw new Error(errData?.message || `Failed to accept applicant ${appId}`);
+          }
+        });
+
+        // 2. PATCH status of unselected applicants to "rejected"
+        const rejectPromises = unselectedIds.map(async (appId) => {
+          const res = await fetch(
+            `${BASE_URL}/project/jobs/my-posts/${jobId}/applicants/${appId}/status`,
+            {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ status: "rejected" }),
+            }
+          );
+          if (!res.ok) {
+            const errData = await res.json().catch(() => null);
+            throw new Error(errData?.message || `Failed to reject applicant ${appId}`);
+          }
+        });
+
+        // Wait for all PATCH requests
+        await Promise.all([...acceptPromises, ...rejectPromises]);
+
+        // 3. POST /client/job/${jobId}/build-team
+        const buildRes = await fetch(
+          `${BASE_URL}/client/job/${jobId}/build-team`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              applicationIds: selectedIds,
+              closeJob: true,
+              projectTitle: `${job?.title || "Project"} Team`,
+            }),
+          }
+        );
+
+        const buildData = await buildRes.json();
+
+        if (!buildRes.ok) {
+          throw new Error(buildData?.message || "Failed to build team for the project.");
+        }
+
+        alert("Team confirmed successfully");
+        navigate("/client/my-jobs");
+      } else {
+        // Fallback generic team builder confirm flow
+        console.log("Fallback generic build team confirm. IDs:", selectedIds);
+
+        const res = await fetch(`${BASE_URL}/${apiRole}/team-builder/confirm`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            developerIds: selectedIds,
+            closeJob: false,
+            projectTitle: "Frontend Core Team",
+            description: "Team selected manually from Build Your Team page",
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("Confirm failed:", data);
+          alert(data?.message || "Failed to confirm team");
+          return;
+        }
+
+        alert("Team confirmed successfully");
+        console.log("Confirm team:", data);
       }
-
-      console.log("CONFIRM IDS:", developerIds);
-
-      const res = await fetch(`${BASE_URL}/${apiRole}/team-builder/confirm`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          developerIds,
-          closeJob: false,
-          projectTitle: "Frontend Core Team",
-          description: "Team selected manually from Build Your Team page",
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error("Confirm failed:", data);
-        alert(data?.message || "Failed to confirm team");
-        return;
-      }
-
-      alert("Team confirmed successfully");
-      console.log("Confirm team:", data);
     } catch (error) {
       console.error("Failed to confirm team:", error);
-      alert("Something went wrong");
+      alert(error.message || "Something went wrong");
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
@@ -207,10 +362,12 @@ function ManualBuildTeam() {
 
             <div>
               <h1 className="text-[24px] md:text-[28px] font-bold text-[#111827]">
-                Build Your Team
+                {job?.title ? `Build Team for ${job.title}` : "Build Your Team"}
               </h1>
               <p className="text-[14px] text-[#6B7280] mt-1">
-                Search and select developers to build your project team.
+                {job?.title
+                  ? "Search and select applicants to build your project team."
+                  : "Search and select developers to build your project team."}
               </p>
             </div>
           </div>
@@ -477,9 +634,10 @@ function ManualBuildTeam() {
               {selectedMembers.length > 0 && (
                 <button
                   onClick={handleConfirmTeam}
-                  className="w-full mt-5 h-11 rounded-xl bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition"
+                  disabled={confirmLoading}
+                  className="w-full mt-5 h-11 rounded-xl bg-[#0B6F6C] text-white text-sm font-medium hover:bg-[#095c5a] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Confirm Team ({selectedMembers.length} members)
+                  {confirmLoading ? "Confirming..." : `Confirm Team (${selectedMembers.length} members)`}
                 </button>
               )}
             </div>

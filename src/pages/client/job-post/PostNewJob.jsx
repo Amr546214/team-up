@@ -121,8 +121,8 @@ const buildPayload = () => ({
   };
 
   const normalizeJobForModal = (apiJob) => ({
-    id: apiJob?.jobId || Date.now(),
-    jobId: apiJob?.jobId,
+  id: apiJob?.jobId || apiJob?.id || apiJob?._id || Date.now(),
+  jobId: apiJob?.jobId || apiJob?.id || apiJob?._id,
     title: apiJob?.title || jobData.jobTitle,
     location: apiJob?.workMode || "Remote",
     jobType: apiJob?.workType || jobData.workType,
@@ -222,36 +222,37 @@ const buildPayload = () => ({
     }
   };
 
-  const handlePublishJob = async () => {
-    if (isPublishing) return;
-    if (!validate()) return;
+ const handlePublishJob = async () => {
+  if (isPublishing) return;
+  if (!validate()) return;
 
-    setIsPublishing(true);
+  setIsPublishing(true);
 
-    try {
-      const payload = buildPayload();
-      const data = await apiRequest("/project/jobs/publish", payload);
+  try {
+    const payload = buildPayload();
+    const data = await apiRequest("/project/jobs/publish", payload);
 
-      const apiJob = data?.job || data;
-      const newJob = normalizeJobForModal(apiJob);
+    console.log("[PostNewJob] publish response:", data);
 
-      // console.log("[PostNewJob] Published job:", newJob);
-      // setPublishedJob(newJob);
-console.log("[PostNewJob] Published job:", newJob);
+    const apiJob = data?.job || data?.project || data;
+    console.log("[PostNewJob] apiJob:", apiJob);
 
-navigate("/client/build-team", {
-  state: {
-    source: "post-new-job",
-    job: newJob,
-  },
-});
-    } catch (error) {
-      console.error("[PostNewJob] Publish failed:", error);
-      alert(error.message || "Publish failed");
-    } finally {
-      setIsPublishing(false);
-    }
-  };
+    const newJob = normalizeJobForModal(apiJob);
+    console.log("[PostNewJob] normalized newJob:", newJob);
+
+    navigate("/client/build-team", {
+      state: {
+        source: "post-new-job",
+        job: newJob,
+      },
+    });
+  } catch (error) {
+    console.error("[PostNewJob] Publish failed:", error);
+    alert(error.message || "Publish failed");
+  } finally {
+    setIsPublishing(false);
+  }
+};
 
   return (
     <>

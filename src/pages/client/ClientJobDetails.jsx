@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 const API_BASE_URL = "https://team-up-backend-production-6c43.up.railway.app";
@@ -63,7 +64,8 @@ const normalizeJob = (data, id) => {
     requirements: info.requirements || "No requirements available.",
     skills: info.skills || [],
     applicantsPreview: payload.applicants?.preview || [],
-    applicantsTotal: payload.applicants?.total || payload.stats?.numberOfApplicants || 0,
+    applicantsTotal:
+      payload.applicants?.total || payload.stats?.numberOfApplicants || 0,
   };
 };
 
@@ -379,14 +381,9 @@ function ClientJobDetails() {
                         </div>
                       </div>
                     );
-                  })
-                ) : (
-                  <div className="text-center py-6">
-                    <Users size={32} className="mx-auto text-[#D1D5DB] mb-2" />
-                    <p className="text-sm text-[#9CA3AF]">No applicants yet</p>
-                  </div>
-                )}
-              </div>
+                  })}
+                </div>
+              )}
 
               <button
                 type="button"
