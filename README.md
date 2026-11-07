@@ -1,51 +1,48 @@
-# TeamUP <a href="https://team-up-one-pink.vercel.app" target="_blank"> <img src="./src/assets/logo/teamup-logo.png" alt="TeamUP" width="30" height="30" style="vertical-align: middle;" title="TeamUP" > </a>
+# TeamUP
 
-Welcome to **TeamUP**. <br>
-A modern collaboration and events platform built to connect users, developers, companies, events, and opportunities in one interactive experience.
+TeamUP is a graduation project for assembling software teams. It explores how clients find developers, review applications, build a team, and coordinate work after a match.
 
-## Live Preview
+[Open the public preview](https://team-up-one-pink.vercel.app/)
 
-The project is currently under deployment, and the first public preview page is live:
+![TeamUP public landing page](docs/images/preview.webp)
 
-🔗 **[TeamUP Preview](https://team-up-one-pink.vercel.app)**
+## What to explore
 
-## Overview
+| Area | Included in the repository |
+| --- | --- |
+| Hiring and team formation | Client and developer dashboards, job and applicant views, manual team selection, and recommendation screens |
+| Team coordination | Team-leader dashboard, project views, notifications, and chat UI |
+| Platform | Role-based routes, localized UI, Supabase authentication, and realtime chat code |
 
-**TeamUP** is a React-based platform designed to make collaboration, events, and opportunities easier to discover and access.
+The public landing page and skill-quiz screens are a starting point. Some application screens use demo data. The app requires a Supabase URL and client key at startup. Authenticated features also need the matching schema and policies. The optional chatbot needs an n8n webhook.
 
-The platform includes multiple user flows such as:
+## Run locally
 
-- Clients
-- Developers
-- Companies
-- Admins
-
-It also includes interactive features like authentication, event discovery, profile management, quiz-based ranking, notifications, map-based event browsing, and an AI chatbot experience.
-
-## Tech Stack
-
-| Technology | Usage |
-| ---------- | ----- |
-| **React** | Frontend user interface |
-| **Vite** | Development server and build tool |
-| **Tailwind CSS** | Styling and responsive design |
-| **React Router** | Client-side routing |
-| **Framer Motion** | Animations and UI transitions |
-| **Supabase** | Chat memory and backend storage |
-| **n8n** | Chatbot workflow automation |
-| **Vercel** | Deployment and public preview hosting |
-
-## Project Structure
+Use Node.js 22.12+ and npm.
 
 ```bash
-src/
-├── assets/              # Images, logos, icons, and static assets
-├── components/          # Reusable UI components
-├── pages/               # Application pages
-│   ├── public/          # Public pages such as DeploymentPage
-│   └── auth/            # Authentication-related pages
-├── routes/              # Main application routing
-├── hooks/               # Custom React hooks
-├── context/             # Global state and providers
-├── utils/               # Helper functions and utilities
-└── styles/              # Global styles if available
+npm ci
+```
+
+Before starting the app, add `.env.local` with values from a development project.
+
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-or-publishable-key
+VITE_N8N_CHATBOT_WEBHOOK_URL=
+```
+
+The checked-in [SQL migrations](supabase/migrations/) are incremental changes for chat and Realtime. Set up the existing application schema and its policies before using them on a new environment. The [Express prototype](backend/) is separate from the Vite frontend.
+
+```bash
+npm run dev
+npm run build
+npm run lint
+```
+
+## Code map
+
+- [`src/routes/`](src/routes/) defines public and role-based routes.
+- [`src/pages/`](src/pages/) contains hiring, collaboration, and dashboard screens.
+- [`src/features/chat/`](src/features/chat/) contains chat, reactions, and call UI.
+- [`src/lib/`](src/lib/) contains Supabase integration.
